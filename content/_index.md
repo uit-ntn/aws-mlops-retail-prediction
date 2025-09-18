@@ -50,6 +50,52 @@ pre: "<b>0. </b>"
   <p style="color: #64748b; font-size: 16px; margin: 0 0 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
     End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization
   </p>
+  
+  <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left; border: 1px solid #cbd5e1;">
+    <h4 style="margin: 0 0 15px 0; color: #1e293b; text-align: center;">📁 Project Structure Thực Tế</h4>
+    <pre style="background: #1e293b; color: #f8fafc; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.4;">
+retail-forecast/
+├── README.md                    # Project overview & setup guide
+├── .gitignore                   # Git ignore patterns
+├── aws/                         # AWS-specific configurations
+│   ├── .travis.yml              # Travis CI configuration
+│   ├── Jenkinsfile              # Jenkins pipeline configuration
+│   ├── infra/                   # Terraform infrastructure
+│   │   ├── main.tf              # Main infrastructure config
+│   │   ├── variables.tf         # Input variables
+│   │   └── output.tf            # Output values
+│   ├── k8s/                     # Kubernetes manifests
+│   │   ├── deployment.yaml      # Application deployment
+│   │   ├── service.yaml         # Service configuration
+│   │   ├── hpa.yaml             # Horizontal Pod Autoscaler
+│   │   └── namespace.yaml       # Namespace definition
+│   └── script/                  # Automation scripts
+│       ├── create_training_job.py    # SageMaker training job
+│       ├── register_model.py         # Model registry script
+│       ├── deploy_endpoint.py        # Model deployment
+│       └── autoscaling_endpoint.py   # Auto-scaling setup
+├── azure/                       # Azure-specific configurations
+│   ├── azure-pipelines.yml      # Azure DevOps pipeline
+│   ├── aml/                     # Azure ML configurations
+│   │   ├── train-job.yml        # Training job definition
+│   │   ├── train.Dockerfile     # Training container
+│   │   └── infer.Dockerfile     # Inference container
+│   ├── infra/                   # Bicep infrastructure
+│   │   └── main.bicep           # Azure infrastructure
+│   └── k8s/                     # AKS manifests
+│       ├── deployment.yaml      # Application deployment
+│       ├── service.yaml         # Service configuration
+│       └── hpa.yaml             # Horizontal Pod Autoscaler
+├── core/                        # Shared ML core modules
+│   └── requirements.txt         # Core Python dependencies
+├── server/                      # Inference API server
+│   ├── DockerFile               # Container definition
+│   ├── requirements.txt         # Server dependencies
+│   └── Readme.md                # Server documentation
+└── tests/                       # Test suites
+    └── (test files)             # Unit & integration tests
+    </pre>
+  </div>
   <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
     <div style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🏗️ Infrastructure</div>
     <div style="background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🤖 ML Training</div>
@@ -61,6 +107,57 @@ pre: "<b>0. </b>"
 </div>
 <p style="text-align: center; color: #64748b; font-size: 18px; margin-bottom: 40px;">16 bước thực hành MLOps được thiết kế theo quy trình production-ready</p>
 
+<div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #0284c7; border-left: 6px solid #0284c7; padding: 25px; margin: 30px 0; border-radius: 12px;">
+  <h3 style="margin: 0 0 20px 0; color: #0c4a6e; display: flex; align-items: center; gap: 12px; font-size: 1.4rem;">
+    <span style="background: #0284c7; color: white; padding: 8px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">📋</span>
+    Quy trình Implementation theo cấu trúc thực tế
+  </h3>
+  
+  <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+      <h4 style="margin: 0 0 10px 0; color: #1e40af;">Phase 1: Infrastructure Setup (Tasks 1-5)</h4>
+      <ul style="margin: 0; padding-left: 20px; color: #1e40af;">
+        <li>Tạo và configure <code>aws/infra/</code> với Terraform files</li>
+        <li>Setup VPC, subnets, security groups trong <code>main.tf</code></li>
+        <li>Configure IAM roles và policies trong <code>variables.tf</code></li>
+        <li>Deploy EKS cluster và managed node groups</li>
+      </ul>
+    </div>
+    
+    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
+      <h4 style="margin: 0 0 10px 0; color: #047857;">Phase 2: ML Pipeline (Tasks 6-9)</h4>
+      <ul style="margin: 0; padding-left: 20px; color: #047857;">
+        <li>Setup ECR registry cho container images</li>
+        <li>Implement <code>aws/script/create_training_job.py</code> cho SageMaker</li>
+        <li>Configure <code>aws/script/register_model.py</code> cho model registry</li>
+        <li>Setup S3 buckets cho data storage trong core modules</li>
+      </ul>
+    </div>
+    
+    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
+      <h4 style="margin: 0 0 10px 0; color: #6d28d9;">Phase 3: Container Deployment (Tasks 10-12)</h4>
+      <ul style="margin: 0; padding-left: 20px; color: #6d28d9;">
+        <li>Build inference API trong <code>server/</code> với FastAPI</li>
+        <li>Create <code>server/DockerFile</code> cho containerization</li>
+        <li>Deploy với <code>aws/k8s/deployment.yaml</code> và <code>service.yaml</code></li>
+        <li>Configure HPA trong <code>aws/k8s/hpa.yaml</code></li>
+        <li>Implement <code>aws/script/deploy_endpoint.py</code></li>
+      </ul>
+    </div>
+    
+    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+      <h4 style="margin: 0 0 10px 0; color: #b91c1c;">Phase 4: CI/CD & Monitoring (Tasks 13-16)</h4>
+      <ul style="margin: 0; padding-left: 20px; color: #b91c1c;">
+        <li>Setup Jenkins pipeline với <code>aws/Jenkinsfile</code></li>
+        <li>Configure Travis CI với <code>aws/.travis.yml</code></li>
+        <li>Implement CloudWatch monitoring và alerting</li>
+        <li>Setup testing framework trong <code>tests/</code></li>
+        <li>Configure <code>aws/script/autoscaling_endpoint.py</code></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px; margin: 25px 0;">
   
   <div style="border: 2px solid #3b82f6; padding: 25px; border-radius: 16px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.1); transition: transform 0.3s ease;">
@@ -71,7 +168,7 @@ pre: "<b>0. </b>"
     <ul style="margin: 0; padding-left: 0; list-style: none;">
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/1-introduction/" style="color: #1e40af; text-decoration: none;">MLOps architecture overview & objectives</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/2-vpc-networking/" style="color: #1e40af; text-decoration: none;">VPC, subnets, NAT, security groups</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/3-iam-roles/" style="color: #1e40af; text-decoration: none;">IAM roles & IRSA configuration</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/3-iam-roles-irsa/" style="color: #1e40af; text-decoration: none;">IAM roles & IRSA configuration</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/4-eks-cluster/" style="color: #1e40af; text-decoration: none;">EKS control plane setup</a></li>
       <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/5-managed-nodegroup/" style="color: #1e40af; text-decoration: none;">EC2 managed node groups</a></li>
     </ul>

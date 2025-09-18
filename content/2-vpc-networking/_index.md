@@ -77,16 +77,44 @@ retail-forecast/
 │   ├── infra/
 │   │   ├── main.tf              # Main infrastructure config
 │   │   ├── variables.tf         # Input variables
-│   │   ├── outputs.tf           # Output values
-│   │   ├── providers.tf         # AWS provider config
-│   │   └── versions.tf          # Terraform version constraints
-│   ├── modules/
-│   │   └── vpc/                 # Reusable VPC module
-│   │       ├── main.tf
-│   │       ├── variables.tf
-│   │       └── outputs.tf
+│   │   ├── output.tf            # Output values
+│   ├── k8s/                     # Kubernetes manifests
+│   │   ├── namespace.yaml       # Kubernetes namespace
+│   │   ├── service.yaml         # Service definition
+│   │   └── hpa.yaml             # Horizontal Pod Autoscaler
+│   ├── script/                  # Python automation scripts
+│   │   ├── create_training_job.py    # SageMaker training job
+│   │   ├── register_model.py         # Model registry script
+│   │   ├── deploy_endpoint.py        # Model deployment
+│   │   └── autoscaling_endpoint.py   # Auto-scaling setup
+│   ├── Jenkinsfile              # Jenkins CI/CD pipeline
+│   ├── .travis.yml              # Travis CI configuration
 │   └── terraform.tfvars         # Environment-specific values
 ```
+
+{{% notice info %}}
+**📁 Project Structure Components:**
+
+**Infrastructure (infra/):**
+- ✅ **main.tf**: Core VPC infrastructure với subnets, NAT gateways, security groups
+- ✅ **variables.tf**: Input variables cho environment configuration  
+- ✅ **output.tf**: Export values cho other modules
+
+**Kubernetes (k8s/):**
+- ✅ **namespace.yaml**: Isolated namespace cho MLOps workloads
+- ✅ **service.yaml**: Service exposure cho inference API
+- ✅ **hpa.yaml**: Horizontal Pod Autoscaler cho dynamic scaling
+
+**Automation (script/):**
+- ✅ **create_training_job.py**: SageMaker training job automation
+- ✅ **register_model.py**: Model registry và versioning
+- ✅ **deploy_endpoint.py**: Model deployment automation
+- ✅ **autoscaling_endpoint.py**: Endpoint auto-scaling configuration
+
+**CI/CD:**
+- ✅ **Jenkinsfile**: Jenkins pipeline cho automated deployment
+- ✅ **.travis.yml**: Travis CI alternative configuration
+{{% /notice %}}
 
 ### 1.2. Variables Configuration
 
@@ -166,6 +194,69 @@ common_tags = {
   CostCenter  = "ML-Platform"
 }
 ```
+
+### 1.3. Kubernetes Manifests Preview
+
+**File: `aws/k8s/namespace.yaml`**
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-retail-forecast
+  labels:
+    name: mlops-retail-forecast
+    environment: dev
+```
+
+**File: `aws/k8s/service.yaml`**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: retail-forecast-api
+  namespace: mlops-retail-forecast
+spec:
+  selector:
+    app: retail-forecast
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: LoadBalancer
+```
+
+**File: `aws/k8s/hpa.yaml`**
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: retail-forecast-hpa
+  namespace: mlops-retail-forecast
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: retail-forecast-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+```
+
+{{% notice tip %}}
+**🚀 Kubernetes Integration:**
+
+VPC infrastructure được thiết kế để support Kubernetes deployment:
+- ✅ **Private Subnets**: EKS worker nodes isolated từ Internet
+- ✅ **Security Groups**: Proper network access control
+- ✅ **Multi-AZ**: High availability cho Kubernetes pods
+- ✅ **Load Balancer Tags**: EKS integration với AWS Load Balancer Controller
+{{% /notice %}}
 
 ## 2. VPC Infrastructure Implementation
 
@@ -511,9 +602,241 @@ output "availability_zones" {
 }
 ```
 
-## 3. Terraform Deployment
+## 3. Alternative: AWS Console Implementation
 
-### 3.1. Initialize và Plan
+Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console để hiểu rõ hơn về từng component.
+
+### 3.1. Tạo VPC qua Console
+
+1. **Truy cập VPC Dashboard:**
+   - Đăng nhập AWS Console
+   - Navigate to VPC service
+   - Chọn "Create VPC"
+
+{{< imgborder src="/images/02-vpc-networking/01-create-vpc-console.png" title="Tạo VPC qua AWS Console" >}}
+
+2. **VPC Configuration:**
+   ```
+   VPC Name: mlops-retail-forecast-dev-vpc
+   IPv4 CIDR: 10.0.0.0/16
+   IPv6 CIDR: No IPv6 CIDR block
+   Tenancy: Default
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/02-vpc-configuration.png" title="Cấu hình VPC với CIDR 10.0.0.0/16" >}}
+
+### 3.2. Tạo Subnets
+
+1. **Public Subnets:**
+   - Navigate to "Subnets" → "Create subnet"
+   - Chọn VPC vừa tạo
+
+   **Subnet 1 (ap-southeast-1a):**
+   ```
+   Name: mlops-retail-forecast-dev-public-ap-southeast-1a
+   Availability Zone: ap-southeast-1a
+   IPv4 CIDR: 10.0.1.0/24
+   ```
+
+   **Subnet 2 (ap-southeast-1b):**
+   ```
+   Name: mlops-retail-forecast-dev-public-ap-southeast-1b
+   Availability Zone: ap-southeast-1b
+   IPv4 CIDR: 10.0.2.0/24
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/03-create-subnets.png" title="Tạo Public và Private Subnets" >}}
+
+2. **Private Subnets:**
+   
+   **Subnet 3 (ap-southeast-1a):**
+   ```
+   Name: mlops-retail-forecast-dev-private-ap-southeast-1a
+   Availability Zone: ap-southeast-1a
+   IPv4 CIDR: 10.0.101.0/24
+   ```
+
+   **Subnet 4 (ap-southeast-1b):**
+   ```
+   Name: mlops-retail-forecast-dev-private-ap-southeast-1b
+   Availability Zone: ap-southeast-1b
+   IPv4 CIDR: 10.0.102.0/24
+   ```
+
+### 3.3. Internet Gateway Setup
+
+1. **Tạo Internet Gateway:**
+   - Navigate to "Internet Gateways" → "Create internet gateway"
+   ```
+   Name: mlops-retail-forecast-dev-igw
+   ```
+
+2. **Attach to VPC:**
+   - Select Internet Gateway → "Actions" → "Attach to VPC"
+   - Chọn VPC đã tạo
+
+{{< imgborder src="/images/02-vpc-networking/04-internet-gateway.png" title="Tạo và attach Internet Gateway" >}}
+
+### 3.4. NAT Gateways Setup
+
+1. **Tạo Elastic IPs:**
+   - Navigate to "Elastic IPs" → "Allocate Elastic IP address"
+   - Tạo 2 Elastic IPs cho 2 NAT Gateways
+
+{{< imgborder src="/images/02-vpc-networking/05-elastic-ips.png" title="Allocate Elastic IPs cho NAT Gateways" >}}
+
+2. **Tạo NAT Gateways:**
+   
+   **NAT Gateway 1:**
+   ```
+   Name: mlops-retail-forecast-dev-nat-ap-southeast-1a
+   Subnet: mlops-retail-forecast-dev-public-ap-southeast-1a
+   Elastic IP: [Select allocated EIP]
+   ```
+
+   **NAT Gateway 2:**
+   ```
+   Name: mlops-retail-forecast-dev-nat-ap-southeast-1b
+   Subnet: mlops-retail-forecast-dev-public-ap-southeast-1b
+   Elastic IP: [Select allocated EIP]
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/06-nat-gateways.png" title="Tạo NAT Gateways trong Public Subnets" >}}
+
+### 3.5. Route Tables Configuration
+
+1. **Public Route Table:**
+   - Navigate to "Route Tables" → "Create route table"
+   ```
+   Name: mlops-retail-forecast-dev-public-rt
+   VPC: [Select created VPC]
+   ```
+
+   **Routes:**
+   ```
+   Destination: 0.0.0.0/0
+   Target: [Internet Gateway]
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/07-public-route-table.png" title="Cấu hình Public Route Table" >}}
+
+2. **Private Route Tables:**
+   
+   **Route Table 1:**
+   ```
+   Name: mlops-retail-forecast-dev-private-rt-1
+   Routes: 0.0.0.0/0 → NAT Gateway 1
+   Associated Subnet: Private Subnet AZ-1a
+   ```
+
+   **Route Table 2:**
+   ```
+   Name: mlops-retail-forecast-dev-private-rt-2
+   Routes: 0.0.0.0/0 → NAT Gateway 2
+   Associated Subnet: Private Subnet AZ-1b
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/08-private-route-tables.png" title="Cấu hình Private Route Tables với NAT Gateways" >}}
+
+### 3.6. Security Groups Setup
+
+1. **EKS Control Plane Security Group:**
+   ```
+   Name: mlops-retail-forecast-dev-eks-control-plane-sg
+   Description: Security group for EKS control plane
+   
+   Inbound Rules:
+   - Type: HTTPS, Port: 443, Source: 0.0.0.0/0
+   
+   Outbound Rules:
+   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/09-eks-control-plane-sg.png" title="EKS Control Plane Security Group" >}}
+
+2. **EKS Worker Nodes Security Group:**
+   ```
+   Name: mlops-retail-forecast-dev-eks-nodes-sg
+   Description: Security group for EKS worker nodes
+   
+   Inbound Rules:
+   - Type: All Traffic, Source: [EKS Control Plane SG]
+   - Type: All Traffic, Source: [Self - same SG]
+   
+   Outbound Rules:
+   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
+   ```
+
+3. **Application Load Balancer Security Group:**
+   ```
+   Name: mlops-retail-forecast-dev-alb-sg
+   Description: Security group for Application Load Balancer
+   
+   Inbound Rules:
+   - Type: HTTP, Port: 80, Source: 0.0.0.0/0
+   - Type: HTTPS, Port: 443, Source: 0.0.0.0/0
+   
+   Outbound Rules:
+   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
+   ```
+
+4. **SageMaker Security Group:**
+   ```
+   Name: mlops-retail-forecast-dev-sagemaker-sg
+   Description: Security group for SageMaker instances
+   
+   Inbound Rules: [None initially]
+   
+   Outbound Rules:
+   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
+   ```
+
+{{< imgborder src="/images/02-vpc-networking/10-security-groups-overview.png" title="Tổng quan các Security Groups đã tạo" >}}
+
+### 3.7. Console Verification
+
+1. **VPC Resource Map:**
+   - Navigate to VPC Dashboard
+   - Chọn VPC đã tạo
+   - Xem Resource Map để verify architecture
+
+{{< imgborder src="/images/02-vpc-networking/11-vpc-resource-map.png" title="VPC Resource Map showing complete architecture" >}}
+
+2. **Network Topology:**
+   ```
+   ✅ VPC: 10.0.0.0/16 (4 subnets across 2 AZs)
+   ✅ Internet Gateway: Attached
+   ✅ NAT Gateways: 2 (high availability)
+   ✅ Route Tables: 3 (1 public, 2 private)
+   ✅ Security Groups: 4 (EKS, ALB, SageMaker)
+   ```
+
+{{% notice success %}}
+**🎯 Console Implementation Complete!**
+
+Bạn đã tạo thành công VPC infrastructure qua AWS Console. Architecture này tương đương với Terraform implementation và ready cho EKS deployment trong Task 4.
+{{% /notice %}}
+
+{{% notice info %}}
+**💡 Console vs Terraform:**
+
+**Console Advantages:**
+- ✅ Visual interface dễ hiểu
+- ✅ Real-time validation
+- ✅ Immediate feedback
+
+**Terraform Advantages:**
+- ✅ Infrastructure as Code
+- ✅ Version control
+- ✅ Reproducible deployments
+- ✅ Automation-ready
+
+Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho production.
+{{% /notice %}}
+
+## 4. Terraform Deployment
+
+### 4.1. Initialize và Plan
 
 ```bash
 # Navigate to infrastructure directory
@@ -568,9 +891,9 @@ private_subnet_ids = [
 ]
 ```
 
-## 4. Verification và Testing
+## 5. Verification và Testing
 
-### 4.1. AWS Console Verification
+### 5.1. AWS Console Verification
 
 1. **VPC Dashboard:**
    - Navigate to VPC console
@@ -599,7 +922,7 @@ private_subnet_ids = [
    ✅ mlops-retail-forecast-dev-sagemaker-sg
    ```
 
-### 4.2. CLI Verification
+### 5.2. CLI Verification
 
 ```bash
 # Get VPC information
@@ -618,7 +941,7 @@ aws ec2 describe-nat-gateways \
   --query 'NatGateways[*].{NatGatewayId:NatGatewayId,State:State,SubnetId:SubnetId}'
 ```
 
-### 4.3. Connectivity Testing
+### 5.3. Connectivity Testing
 
 ```bash
 # Test Internet connectivity from private subnet (will be used in later tasks)
@@ -630,9 +953,9 @@ aws ec2 describe-route-tables \
   --query 'RouteTables[*].{RouteTableId:RouteTableId,Routes:Routes[*].{Destination:DestinationCidrBlock,Target:GatewayId//NatGatewayId}}'
 ```
 
-## 5. Cost Optimization Notes
+## 6. Cost Optimization Notes
 
-### 5.1. Current Cost Impact
+### 6.1. Current Cost Impact
 
 **Monthly Costs (ap-southeast-1):**
 - **NAT Gateways**: 2 × $32 = $64/month
@@ -640,7 +963,7 @@ aws ec2 describe-route-tables \
 - **Data Transfer**: Variable based on usage
 - **Total Baseline**: ~$71/month
 
-### 5.2. Cost Optimization Strategies
+### 6.2. Cost Optimization Strategies
 
 1. **Single NAT Gateway** (Dev Environment):
    ```hcl
