@@ -1,5 +1,5 @@
 ---
-title: "Task 15: DataOps - Upload & Versioning"
+title: "DataOps - Upload & Versioning"
 date: 2024-01-01T00:00:00Z
 weight: 15
 chapter: false

@@ -1,5 +1,5 @@
 ---
-title: "Task 11: Elastic Load Balancing (EXTERNAL-IP)"
+title: "Elastic Load Balancing (EXTERNAL-IP)"
 date: 2024-01-01T00:00:00Z
 weight: 11
 chapter: false

@@ -1,5 +1,5 @@
 ---
-title: "Task 13: KMS & CloudTrail (Encryption & Audit)"
+title: "KMS & CloudTrail (Encryption & Audit)"
 date: 2024-01-01T00:00:00Z
 weight: 13
 chapter: false

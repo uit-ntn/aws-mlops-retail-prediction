@@ -1,5 +1,5 @@
 ---
-title: "Task 10: Kubernetes Deployment"
+title: "Kubernetes Deployment"
 date: 2024-01-01T00:00:00Z
 weight: 10
 chapter: false

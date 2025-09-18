@@ -1,5 +1,5 @@
 ---
-title: "Task 16: Cost Optimization & Teardown"
+title: "Cost Optimization & Teardown"
 date: 2024-01-01T00:00:00Z
 weight: 16
 chapter: false

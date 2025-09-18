@@ -1,5 +1,5 @@
 ---
-title: "Task 9: SageMaker Training & Model Registry"
+title: "SageMaker Training & Model Registry"
 date: 2024-01-01T00:00:00Z
 weight: 9
 chapter: false

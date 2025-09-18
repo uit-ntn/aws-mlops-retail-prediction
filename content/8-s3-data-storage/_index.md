@@ -1,5 +1,5 @@
 ---
-title: "Task 8: S3 Data Storage"
+title: "S3 Data Storage"
 date: 2024-01-01T00:00:00Z
 weight: 8
 chapter: false

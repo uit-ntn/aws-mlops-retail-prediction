@@ -1,5 +1,5 @@
 ---
-title: "Task 14: CI/CD Pipeline (Jenkins/Travis)"
+title: "CI/CD Pipeline (Jenkins/Travis)"
 date: 2024-01-01T00:00:00Z
 weight: 14
 chapter: false

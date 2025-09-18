@@ -1,5 +1,5 @@
 ---
-title: "Task 12: CloudWatch Monitoring & Alerting"
+title: "CloudWatch Monitoring & Alerting"
 date: 2024-01-01T00:00:00Z
 weight: 12
 chapter: false

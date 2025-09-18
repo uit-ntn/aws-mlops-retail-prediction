@@ -1,5 +1,5 @@
 ---
-title: "Task 5 — EKS Managed Node Group"
+title: "EKS Managed Node Group"
 date: 2024-01-01T00:00:00+07:00
 weight: 5
 chapter: false
