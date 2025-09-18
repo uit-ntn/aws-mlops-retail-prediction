@@ -488,7 +488,7 @@ resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
 data "aws_caller_identity" "current" {}
 ```
 
-## 3. Alternative: AWS Console Implementation
+## 3. Kubectl Access Configuration
 
 ### 3.1. EKS Cluster Creation via Console
 

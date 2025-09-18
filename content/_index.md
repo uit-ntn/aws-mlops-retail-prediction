@@ -170,7 +170,7 @@ retail-forecast/
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/2-vpc-networking/" style="color: #1e40af; text-decoration: none;">VPC, subnets, NAT, security groups</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/3-iam-roles-irsa/" style="color: #1e40af; text-decoration: none;">IAM roles & IRSA configuration</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/4-eks-cluster/" style="color: #1e40af; text-decoration: none;">EKS control plane setup</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/5-managed-nodegroup/" style="color: #1e40af; text-decoration: none;">EC2 managed node groups</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/5-eks-nodegroup/" style="color: #1e40af; text-decoration: none;">EC2 managed node groups</a></li>
     </ul>
   </div>
   
