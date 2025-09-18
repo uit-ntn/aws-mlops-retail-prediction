@@ -1,0 +1,18 @@
+# Hugo build output
+/public/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules (nếu có xài cho theme hay plugin)
+node_modules/
+
+# Hugo build lock file
+.hugo_build.lock
+
+# Local build cache
+/resources/_gen/

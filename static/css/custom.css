@@ -1,0 +1,22 @@
+/* Custom CSS for images */
+.image-border {
+  border: 2px solid black !important;
+  padding: 5px !important;
+}
+
+figure.image img {
+  border: 2px solid black !important;
+  padding: 5px !important;
+}
+
+.content img {
+  border: 2px solid black !important;
+  padding: 5px !important;
+}
+
+/* Override any theme styles that might conflict */
+.content figure img {
+  border: 2px solid black !important;
+  padding: 5px !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+}

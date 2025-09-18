@@ -1,0 +1,8 @@
+<!-- image with border -->
+<figure>
+  <img src="{{ .Get "src" }}" alt="{{ .Get "alt" }}" title="{{ .Get "title" }}" class="bordered-image" />
+  {{ if .Get "title" }}
+  <figcaption>{{ .Get "title" }}</figcaption>
+  {{ end }}
+</figure>
+<!-- image with border -->

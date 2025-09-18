@@ -1,0 +1,190 @@
+<nav id="sidebar" class="{{if $.Site.Params.showVisitedLinks }}showVisitedLinks{{end}}">
+
+{{ $currentNode := . }}
+{{ $showvisitedlinks := .Site.Params.showVisitedLinks }}
+  <div id="header-wrapper">
+    <div id="header">
+      {{ partial "logo.html" . }}
+    </div>
+    {{if not .Site.Params.disableSearch}}
+        {{ partial "search.html" . }}
+    {{end}}
+  </div>
+
+    <div class="highlightable">
+    <ul class="topics">
+
+        {{if eq .Site.Params.ordersectionsby "title"}}  
+          {{range .Site.Home.Sections.ByTitle}}
+          {{ template "section-tree-nav" dict "sect" . "currentnode" $currentNode "showvisitedlinks" $showvisitedlinks}}
+          {{end}}
+        {{else}}
+          {{range .Site.Home.Sections.ByWeight}}
+          {{ template "section-tree-nav" dict "sect" . "currentnode" $currentNode "showvisitedlinks" $showvisitedlinks}}
+          {{end}}
+        {{end}} 
+    </ul>
+
+    {{ $disableShortcutsTitle := .Site.Params.DisableShortcutsTitle}}
+    {{with .Site.Menus.shortcuts}}
+      <section id="shortcuts">
+        <h3>{{ if not $disableShortcutsTitle}}{{ T "Shortcuts-Title"}}{{ end }}</h3>
+        <ul>
+          {{ range sort . "Weight"}}
+              <li> 
+                  {{.Pre}}<a class="padding" href="{{.URL | absLangURL }}">{{safeHTML .Name}}</a>{{.Post}}
+              </li>
+          {{end}}
+        </ul>
+      </section>
+    {{end}}
+
+    <!-- Workshop Stats Section (Scrollable) -->
+    <section id="workshop-stats" style="padding: 8px; margin-top: 15px;">
+      <div style="background-color: var(--MENU-SECTIONS-BG-color); padding: 8px; border-radius: 6px; margin-bottom: 8px;">
+        <!-- Workshop Stats -->
+        <div style="text-align: center; margin-bottom: 8px;">
+          <b style="color: #fd9827; font-size: 12px;">📊 Workshop Stats</b> <br>
+          <img src="https://hitwebcounter.com/counter/counter.php?page=7920860&style=0038&nbdigits=9&type=page&initCount=0" title="Workshop Views" Alt="workshop counter" border="0" style="margin: 2px 0;" />
+        </div>
+        
+        <!-- Cloud Journey -->
+        <div style="text-align: center; margin-bottom: 8px;">
+          <b style="color: #4881cd; font-size: 12px;"><a href="https://cloudjourney.awsstudygroup.com/" style="color: #4881cd; text-decoration: none;">🌥️ Cloud Journey</a></b> <br>
+          <img src="https://hitwebcounter.com/counter/counter.php?page=7830807&style=0038&nbdigits=9&type=page&initCount=0" title="Cloud Journey Views" Alt="cloud journey counter" border="0" style="margin: 2px 0;" />
+        </div>
+
+        <!-- Team Info -->
+        <div style="text-align: center; border-top: 1px solid var(--MENU-SECTION-HR-color); padding-top: 12px; margin-top: 12px;">
+          <!-- Last Updated -->
+          <div style="margin-bottom: 8px;">
+            <div style="color: #fd9827; font-weight: bold; font-size: 13px; margin-bottom: 3px;">📅 Last Updated</div>
+            <div style="color: #ffa500; font-style: italic; font-size: 13px;">30-08-2025</div>
+          </div>
+          
+          <!-- Team -->
+          <div>
+            <div style="color: #fd9827; font-weight: bold; font-size: 13px; margin-bottom: 5px;">Team</div>
+            <div style="line-height: 1.2;">
+              <div style="margin-bottom: 2px;">
+                <a href="https://www.linkedin.com/in/nguyen-nhan-732a66247" style="color: #4881cd; text-decoration: none; font-size: 13px;">Nguyễn Thanh Nhân</a>
+              </div>
+              <div>
+                <span style="color: #4881cd; font-size: 13px;">Hà Khả Nguyên</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {{ if or hugo.IsMultilingual $showvisitedlinks }}
+    <section id="prefooter">
+      <hr/>
+      <ul>
+      {{ if and hugo.IsMultilingual (not .Site.Params.DisableLanguageSwitchingButton)}}
+        <li>
+          <a class="padding">
+            <i class="fas fa-language fa-fw"></i>
+          <div class="select-style">
+            <select id="select-language" onchange="location = this.value;">
+          {{ $siteLanguages := .Site.Languages}}
+          {{ $pageLang := .Page.Lang}}
+          {{ range .Page.AllTranslations }}
+              {{ $translation := .}}
+              {{ range $siteLanguages }}
+                  {{ if eq $translation.Lang .Lang }}
+                    {{ $selected := false }}
+                    {{ if eq $pageLang .Lang}}
+                      <option id="{{ $translation.Language }}" value="{{ $translation.Permalink }}" selected>{{ .LanguageName }}</option>
+                    {{ else }}
+                      <option id="{{ $translation.Language }}" value="{{ $translation.Permalink }}">{{ .LanguageName }}</option>
+                    {{ end }}
+                  {{ end }}
+              {{ end }}
+          {{ end }}
+        </select>
+        <svg version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+          width="255px" height="255px" viewBox="0 0 255 255" style="enable-background:new 0 0 255 255;" xml:space="preserve">
+          <g>
+            <g id="arrow-drop-down">
+              <polygon points="0,63.75 127.5,191.25 255,63.75 		" />
+            </g>
+          </g>
+        </svg>
+        </div>
+        </a>
+        </li>
+      {{end}}
+      
+      {{ if $showvisitedlinks}}
+        <li><a class="padding" href="#" data-clear-history-toggle=""><i class="fas fa-history fa-fw"></i> {{T "Clear-History"}}</a></li>
+      {{ end }}
+      </ul>
+    </section>
+    {{ end }}
+    <section id="footer">
+      {{ partial "menu-footer.html" . }}
+    </section>
+  </div>
+</nav>
+
+<!-- templates -->
+{{ define "section-tree-nav" }}
+{{ $showvisitedlinks := .showvisitedlinks }}
+{{ $currentNode := .currentnode }}
+{{ $currentFileUniqueID := "" }}
+{{ with $currentNode.File }}{{ $currentFileUniqueID = .UniqueID }}{{ end }}
+ {{with .sect}}
+  {{if and .IsSection (or (not .Params.hidden) $.showhidden)}}
+    {{safeHTML .Params.head}}
+    <li data-nav-id="{{.RelPermalink}}" title="{{.Title}}" class="dd-item 
+        {{if .IsAncestor $currentNode }}parent{{end}}
+        {{if eq .File.UniqueID $currentFileUniqueID}}active{{end}}
+        {{if .Params.alwaysopen}}parent{{end}}
+        ">
+      <a href="{{.RelPermalink}}">
+          {{safeHTML .Params.Pre}}{{or .Params.menuTitle .LinkTitle .Title}}{{safeHTML .Params.Post}}
+          {{ if $showvisitedlinks}}
+            <i class="fas fa-check read-icon"></i>
+          {{ end }}
+      </a>
+      {{ $numberOfPages := (add (len .Pages) (len .Sections)) }}
+      {{ if ne $numberOfPages 0 }}
+        <ul>
+          {{ $currentNode.Scratch.Set "pages" .Pages }}
+          {{ if .Sections}}
+            {{ $currentNode.Scratch.Set "pages" (.Pages | union .Sections) }}
+          {{end}}
+          {{ $pages := ($currentNode.Scratch.Get "pages") }}
+          
+        {{if eq .Site.Params.ordersectionsby "title"}}  
+          {{ range $pages.ByTitle }}
+            {{ if and .Params.hidden (not $.showhidden) }} 
+            {{else}}
+            {{ template "section-tree-nav" dict "sect" . "currentnode" $currentNode "showvisitedlinks" $showvisitedlinks }}
+            {{end}}
+          {{ end }}
+        {{else}}
+          {{ range $pages.ByWeight }}
+            {{ if and .Params.hidden (not $.showhidden) }} 
+            {{else}}
+            {{ template "section-tree-nav" dict "sect" . "currentnode" $currentNode "showvisitedlinks" $showvisitedlinks }}
+            {{end}}
+          {{ end }}
+        {{end}}
+        </ul>
+      {{ end }}        
+    </li>
+  {{else}}
+    {{ if not .Params.Hidden }}
+      <li data-nav-id="{{.RelPermalink}}" title="{{.Title}}" class="dd-item {{if eq .File.UniqueID $currentFileUniqueID}}active{{end}}">
+        <a href="{{ .RelPermalink}}">
+        {{safeHTML .Params.Pre}}{{or .Params.menuTitle .LinkTitle .Title}}{{safeHTML .Params.Post}}
+        {{ if $showvisitedlinks}}<i class="fas fa-check read-icon"></i>{{end}}
+        </a>
+    </li>
+     {{ end }}
+  {{end}}
+ {{ end }}
+{{ end }}

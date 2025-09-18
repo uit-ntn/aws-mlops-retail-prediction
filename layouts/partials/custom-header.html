@@ -1,0 +1,45 @@
+<style type="text/css">
+/* Custom CSS for images with centering */
+.content figure img, .content p img, img.bordered-image {
+  border: 2px solid black !important;
+  padding: 5px !important;
+  margin: 10px auto !important;
+  display: block !important;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Center all images globally */
+img {
+  margin: 10px auto !important;
+  display: block !important;
+}
+
+/* Center figures */
+figure {
+  text-align: center !important;
+  margin: 10px auto !important;
+}
+
+/* Make sure figure captions are displayed nicely */
+.content figure figcaption {
+  text-align: center;
+  font-style: italic;
+  margin-top: 5px;
+  font-weight: bold;
+}
+
+/* Ensure paragraph images are centered */
+.content p img {
+  margin: 10px auto !important;
+  display: block !important;
+}
+
+/* Alternative centering for inline images */
+.content p {
+  text-align: center;
+}
+
+.content p:not(:has(img)) {
+  text-align: left;
+}
+</style>

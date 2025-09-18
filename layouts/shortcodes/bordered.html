@@ -1,0 +1,9 @@
+<!-- image with border and caption outside -->
+<div style="margin: 20px 0;">
+  <div style="border: 2px solid black; padding: 5px; display: inline-block;">
+    <img src="{{ .Get "src" }}" alt="{{ .Get "alt" | default (.Get "caption") | default (.Get "title") | default "" }}" />
+  </div>
+  {{ if .Get "title" }}
+  <div style="text-align: center; font-weight: bold; margin-top: 8px; font-size: 0.95em;">{{ .Get "title" }}</div>
+  {{ end }}
+</div>

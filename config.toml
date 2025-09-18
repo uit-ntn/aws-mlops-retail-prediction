@@ -1,0 +1,61 @@
+# Base URL trỏ về domain custom
+baseURL = "https://docs.vinashoes.org/"
+languageCode = "en-us"
+defaultContentLanguage = "en"
+title = "VinaShoes Documentation"
+
+# Theme mặc định
+theme = "hugo-theme-learn"
+
+# Output formats (cần JSON cho search)
+[outputs]
+home = [ "HTML", "RSS", "JSON"]
+
+# Cho phép HTML raw trong Markdown
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+
+[params]
+  # Theme variant
+  themeVariant = "workshop"
+
+  # GitHub repo link (nếu có)
+  editURL = "https://github.com/uit-ntn/vinashoes-docs/edit/main/content/"
+
+  description = "Documentation for VinaShoes Project"
+  author = "Nguyễn Thanh Nhân"
+
+  # Custom CSS
+  custom_css = ["css/custom-image-border.css"]
+
+  # Navigation tweaks
+  showVisitedLinks = true
+  disableBreadcrumb = false
+  disableNextPrev = false
+
+# Ngôn ngữ đa ngữ
+[languages]
+
+  [languages.en]
+  title = "VinaShoes Docs"
+  weight = 1
+  languageName = "English"
+
+  [[languages.en.menu.shortcuts]]
+  name = "<i class='fab fa-facebook'></i> AWS Study Group"
+  identifier = "AWS Study Group FB"
+  url = "https://www.facebook.com/groups/awsstudygroupfcj/"
+  weight = 20
+
+  [languages.vi]
+  title = "Tài liệu VinaShoes"
+  weight = 2
+  languageName = "Tiếng Việt"
+
+  [[languages.vi.menu.shortcuts]]
+  name = "<i class='fab fa-facebook'></i> AWS Study Group"
+  identifier = "AWS Study Group FB"
+  url = "https://www.facebook.com/groups/awsstudygroupfcj/"
+  weight = 20
