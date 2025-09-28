@@ -44,6 +44,81 @@ graph LR
 
 **Infrastructure → Training → Deployment → Monitoring → CI/CD → Cost Optimization**
 
+## 📁 Project Structure
+
+Dự án được tổ chức theo cấu trúc modularity với separation of concerns rõ ràng:
+
+```
+retail-forecast/
+├── README.md                    # Project overview & setup guide
+├── .gitignore                   # Git ignore patterns
+├── aws/                         # AWS-specific configurations
+│   ├── .travis.yml              # Travis CI configuration
+│   ├── Jenkinsfile              # Jenkins pipeline configuration
+│   ├── infra/                   # Terraform infrastructure
+│   │   ├── main.tf              # Main infrastructure config
+│   │   ├── variables.tf         # Input variables
+│   │   └── output.tf            # Output values
+│   ├── k8s/                     # Kubernetes manifests
+│   │   ├── deployment.yaml      # Application deployment
+│   │   ├── service.yaml         # Service configuration
+│   │   ├── hpa.yaml             # Horizontal Pod Autoscaler
+│   │   └── namespace.yaml       # Namespace definition
+│   └── script/                  # Automation scripts
+│       ├── create_training_job.py    # SageMaker training job
+│       ├── register_model.py         # Model registry script
+│       ├── deploy_endpoint.py        # Model deployment
+│       └── autoscaling_endpoint.py   # Auto-scaling setup
+├── azure/                       # Azure-specific configurations
+│   ├── azure-pipelines.yml      # Azure DevOps pipeline
+│   ├── aml/                     # Azure ML configurations
+│   │   ├── train-job.yml        # Training job definition
+│   │   ├── train.Dockerfile     # Training container
+│   │   └── infer.Dockerfile     # Inference container
+│   ├── infra/                   # Bicep infrastructure
+│   │   └── main.bicep           # Azure infrastructure
+│   └── k8s/                     # AKS manifests
+│       ├── deployment.yaml      # Application deployment
+│       ├── service.yaml         # Service configuration
+│       └── hpa.yaml             # Horizontal Pod Autoscaler
+├── core/                        # Shared ML core modules
+│   └── requirements.txt         # Core Python dependencies
+├── server/                      # Inference API server
+│   ├── DockerFile               # Container definition
+│   ├── requirements.txt         # Server dependencies
+│   └── Readme.md                # Server documentation
+└── tests/                       # Test suites
+    └── (test files)             # Unit & integration tests
+```
+
+### Cấu trúc thư mục chi tiết
+
+**📂 `aws/` - AWS Implementation**
+- `infra/`: Terraform Infrastructure as Code
+- `k8s/`: Kubernetes manifests cho EKS deployment
+- `script/`: Python scripts cho SageMaker automation
+- CI/CD configurations (Jenkins, Travis)
+
+**📂 `azure/` - Azure Implementation** 
+- `infra/`: Bicep templates cho Azure resources
+- `aml/`: Azure ML configurations
+- `k8s/`: AKS manifests
+- Azure DevOps pipeline
+
+**📂 `core/` - Shared Components**
+- Common ML utilities và libraries
+- Shared dependencies và configurations
+
+**📂 `server/` - Inference API**
+- FastAPI application
+- Docker containerization
+- API documentation
+
+**📂 `tests/` - Testing Framework**
+- Unit tests cho ML pipeline
+- Integration tests cho infrastructure
+- End-to-end testing scenarios
+
 ## Công nghệ sử dụng
 
 ### Infrastructure & Platform Stack

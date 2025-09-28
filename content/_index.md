@@ -9,6 +9,58 @@ pre: "<b>0. </b>"
 
 <h2 style="margin: 20px 0 30px 0; font-size: 2.5rem; color: #131314ff; text-align: center;">AWS MLOps Retail Forecast Platform</h2>
 
+<p style="text-align: center; font-style: italic; color: #64748b; font-size: 1.1rem; margin-bottom: 40px;">End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment</p>
+
+<!-- Authors Section -->
+<div class="authors-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 800px; margin: 40px auto; padding: 0 20px;">
+  <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+    <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 1.2rem;">👨‍💻 Tác giả 1</h3>
+    <p style="margin: 8px 0; color: #475569; font-weight: 600;">Nguyễn Thanh Nhân</p>
+    <p style="margin: 4px 0; color: #64748b; font-size: 14px;">Cloud Engineer</p>
+    <div style="margin-top: 12px;">
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#dc2626"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        <a href="mailto:npthanhnhan2003@gmail.com" style="color: #3b82f6; text-decoration: none;">npthanhnhan2003@gmail.com</a>
+      </p>
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        <a href="https://www.linkedin.com/in/nguyen-nhan-732a66247/" style="color: #3b82f6; text-decoration: none;">nguyen-nhan-732a66247</a>
+      </p>
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#333"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <a href="https://github.com/uit-ntn" style="color: #3b82f6; text-decoration: none;">uit-ntn</a>
+      </p>
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        <a href="https://www.facebook.com/UIT.NTN.13" style="color: #3b82f6; text-decoration: none;">UIT.NTN.13</a>
+      </p>
+    </div>
+  </div>
+  
+  <div style="background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);">
+    <h3 style="margin: 0 0 12px 0; color: #1e293b; font-size: 1.2rem;">👩‍💻 Tác giả 2</h3>
+    <p style="margin: 8px 0; color: #475569; font-weight: 600;">Hà Khả Nguyên</p>
+    <p style="margin: 4px 0; color: #64748b; font-size: 14px;">Data Engineer</p>
+    <div style="margin-top: 12px;">
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#dc2626"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+        <a href="mailto:author2@email.com" style="color: #3b82f6; text-decoration: none;">hakhanguyen09052004@gmail.com</a>
+      </p>
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#0077b5"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        <a href="#" style="color: #3b82f6; text-decoration: none;">LinkedIn</a>
+      </p>
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#333"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+        <a href="https://github.com/NguyenHK64" style="color: #3b82f6; text-decoration: none;">NguyenHK64</a>
+      </p>
+      <p style="margin: 4px 0; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#1877f2"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+        <a href="https://www.facebook.com/shacocloner" style="color: #3b82f6; text-decoration: none;">Facebook</a>
+      </p>
+    </div>
+  </div>
+</div>
 
 <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 30px; border-radius: 16px; margin: 30px 0; box-shadow: 0 8px 25px rgba(30, 60, 114, 0.4);">
   <h2 style="margin-top: 0; color: white; font-size: 1.8rem; display: flex; align-items: center; gap: 10px;">
@@ -45,57 +97,12 @@ pre: "<b>0. </b>"
 <h2 style="margin: 40px 0 30px 0; font-size: 2.2rem; color: #1e293b; text-align: center;">📚 MLOps Workshop Steps</h2>
 
 <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px dashed #cbd5e1; padding: 30px; border-radius: 16px; margin: 30px 0; text-align: center;">
-  <div style="font-size: 3rem; margin-bottom: 15px;">🎯</div>
   <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">16 Task MLOps Hoàn Chỉnh</h3>
   <p style="color: #64748b; font-size: 16px; margin: 0 0 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
     End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization
   </p>
   
-  <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 12px; margin: 20px 0; text-align: left; border: 1px solid #cbd5e1;">
-    <h4 style="margin: 0 0 15px 0; color: #1e293b; text-align: center;">📁 Project Structure Thực Tế</h4>
-    <pre style="background: #1e293b; color: #f8fafc; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px; line-height: 1.4;">
-retail-forecast/
-├── README.md                    # Project overview & setup guide
-├── .gitignore                   # Git ignore patterns
-├── aws/                         # AWS-specific configurations
-│   ├── .travis.yml              # Travis CI configuration
-│   ├── Jenkinsfile              # Jenkins pipeline configuration
-│   ├── infra/                   # Terraform infrastructure
-│   │   ├── main.tf              # Main infrastructure config
-│   │   ├── variables.tf         # Input variables
-│   │   └── output.tf            # Output values
-│   ├── k8s/                     # Kubernetes manifests
-│   │   ├── deployment.yaml      # Application deployment
-│   │   ├── service.yaml         # Service configuration
-│   │   ├── hpa.yaml             # Horizontal Pod Autoscaler
-│   │   └── namespace.yaml       # Namespace definition
-│   └── script/                  # Automation scripts
-│       ├── create_training_job.py    # SageMaker training job
-│       ├── register_model.py         # Model registry script
-│       ├── deploy_endpoint.py        # Model deployment
-│       └── autoscaling_endpoint.py   # Auto-scaling setup
-├── azure/                       # Azure-specific configurations
-│   ├── azure-pipelines.yml      # Azure DevOps pipeline
-│   ├── aml/                     # Azure ML configurations
-│   │   ├── train-job.yml        # Training job definition
-│   │   ├── train.Dockerfile     # Training container
-│   │   └── infer.Dockerfile     # Inference container
-│   ├── infra/                   # Bicep infrastructure
-│   │   └── main.bicep           # Azure infrastructure
-│   └── k8s/                     # AKS manifests
-│       ├── deployment.yaml      # Application deployment
-│       ├── service.yaml         # Service configuration
-│       └── hpa.yaml             # Horizontal Pod Autoscaler
-├── core/                        # Shared ML core modules
-│   └── requirements.txt         # Core Python dependencies
-├── server/                      # Inference API server
-│   ├── DockerFile               # Container definition
-│   ├── requirements.txt         # Server dependencies
-│   └── Readme.md                # Server documentation
-└── tests/                       # Test suites
-    └── (test files)             # Unit & integration tests
-    </pre>
-  </div>
+
   <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
     <div style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🏗️ Infrastructure</div>
     <div style="background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🤖 ML Training</div>
@@ -103,58 +110,6 @@ retail-forecast/
     <div style="background: #ef4444; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">� Monitoring</div>
     <div style="background: #06b6d4; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🚀 CI/CD</div>
     <div style="background: #f59e0b; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">� Cost Optimization</div>
-  </div>
-</div>
-<p style="text-align: center; color: #64748b; font-size: 18px; margin-bottom: 40px;">16 bước thực hành MLOps được thiết kế theo quy trình production-ready</p>
-
-<div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #0284c7; border-left: 6px solid #0284c7; padding: 25px; margin: 30px 0; border-radius: 12px;">
-  <h3 style="margin: 0 0 20px 0; color: #0c4a6e; display: flex; align-items: center; gap: 12px; font-size: 1.4rem;">
-    <span style="background: #0284c7; color: white; padding: 8px; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">📋</span>
-    Quy trình Implementation theo cấu trúc thực tế
-  </h3>
-  
-  <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
-    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
-      <h4 style="margin: 0 0 10px 0; color: #1e40af;">Phase 1: Infrastructure Setup (Tasks 1-5)</h4>
-      <ul style="margin: 0; padding-left: 20px; color: #1e40af;">
-        <li>Tạo và configure <code>aws/infra/</code> với Terraform files</li>
-        <li>Setup VPC, subnets, security groups trong <code>main.tf</code></li>
-        <li>Configure IAM roles và policies trong <code>variables.tf</code></li>
-        <li>Deploy EKS cluster và managed node groups</li>
-      </ul>
-    </div>
-    
-    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #10b981;">
-      <h4 style="margin: 0 0 10px 0; color: #047857;">Phase 2: ML Pipeline (Tasks 6-9)</h4>
-      <ul style="margin: 0; padding-left: 20px; color: #047857;">
-        <li>Setup ECR registry cho container images</li>
-        <li>Implement <code>aws/script/create_training_job.py</code> cho SageMaker</li>
-        <li>Configure <code>aws/script/register_model.py</code> cho model registry</li>
-        <li>Setup S3 buckets cho data storage trong core modules</li>
-      </ul>
-    </div>
-    
-    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #8b5cf6;">
-      <h4 style="margin: 0 0 10px 0; color: #6d28d9;">Phase 3: Container Deployment (Tasks 10-12)</h4>
-      <ul style="margin: 0; padding-left: 20px; color: #6d28d9;">
-        <li>Build inference API trong <code>server/</code> với FastAPI</li>
-        <li>Create <code>server/DockerFile</code> cho containerization</li>
-        <li>Deploy với <code>aws/k8s/deployment.yaml</code> và <code>service.yaml</code></li>
-        <li>Configure HPA trong <code>aws/k8s/hpa.yaml</code></li>
-        <li>Implement <code>aws/script/deploy_endpoint.py</code></li>
-      </ul>
-    </div>
-    
-    <div style="background: rgba(255,255,255,0.8); padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
-      <h4 style="margin: 0 0 10px 0; color: #b91c1c;">Phase 4: CI/CD & Monitoring (Tasks 13-16)</h4>
-      <ul style="margin: 0; padding-left: 20px; color: #b91c1c;">
-        <li>Setup Jenkins pipeline với <code>aws/Jenkinsfile</code></li>
-        <li>Configure Travis CI với <code>aws/.travis.yml</code></li>
-        <li>Implement CloudWatch monitoring và alerting</li>
-        <li>Setup testing framework trong <code>tests/</code></li>
-        <li>Configure <code>aws/script/autoscaling_endpoint.py</code></li>
-      </ul>
-    </div>
   </div>
 </div>
 
@@ -305,6 +260,15 @@ retail-forecast/
   
   .scroll-top.visible {
     opacity: 1;
+  }
+  
+  /* Responsive authors grid */
+  @media (max-width: 768px) {
+    .authors-grid {
+      grid-template-columns: 1fr !important;
+      gap: 20px !important;
+      padding: 0 10px !important;
+    }
   }
 </style>
 
