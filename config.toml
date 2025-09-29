@@ -2,7 +2,7 @@
 baseURL = "https://docs.vinashoes.org/"
 languageCode = "en-us"
 defaultContentLanguage = "en"
-title = "VinaShoes Documentation"
+title = "AWS MLOps Retail Forecast Platform"
 
 # Theme mặc định
 theme = "hugo-theme-learn"
@@ -22,10 +22,10 @@ home = [ "HTML", "RSS", "JSON"]
   themeVariant = "workshop"
 
   # GitHub repo link (nếu có)
-  editURL = "https://github.com/uit-ntn/vinashoes-docs/edit/main/content/"
+  editURL = "https://github.com/uit-ntn/aws-mlops-retail-forecast/edit/main/content/"
 
-  description = "Documentation for VinaShoes Project"
-  author = "Nguyễn Thanh Nhân"
+  description = "AWS MLOps Retail Forecast Platform Documentation"
+  author = "Nguyễn Thanh Nhân & Hà Khả Nguyên"
 
   # Custom CSS
   custom_css = ["css/custom-image-border.css"]
@@ -39,7 +39,7 @@ home = [ "HTML", "RSS", "JSON"]
 [languages]
 
   [languages.en]
-  title = "VinaShoes Docs"
+  title = "AWS MLOps Docs"
   weight = 1
   languageName = "English"
 
@@ -50,7 +50,7 @@ home = [ "HTML", "RSS", "JSON"]
   weight = 20
 
   [languages.vi]
-  title = "Tài liệu VinaShoes"
+  title = "Tài liệu AWS MLOps"
   weight = 2
   languageName = "Tiếng Việt"
 
