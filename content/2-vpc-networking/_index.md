@@ -645,7 +645,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    - Navigate to VPC service
    - Chọn "Create VPC"
 
-{{< imgborder src="/images/02-vpc-networking/01-create-vpc-console.png" >}}
+![Create VPC Console](../images/02-vpc-networking/01-create-vpc-console.png)
 
 2. **VPC Configuration:**
    ```
@@ -655,7 +655,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    Tenancy: Default
    ```
 
-{{< imgborder src="/images/02-vpc-networking/02-vpc-configuration.png" >}}
+![VPC Configuration](../images/02-vpc-networking/02-vpc-configuration.png)
 
 ### 3.2. Tạo Subnets
 
@@ -677,9 +677,9 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    IPv4 CIDR: 10.0.2.0/24
    ```
 
-{{< imgborder src="/images/02-vpc-networking/03.1-create-subnets.png" >}}
+![Create Subnets 1](../images/02-vpc-networking/03.1-create-subnets.png)
 
-{{< imgborder src="/images/02-vpc-networking/03.2-create-subnets.png" >}}
+![Create Subnets 2](../images/02-vpc-networking/03.2-create-subnets.png)
 
 
 2. **Private Subnets:**
@@ -701,7 +701,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
 
 3. **Hoàn thành tạo subnet**
 
-{{< imgborder src="/images/02-vpc-networking/03.3-create-subnets.png" >}}
+![Create Subnets 3](../images/02-vpc-networking/03.3-create-subnets.png)
 
 
 
@@ -713,9 +713,9 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    Name: mlops-retail-forecast-dev-igw
    ```
 
-{{< imgborder src="/images/02-vpc-networking/04.1-internet-gateway.png" >}}
+![Internet Gateway 1](../images/02-vpc-networking/04.1-internet-gateway.png)
 
-{{< imgborder src="/images/02-vpc-networking/04.2-internet-gateway.png" >}}
+![Internet Gateway 2](../images/02-vpc-networking/04.2-internet-gateway.png)
 
 
 2. **Attach to VPC:**
@@ -723,11 +723,11 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    - Chọn VPC đã tạo
 
 
-{{< imgborder src="/images/02-vpc-networking/04.3-internet-gateway.png" >}}
+![Internet Gateway 3](../images/02-vpc-networking/04.3-internet-gateway.png)
 
-{{< imgborder src="/images/02-vpc-networking/04.4-internet-gateway.png" >}}
+![Internet Gateway 4](../images/02-vpc-networking/04.4-internet-gateway.png)
 
-{{< imgborder src="/images/02-vpc-networking/04.5-internet-gateway.png" >}}
+![Internet Gateway 5](../images/02-vpc-networking/04.5-internet-gateway.png)
 
 
 
@@ -739,7 +739,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
 1. **Navigate to Route Tables:**
    - Trong VPC Dashboard → "Route Tables" → "Create route table"
 
-{{< imgborder src="/images/02-vpc-networking/07.1-public-route-table.png" >}}
+![Public Route Table 1](../images/02-vpc-networking/07.1-public-route-table.png)
 
 2. **Create Public Route Table:**
    ```
@@ -747,14 +747,14 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    VPC: vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)
    ```
 
-{{< imgborder src="/images/02-vpc-networking/07.2-public-route-table.png" >}}
+![Public Route Table 2](../images/02-vpc-networking/07.2-public-route-table.png)
 
 
 3. **Add Internet Gateway Route:**
    - Sau khi tạo route table → Tab "Routes" → "Edit routes"
    - Add route: `0.0.0.0/0` → Internet Gateway
 
-{{< imgborder src="/images/02-vpc-networking/07.3-public-route-table.png" >}}
+![Public Route Table 3](../images/02-vpc-networking/07.3-public-route-table.png)
 
 
 
@@ -762,11 +762,11 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    - Tab "Subnet associations" → "Edit subnet associations"
    - Chọn 2 public subnets (ap-southeast-1a và ap-southeast-1b)
 
-{{< imgborder src="/images/02-vpc-networking/07.4-public-route-table.png" >}}
+![Public Route Table 4](../images/02-vpc-networking/07.4-public-route-table.png)
 
 
 
-{{< imgborder src="/images/02-vpc-networking/07.5-public-route-table.png" >}}
+![Public Route Table 5](../images/02-vpc-networking/07.5-public-route-table.png)
 
 
 #### 3.4.2. Tạo Private Route Table (VPC Endpoints Approach)
@@ -800,7 +800,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
 - **Cost savings**: $21.6/month vs $71/month với NAT Gateway
 - **Better security**: Traffic không đi qua Internet
 
-{{< imgborder src="/images/02-vpc-networking/08-private-route-tables.png" >}}
+![Private Route Tables](../images/02-vpc-networking/08-private-route-tables.png)
 
 #### 3.4.3. Verification Route Tables (VPC Endpoints Approach)
 
@@ -838,14 +838,14 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
 1. **Navigate to Security Groups:**
    - Trong VPC Dashboard → "Security Groups" → "Create security group"
 
-{{< imgborder src="/images/02-vpc-networking/09.1-create-security-group.png" >}}
+![Create Security Group](../images/02-vpc-networking/09.1-create-security-group.png)
 
 2. **Basic Details:**
    - **Security group name**: `mlops-retail-forecast-dev-eks-control-plane-sg`
    - **Description**: `Security group for EKS control plane`
    - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
 
-{{< imgborder src="/images/02-vpc-networking/09.2-eks-control-plane-basic.png" >}}
+![EKS Control Plane Basic](../images/02-vpc-networking/09.2-eks-control-plane-basic.png)
 
 3. **Inbound Rules:**
    - Click "Add rule"
@@ -854,7 +854,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Source**: 0.0.0.0/0 (Anywhere-IPv4)
    - **Description**: `HTTPS access for EKS API server`
 
-{{< imgborder src="/images/02-vpc-networking/09.3-eks-control-plane-inbound.png" >}}
+![EKS Control Plane Inbound](../images/02-vpc-networking/09.3-eks-control-plane-inbound.png)
 
 4. **Outbound Rules:**
    - Giữ default rule: All traffic → 0.0.0.0/0
@@ -866,7 +866,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
 
 6. **Create Security Group**
 
-{{< imgborder src="/images/02-vpc-networking/09.4-eks-control-plane-complete.png" >}}
+![EKS Control Plane Complete](../images/02-vpc-networking/09.4-eks-control-plane-complete.png)
 
 #### 3.5.2. Tạo EKS Worker Nodes Security Group
 
@@ -875,7 +875,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Description**: `Security group for EKS worker nodes`
    - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
 
-{{< imgborder src="/images/02-vpc-networking/09.5-eks-nodes-basic.png" >}}
+![EKS Nodes Basic](../images/02-vpc-networking/09.5-eks-nodes-basic.png)
 
 2. **Inbound Rules:**
    
@@ -895,7 +895,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Source**: Custom → Chọn Security Group → `mlops-retail-forecast-dev-eks-nodes-sg` (self-reference)
    - **Description**: `Inter-node communication`
 
-{{< imgborder src="/images/02-vpc-networking/09.6-eks-nodes-inbound.png" >}}
+![EKS Nodes Inbound](../images/02-vpc-networking/09.6-eks-nodes-inbound.png)
 
 3. **Outbound Rules:**
    - Giữ default rule: All traffic → 0.0.0.0/0
@@ -905,7 +905,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Key**: `Name`
    - **Value**: `mlops-retail-forecast-dev-eks-nodes-sg`
 
-{{< imgborder src="/images/02-vpc-networking/09.7-eks-nodes-complete.png" >}}
+![EKS Nodes Complete](../images/02-vpc-networking/09.7-eks-nodes-complete.png)
 
 #### 3.5.3. Tạo Application Load Balancer Security Group
 
@@ -914,7 +914,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Description**: `Security group for Application Load Balancer`
    - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
 
-{{< imgborder src="/images/02-vpc-networking/09.8-alb-basic.png" >}}
+![ALB Basic](../images/02-vpc-networking/09.8-alb-basic.png)
 
 2. **Inbound Rules:**
    
@@ -932,7 +932,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Source**: 0.0.0.0/0 (Anywhere-IPv4)
    - **Description**: `HTTPS access from Internet`
 
-{{< imgborder src="/images/02-vpc-networking/09.9-alb-inbound.png" >}}
+![ALB Inbound](../images/02-vpc-networking/09.9-alb-inbound.png)
 
 3. **Outbound Rules:**
    - Giữ default rule: All traffic → 0.0.0.0/0
@@ -942,7 +942,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Key**: `Name`
    - **Value**: `mlops-retail-forecast-dev-alb-sg`
 
-{{< imgborder src="/images/02-vpc-networking/09.10-alb-complete.png" >}}
+![ALB Complete](../images/02-vpc-networking/09.10-alb-complete.png)
 
 #### 3.5.4. Tạo VPC Endpoints Security Group
 
@@ -951,7 +951,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Description**: `Security group for VPC endpoints`
    - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
 
-{{< imgborder src="/images/02-vpc-networking/09.11-vpc-endpoints-basic.png" >}}
+![VPC Endpoints Basic](../images/02-vpc-networking/09.11-vpc-endpoints-basic.png)
 
 2. **Inbound Rules:**
    
@@ -962,7 +962,7 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Source**: Custom → `10.0.0.0/16` (VPC CIDR)
    - **Description**: `HTTPS access from VPC for AWS services`
 
-{{< imgborder src="/images/02-vpc-networking/09.12-vpc-endpoints-inbound.png" >}}
+![VPC Endpoints Inbound](../images/02-vpc-networking/09.12-vpc-endpoints-inbound.png)
 
 3. **Outbound Rules:**
    - Giữ default rule: All traffic → 0.0.0.0/0
@@ -972,13 +972,13 @@ Security Groups hoạt động như virtual firewall để kiểm soát inbound 
    - **Key**: `Name`
    - **Value**: `mlops-retail-forecast-dev-vpc-endpoints-sg`
 
-{{< imgborder src="/images/02-vpc-networking/09.13-vpc-endpoints-complete.png" >}}
+![VPC Endpoints Complete](../images/02-vpc-networking/09.13-vpc-endpoints-complete.png)
 
 #### 3.5.5. Security Groups Summary
 
 Sau khi tạo xong, bạn sẽ có 4 Security Groups:
 
-{{< imgborder src="/images/02-vpc-networking/10-security-groups-overview.png" >}}
+![Security Groups Overview](../images/02-vpc-networking/10-security-groups-overview.png)
 
 ### 3.6. Console Verification
 
@@ -987,7 +987,7 @@ Sau khi tạo xong, bạn sẽ có 4 Security Groups:
    - Chọn VPC đã tạo
    - Xem Resource Map để verify architecture
 
-{{< imgborder src="/images/02-vpc-networking/11-vpc-resource-map.png" >}}
+![VPC Resource Map](../images/02-vpc-networking/11-vpc-resource-map.png)
 
 2. **Network Topology:**
    ```
@@ -1057,14 +1057,14 @@ Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho produc
 **Bước 1: Navigate to VPC Endpoints**
 - Trong VPC Dashboard → "Endpoints" → "Create endpoint"
 
-{{< imgborder src="/images/02-vpc-networking/10.1-create-vpc-endpoint.png" >}}
+![Create VPC Endpoint](../images/02-vpc-networking/10.1-create-vpc-endpoint.png)
 
 **Bước 2: Endpoint Settings**
 
 1. **Name tag (optional)**: `mlops-s3-endpoint`
 2. **Type**: Chọn **AWS services** (đã được chọn mặc định)
 
-{{< imgborder src="/images/02-vpc-networking/10.2-endpoint-settings.png" >}}
+![Endpoint Settings](../images/02-vpc-networking/10.2-endpoint-settings.png)
 
 **Bước 3: Tạo S3 Gateway Endpoint (FREE)**
 
@@ -1073,7 +1073,7 @@ Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho produc
 3. **Route Tables**: Chọn private route table
 4. **Policy**: Full Access (default)
 
-{{< imgborder src="/images/02-vpc-networking/10.3-s3-gateway-endpoint.png" >}}
+![S3 Gateway Endpoint](../images/02-vpc-networking/10.3-s3-gateway-endpoint.png)
 
 **Bước 4: Tạo ECR API Interface Endpoint**
 
@@ -1085,9 +1085,9 @@ Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho produc
 6. **Policy**: Full Access (default)
 7. **Private DNS names enabled**: ✅ Checked
 
-{{< imgborder src="/images/02-vpc-networking/10.4.1-ecr-api-endpoint.png" >}}
-{{< imgborder src="/images/02-vpc-networking/10.4.2-ecr-api-endpoint.png" >}}
-{{< imgborder src="/images/02-vpc-networking/10.4.3-ecr-api-endpoint.png" >}}
+![ECR API Endpoint 1](../images/02-vpc-networking/10.4.1-ecr-api-endpoint.png)
+![ECR API Endpoint 2](../images/02-vpc-networking/10.4.2-ecr-api-endpoint.png)
+![ECR API Endpoint 3](../images/02-vpc-networking/10.4.3-ecr-api-endpoint.png)
 
 
 
@@ -1101,11 +1101,11 @@ Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho produc
    - **Security Groups**: Chọn VPC endpoints security group
 5. **Private DNS names enabled**: ✅ Checked
 
-{{< imgborder src="/images/02-vpc-networking/10.5.1-ecr-dkr-endpoint.png" >}}
+![ECR DKR Endpoint 1](../images/02-vpc-networking/10.5.1-ecr-dkr-endpoint.png)
 
-{{< imgborder src="/images/02-vpc-networking/10.5.2-ecr-dkr-endpoint.png" >}}
+![ECR DKR Endpoint 2](../images/02-vpc-networking/10.5.2-ecr-dkr-endpoint.png)
 
-{{< imgborder src="/images/02-vpc-networking/10.5.3-ecr-dkr-endpoint.png" >}}
+![ECR DKR Endpoint 3](../images/02-vpc-networking/10.5.3-ecr-dkr-endpoint.png)
 
 
 **Bước 6: Tạo CloudWatch Logs Interface Endpoint**
@@ -1118,18 +1118,18 @@ Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho produc
    - **Security Groups**: Chọn VPC endpoints security group
 5. **Private DNS names enabled**: ✅ Checked
 
-{{< imgborder src="/images/02-vpc-networking/10.6.1-cloudwatch-logs-endpoint.png" >}}
+![CloudWatch Logs Endpoint 1](../images/02-vpc-networking/10.6.1-cloudwatch-logs-endpoint.png)
 
-{{< imgborder src="/images/02-vpc-networking/10.6.2-cloudwatch-logs-endpoint.png" >}}
+![CloudWatch Logs Endpoint 2](../images/02-vpc-networking/10.6.2-cloudwatch-logs-endpoint.png)
 
-{{< imgborder src="/images/02-vpc-networking/10.6.3-cloudwatch-logs-endpoint.png" >}}
+![CloudWatch Logs Endpoint 3](../images/02-vpc-networking/10.6.3-cloudwatch-logs-endpoint.png)
 
 
 **Bước 7: Verification**
 
 Sau khi tạo xong, kiểm tra trong VPC Endpoints dashboard:
 
-{{< imgborder src="/images/02-vpc-networking/10.7-vpc-endpoints-overview.png" >}}
+![VPC Endpoints Overview](../images/02-vpc-networking/10.7-vpc-endpoints-overview.png)
 
 **Lưu ý quan trọng khi tạo VPC Endpoints:**
 

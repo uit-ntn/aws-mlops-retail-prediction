@@ -91,7 +91,7 @@ IAM Security Architecture
    - Navigate to IAM service
    - Chọn "Roles" → "Create role"
 
-{{< imgborder src="/images/03-iam-roles-irsa/01-create-iam-role.png" title="Tạo IAM role qua AWS Console" >}}
+![Create IAM Role](../images/03-iam-roles-irsa/01-create-iam-role.png)
 
 ### 1.2. EKS Cluster Service Role
 
@@ -101,7 +101,7 @@ IAM Security Architecture
    Service: EKS - Cluster
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/02-eks-cluster-trusted-entity.png" title="Select EKS Cluster trusted entity" >}}
+![EKS Cluster Trusted Entity](../images/03-iam-roles-irsa/02-eks-cluster-trusted-entity.png)
 
 2. **Permissions:**
    ```
@@ -114,7 +114,7 @@ IAM Security Architecture
    Description: EKS cluster service role for MLOps platform
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/03-eks-cluster-role-config.png" title="Cấu hình EKS cluster role" >}}
+![EKS Cluster Role Config](../images/03-iam-roles-irsa/03-eks-cluster-role-config.png)
 
 ### 1.3. EKS Node Group Role
 
@@ -132,7 +132,7 @@ IAM Security Architecture
    ✅ CloudWatchAgentServerPolicy
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/04-node-group-policies.png" title="Attach policies cho EKS node group role" >}}
+![Node Group Policies](../images/03-iam-roles-irsa/04-node-group-policies.png)
 
 3. **Role Details:**
    ```
@@ -153,7 +153,7 @@ IAM Security Architecture
    ✅ AmazonSageMakerFullAccess
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/05-sagemaker-role-policies.png" title="SageMaker execution role policies" >}}
+![SageMaker Role Policies](../images/03-iam-roles-irsa/05-sagemaker-role-policies.png)
 
 3. **Custom S3 Policy:**
    - Click "Create policy" → JSON tab
@@ -179,7 +179,7 @@ IAM Security Architecture
    }
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/06-custom-s3-policy.png" title="Custom S3 policy cho SageMaker" >}}
+![Custom S3 Policy](../images/03-iam-roles-irsa/06-custom-s3-policy.png)
 
 ### 1.5. IRSA Setup qua Console
 
@@ -188,7 +188,7 @@ IAM Security Architecture
    - Chọn cluster đã tạo
    - Copy OIDC issuer URL
 
-{{< imgborder src="/images/03-iam-roles-irsa/07-eks-oidc-issuer.png" title="Get EKS OIDC issuer URL" >}}
+![EKS OIDC Issuer](../images/03-iam-roles-irsa/07-eks-oidc-issuer.png)
 
 2. **Create OIDC Identity Provider:**
    - Navigate to IAM → Identity providers
@@ -198,7 +198,7 @@ IAM Security Architecture
    Audience: sts.amazonaws.com
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/08-create-oidc-provider.png" title="Tạo OIDC identity provider" >}}
+![Create OIDC Provider](../images/03-iam-roles-irsa/08-create-oidc-provider.png)
 
 3. **Create IRSA Role for S3 Access:**
    
@@ -224,7 +224,7 @@ IAM Security Architecture
    }
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/09-irsa-trust-policy.png" title="IRSA trust policy configuration" >}}
+![IRSA Trust Policy](../images/03-iam-roles-irsa/09-irsa-trust-policy.png)
 
 4. **Custom S3 Access Policy:**
    ```json
@@ -268,14 +268,14 @@ IAM Security Architecture
    ✅ mlops-retail-forecast-dev-irsa-cloudwatch
    ```
 
-{{< imgborder src="/images/03-iam-roles-irsa/10-roles-overview.png" title="Tổng quan các IAM roles đã tạo" >}}
+![Roles Overview](../images/03-iam-roles-irsa/10-roles-overview.png)
 
 2. **Trust Relationships Verification:**
    - Click vào từng role
    - Verify Trust relationships tab
    - Đảm bảo correct trusted entities
 
-{{< imgborder src="/images/03-iam-roles-irsa/11-trust-relationships.png" title="Verify trust relationships cho các roles" >}}
+![Trust Relationships](../images/03-iam-roles-irsa/11-trust-relationships.png)
 
 {{% notice success %}}
 **🎯 Console Implementation Complete!**

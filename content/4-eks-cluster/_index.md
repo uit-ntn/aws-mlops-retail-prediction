@@ -41,10 +41,10 @@ Sử dụng VPC Endpoints thay cho NAT Gateway để tối ưu chi phí và tăn
    - Metrics Server (cần cho HPA)
    - Cluster Autoscaler (optional, scale node theo pod demand)
 
-5. **Tích hợp với VPC Endpoints**
-   - ECR API & DKR: để pod pull container image từ private subnet
-   - S3 Gateway Endpoint: để node/pod đọc/ghi dữ liệu ML (dataset, model artifacts)
-   - CloudWatch Logs/Monitoring: Fluent Bit trong pod gửi log qua Interface Endpoint
+5. **Sử dụng VPC Endpoints từ Task 2**
+   - ECR API & DKR: sử dụng endpoints đã tạo ở Task 2 để pod pull container image
+   - S3 Gateway Endpoint: sử dụng endpoint đã tạo ở Task 2 để node/pod đọc/ghi dữ liệu ML
+   - CloudWatch Logs/Monitoring: sử dụng endpoints đã tạo ở Task 2 cho logging và metrics
 
 ## ✅ Deliverables
 
@@ -120,7 +120,7 @@ EKS Control Plane Architecture
    - Navigate to EKS service
    - Chọn "Create cluster"
 
-{{< imgborder src="/images/04-eks-cluster/01-create-eks-cluster.png" >}}
+![Create EKS Cluster](../images/04-eks-cluster/01-create-eks-cluster.png)
 
 2. **Basic Configuration:**
    ```
@@ -129,7 +129,7 @@ EKS Control Plane Architecture
    Cluster service role: mlops-retail-forecast-dev-eks-cluster-role
    ```
 
-{{< imgborder src="/images/04-eks-cluster/02-cluster-basic-config.png" >}}
+![Cluster Basic Config](../images/04-eks-cluster/02-cluster-basic-config.png)
 
 3. **Networking Configuration:**
    ```
@@ -142,7 +142,7 @@ EKS Control Plane Architecture
    Security groups: mlops-retail-forecast-dev-eks-control-plane-sg
    ```
 
-{{< imgborder src="/images/04-eks-cluster/03-networking-config.png" >}}
+![Networking Config](../images/04-eks-cluster/03-networking-config.png)
 
 4. **Cluster Endpoint Access:**
    ```
@@ -151,7 +151,7 @@ EKS Control Plane Architecture
    Public access source: Specific CIDR blocks (your IP)
    ```
 
-{{< imgborder src="/images/04-eks-cluster/04-endpoint-access.png" >}}
+![Endpoint Access](../images/04-eks-cluster/04-endpoint-access.png)
 
 5. **Logging Configuration:**
    ```
@@ -163,7 +163,7 @@ EKS Control Plane Architecture
    ✅ Scheduler
    ```
 
-{{< imgborder src="/images/04-eks-cluster/05-logging-config.png" >}}
+![Logging Config](../images/04-eks-cluster/05-logging-config.png)
 
 6. **Encryption Configuration:**
    ```
@@ -172,7 +172,7 @@ EKS Control Plane Architecture
    Key alias: alias/mlops-retail-forecast-dev-eks
    ```
 
-{{< imgborder src="/images/04-eks-cluster/06-encryption-config.png" >}}
+![Encryption Config](../images/04-eks-cluster/06-encryption-config.png)
 
 ### 1.2. Add-ons Installation via Console
 
@@ -181,7 +181,7 @@ EKS Control Plane Architecture
    - Click "Add-ons" tab
    - Chọn "Add new"
 
-{{< imgborder src="/images/04-eks-cluster/07-addons-overview.png" >}}
+![Addons Overview](../images/04-eks-cluster/07-addons-overview.png)
 
 2. **Install Essential Add-ons:**
    
@@ -213,7 +213,7 @@ EKS Control Plane Architecture
    Service account role: Create new IAM role
    ```
 
-{{< imgborder src="/images/04-eks-cluster/08-install-addons.png" >}}
+![Install Addons](../images/04-eks-cluster/08-install-addons.png)
 
 3. **AWS Load Balancer Controller:**
    ```
@@ -222,7 +222,7 @@ EKS Control Plane Architecture
    Service account role: mlops-retail-forecast-dev-alb-controller
    ```
 
-{{< imgborder src="/images/04-eks-cluster/09-alb-controller-addon.png" >}}
+![ALB Controller Addon](../images/04-eks-cluster/09-alb-controller-addon.png)
 
 ### 1.3. Cluster Verification via Console
 
@@ -231,7 +231,7 @@ EKS Control Plane Architecture
    - Verify Kubernetes version: 1.28
    - Confirm endpoint access configuration
 
-{{< imgborder src="/images/04-eks-cluster/10-cluster-overview.png" >}}
+![Cluster Overview](../images/04-eks-cluster/10-cluster-overview.png)
 
 2. **Add-ons Status:**
    ```
@@ -242,14 +242,14 @@ EKS Control Plane Architecture
    ✅ aws-load-balancer-controller: Active
    ```
 
-{{< imgborder src="/images/04-eks-cluster/11-addons-status.png" >}}
+![Addons Status](../images/04-eks-cluster/11-addons-status.png)
 
 3. **CloudWatch Logs:**
    - Navigate to CloudWatch → Log groups
    - Verify log group: `/aws/eks/mlops-retail-forecast-dev-cluster/cluster`
    - Check log streams cho control plane components
 
-{{< imgborder src="/images/04-eks-cluster/12-cloudwatch-logs.png" >}}
+![CloudWatch Logs](../images/04-eks-cluster/12-cloudwatch-logs.png)
 
 {{% notice success %}}
 **🎯 Console Implementation Complete!**
@@ -280,92 +280,120 @@ EKS cluster đã được tạo thành công với:
 Khuyến nghị: Console cho learning, Terraform cho production.
 {{% /notice %}}
 
-## 2. EKS Cluster Terraform Configuration
+## 2. Terraform cho Advanced EKS Configuration
 
-### 1.1. EKS Cluster Resource
+{{% notice info %}}
+**💡 Khi nào cần Terraform cho EKS:**
+- ✅ **Integration phức tạp** với existing VPC/IAM từ Task 2-3  
+- ✅ **Automated CI/CD deployment** với consistent configuration  
+- ✅ **Advanced security** như KMS encryption, fine-grained IAM  
+- ✅ **Production workloads** cần reproducible infrastructure  
+
+**Console đủ cho:** Basic EKS cluster tạo một lần, learning, testing
+{{% /notice %}}
+
+### 2.1. EKS Cluster với VPC Integration
 
 **File: `aws/infra/eks-cluster.tf`**
 
 ```hcl
-# EKS Cluster
+# Data sources from Task 2 VPC outputs
+data "aws_vpc" "main" {
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_name}-${var.environment}-vpc"]
+  }
+}
+
+data "aws_subnets" "private" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
+  filter {
+    name   = "tag:Type"
+    values = ["private-subnet"]
+  }
+}
+
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
+  filter {
+    name   = "tag:Type"
+    values = ["public-subnet"]
+  }
+}
+
+# EKS Cluster với integration từ Task 2-3
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-${var.environment}-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
+  role_arn = data.aws_iam_role.eks_cluster.arn  # From Task 3
   version  = var.kubernetes_version
 
   vpc_config {
-    subnet_ids              = concat(aws_subnet.private[*].id, aws_subnet.public[*].id)
+    subnet_ids              = concat(data.aws_subnets.private.ids, data.aws_subnets.public.ids)
     endpoint_private_access = true
     endpoint_public_access  = true
     public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
-    security_group_ids      = [aws_security_group.eks_control_plane.id]
+    security_group_ids      = [data.aws_security_group.eks_control_plane.id]
   }
 
-  # Enable EKS cluster logging
+  # Production logging
   enabled_cluster_log_types = [
-    "api",
-    "audit",
-    "authenticator",
-    "controllerManager",
-    "scheduler"
+    "api", "audit", "authenticator", "controllerManager", "scheduler"
   ]
 
-  # Encryption for secrets
+  # Encryption với KMS từ Task 3
   encryption_config {
     provider {
-      key_arn = aws_kms_key.eks_cluster.arn
+      key_arn = data.aws_kms_key.eks.arn
     }
     resources = ["secrets"]
   }
 
-  # Ensure proper ordering of resource creation
+  # Dependencies từ previous tasks
   depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy,
-    aws_iam_role_policy.eks_cluster_cloudwatch,
-    aws_cloudwatch_log_group.eks_cluster
+    data.aws_vpc_endpoints.s3,      # Task 2 VPC Endpoints
+    data.aws_vpc_endpoints.ecr_api,
+    data.aws_vpc_endpoints.ecr_dkr,
+    data.aws_iam_role.eks_cluster   # Task 3 IAM
   ]
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-${var.environment}-cluster"
     Type = "eks-cluster"
+    CreatedBy = "terraform"
   })
 }
 
-# CloudWatch Log Group for EKS
-resource "aws_cloudwatch_log_group" "eks_cluster" {
-  name              = "/aws/eks/${var.project_name}-${var.environment}-cluster/cluster"
-  retention_in_days = var.cluster_log_retention_days
-  kms_key_id        = aws_kms_key.eks_cluster.arn
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-eks-logs"
-    Type = "cloudwatch-log-group"
-  })
+# Reference IAM role từ Task 3
+data "aws_iam_role" "eks_cluster" {
+  name = "${var.project_name}-${var.environment}-eks-cluster-role"
 }
 
-# KMS Key for EKS encryption
-resource "aws_kms_key" "eks_cluster" {
-  description             = "KMS key for EKS cluster encryption"
-  deletion_window_in_days = var.kms_key_deletion_window
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-eks-kms"
-    Type = "kms-key"
-  })
+# Reference Security Group từ Task 2
+data "aws_security_group" "eks_control_plane" {
+  filter {
+    name   = "tag:Name"
+    values = ["${var.project_name}-${var.environment}-eks-control-plane-sg"]
+  }
 }
 
-resource "aws_kms_alias" "eks_cluster" {
-  name          = "alias/${var.project_name}-${var.environment}-eks"
-  target_key_id = aws_kms_key.eks_cluster.key_id
+# Reference KMS Key từ Task 3
+data "aws_kms_key" "eks" {
+  key_id = "alias/${var.project_name}-${var.environment}-eks"
 }
 ```
 
-### 1.2. Additional Variables
+### 2.2. Essential Variables cho Terraform
 
-**Thêm vào `aws/infra/variables.tf`:**
+**File: `aws/infra/variables.tf` (chỉ cần thêm essential vars):**
 
 ```hcl
-# EKS Cluster Configuration
+# Core EKS configuration
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
@@ -373,512 +401,115 @@ variable "kubernetes_version" {
 }
 
 variable "cluster_endpoint_public_access_cidrs" {
-  description = "List of CIDR blocks that can access the public API server endpoint"
+  description = "CIDR blocks for public API access (restrict in production)"
   type        = list(string)
-  default     = ["0.0.0.0/0"]  # Restrict this in production
-}
-
-variable "cluster_log_retention_days" {
-  description = "Number of days to retain EKS cluster logs"
-  type        = number
-  default     = 7
-}
-
-variable "kms_key_deletion_window" {
-  description = "KMS key deletion window in days"
-  type        = number
-  default     = 7
-}
-
-# EKS Add-ons
-variable "cluster_addons" {
-  description = "Map of cluster addon configurations"
-  type = map(object({
-    addon_version = string
-  }))
-  default = {
-    coredns = {
-      addon_version = "v1.10.1-eksbuild.5"
-    }
-    kube-proxy = {
-      addon_version = "v1.28.2-eksbuild.2"
-    }
-    vpc-cni = {
-      addon_version = "v1.15.4-eksbuild.1"
-    }
-    aws-ebs-csi-driver = {
-      addon_version = "v1.24.1-eksbuild.1"
-    }
-  }
+  default     = ["0.0.0.0/0"]
 }
 ```
 
-### 1.3. Environment-specific Configuration
+### 2.3. Production Terraform Configuration
 
-**Cập nhật `aws/terraform.tfvars`:**
+**File: `aws/terraform.tfvars`:**
 
 ```hcl
-# EKS cluster configuration
+# Production EKS configuration
 kubernetes_version = "1.28"
 cluster_endpoint_public_access_cidrs = [
-  "0.0.0.0/0"  # Restrict to your office/VPN CIDR in production
+  "203.0.113.0/24",  # Your office IP range
+  "198.51.100.0/24"  # VPN IP range
 ]
-cluster_log_retention_days = 7
-
-# EKS add-ons
-cluster_addons = {
-  coredns = {
-    addon_version = "v1.10.1-eksbuild.5"
-  }
-  kube-proxy = {
-    addon_version = "v1.28.2-eksbuild.2"
-  }
-  vpc-cni = {
-    addon_version = "v1.15.4-eksbuild.1"
-  }
-  aws-ebs-csi-driver = {
-    addon_version = "v1.24.1-eksbuild.1"
-  }
-}
 ```
 
-## 2. EKS Managed Node Groups Configuration
+## 3. Add-ons Management (Choose Console or Terraform)
 
-### 2.1. Node Group Terraform Configuration
+{{% notice tip %}}
+**💡 Add-ons Installation Strategy:**
+- ✅ **Console**: Quick setup, one-time installation, visual management
+- ✅ **Terraform**: Automated updates, version control, CI/CD integration
 
-**File: `aws/infra/eks-nodegroup.tf`**
+**Recommendation**: Console cho initial setup, Terraform cho production automation
+{{% /notice %}}
+
+### 3.1. Essential Add-ons via Terraform (cho automation)
+
+**File: `aws/infra/eks-addons.tf`**
 
 ```hcl
-# EKS Managed Node Group
-resource "aws_eks_node_group" "main" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-${var.environment}-nodes"
-  node_role_arn   = aws_iam_role.eks_node_group_role.arn
-  subnet_ids      = aws_subnet.private[*].id
-
-  # Instance configuration
-  instance_types = var.node_group_instance_types
-  capacity_type  = var.node_group_capacity_type
-  disk_size      = var.node_group_disk_size
-
-  # Scaling configuration
-  scaling_config {
-    desired_size = var.node_group_desired_size
-    max_size     = var.node_group_max_size
-    min_size     = var.node_group_min_size
-  }
-
-  # Update configuration
-  update_config {
-    max_unavailable_percentage = 25
-  }
-
-  # Remote access (optional - for debugging)
-  remote_access {
-    ec2_ssh_key = var.node_group_key_pair
-    source_security_group_ids = [aws_security_group.eks_nodes.id]
-  }
-
-  # Launch template for advanced configuration
-  launch_template {
-    id      = aws_launch_template.eks_nodes.id
-    version = aws_launch_template.eks_nodes.latest_version
-  }
-
-  # Ensure proper ordering of resource creation
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_node_group_AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.eks_node_group_AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.eks_node_group_AmazonEC2ContainerRegistryReadOnly,
-    aws_iam_role_policy_attachment.eks_node_group_CloudWatchAgentServerPolicy,
-    aws_iam_role_policy_attachment.eks_node_group_S3Access
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-node-group"
-    Type = "eks-node-group"
-  })
-}
-
-# Launch Template for Node Group
-resource "aws_launch_template" "eks_nodes" {
-  name_prefix   = "${var.project_name}-${var.environment}-node-"
-  image_id      = data.aws_ami.eks_worker.id
-  instance_type = var.node_group_instance_types[0]
-
-  vpc_security_group_ids = [aws_security_group.eks_nodes.id]
-
-  user_data = base64encode(templatefile("${path.module}/templates/userdata.sh", {
-    cluster_name        = aws_eks_cluster.main.name
-    cluster_endpoint    = aws_eks_cluster.main.endpoint
-    cluster_ca          = aws_eks_cluster.main.certificate_authority[0].data
-    bootstrap_arguments = var.node_group_bootstrap_arguments
-  }))
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      volume_size           = var.node_group_disk_size
-      volume_type          = "gp3"
-      iops                 = 3000
-      throughput           = 125
-      encrypted            = true
-      delete_on_termination = true
+# Essential EKS Add-ons cho production (automated management)
+locals {
+  essential_addons = {
+    coredns = {
+      addon_version               = "v1.10.1-eksbuild.5"
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "PRESERVE"
     }
-  }
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 2
-    instance_metadata_tags      = "enabled"
-  }
-
-  monitoring {
-    enabled = true
-  }
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = merge(var.common_tags, {
-      Name = "${var.project_name}-${var.environment}-eks-node"
-      Type = "eks-worker-node"
-    })
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-node-template"
-    Type = "launch-template"
-  })
-}
-
-# Data source for EKS optimized AMI
-data "aws_ami" "eks_worker" {
-  filter {
-    name   = "name"
-    values = ["amazon-eks-node-${var.kubernetes_version}-v*"]
-  }
-
-  most_recent = true
-  owners      = ["602401143452"] # Amazon EKS AMI Account ID
-}
-```
-
-### 2.2. Node Group Variables
-
-**Thêm vào `aws/infra/variables.tf`:**
-
-```hcl
-# EKS Node Group Configuration
-variable "node_group_instance_types" {
-  description = "List of instance types for EKS node group"
-  type        = list(string)
-  default     = ["t3.medium", "t3.large"]
-}
-
-variable "node_group_capacity_type" {
-  description = "Type of capacity associated with the EKS Node Group. Valid values: ON_DEMAND, SPOT"
-  type        = string
-  default     = "ON_DEMAND"
-}
-
-variable "node_group_disk_size" {
-  description = "Disk size in GiB for worker nodes"
-  type        = number
-  default     = 50
-}
-
-variable "node_group_desired_size" {
-  description = "Desired number of worker nodes"
-  type        = number
-  default     = 2
-}
-
-variable "node_group_max_size" {
-  description = "Maximum number of worker nodes"
-  type        = number
-  default     = 4
-}
-
-variable "node_group_min_size" {
-  description = "Minimum number of worker nodes"
-  type        = number
-  default     = 1
-}
-
-variable "node_group_key_pair" {
-  description = "EC2 Key Pair name for SSH access to nodes"
-  type        = string
-  default     = null
-}
-
-variable "node_group_bootstrap_arguments" {
-  description = "Additional arguments for the EKS bootstrap script"
-  type        = string
-  default     = ""
-}
-```
-
-### 2.3. Node Group IAM Role
-
-```hcl
-# IAM Role for EKS Node Group
-resource "aws_iam_role" "eks_node_group_role" {
-  name = "${var.project_name}-${var.environment}-eks-node-group"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-eks-node-group"
-    Type = "iam-role"
-  })
-}
-
-# Required IAM policies for EKS Node Group
-resource "aws_iam_role_policy_attachment" "eks_node_group_AmazonEKSWorkerNodePolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.eks_node_group_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "eks_node_group_AmazonEKS_CNI_Policy" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.eks_node_group_role.name
-}
-
-resource "aws_iam_role_policy_attachment" "eks_node_group_AmazonEC2ContainerRegistryReadOnly" {
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.eks_node_group_role.name
-}
-
-# CloudWatch access for logging and monitoring
-resource "aws_iam_role_policy_attachment" "eks_node_group_CloudWatchAgentServerPolicy" {
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-  role       = aws_iam_role.eks_node_group_role.name
-}
-
-# S3 access for ML data and model artifacts
-resource "aws_iam_role_policy_attachment" "eks_node_group_S3Access" {
-  policy_arn = aws_iam_policy.eks_node_s3_access.arn
-  role       = aws_iam_role.eks_node_group_role.name
-}
-
-# Custom S3 access policy for ML workloads
-resource "aws_iam_policy" "eks_node_s3_access" {
-  name        = "${var.project_name}-${var.environment}-eks-node-s3-access"
-  description = "S3 access policy for EKS nodes"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.project_name}-${var.environment}-*",
-          "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
-        ]
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-eks-node-s3-policy"
-    Type = "iam-policy"
-  })
-}
-```
-
-### 2.4. User Data Template
-
-**File: `aws/infra/templates/userdata.sh`**
-
-```bash
-#!/bin/bash
-set -o xtrace
-
-# Bootstrap the node to join the EKS cluster
-/etc/eks/bootstrap.sh ${cluster_name} ${bootstrap_arguments}
-
-# Install additional packages for ML workloads
-yum update -y
-yum install -y amazon-cloudwatch-agent
-
-# Configure CloudWatch agent
-cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
-{
-  "agent": {
-    "metrics_collection_interval": 60,
-    "run_as_user": "cwagent"
-  },
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          {
-            "file_path": "/var/log/messages",
-            "log_group_name": "/aws/eks/${cluster_name}/system",
-            "log_stream_name": "{instance_id}/messages"
-          },
-          {
-            "file_path": "/var/log/dmesg",
-            "log_group_name": "/aws/eks/${cluster_name}/system",
-            "log_stream_name": "{instance_id}/dmesg"
-          }
-        ]
-      }
+    kube-proxy = {
+      addon_version               = "v1.28.2-eksbuild.2"
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "PRESERVE"
     }
-  },
-  "metrics": {
-    "namespace": "EKS/Node",
-    "metrics_collected": {
-      "cpu": {
-        "measurement": [
-          "cpu_usage_idle",
-          "cpu_usage_iowait",
-          "cpu_usage_user",
-          "cpu_usage_system"
-        ],
-        "metrics_collection_interval": 60
-      },
-      "disk": {
-        "measurement": [
-          "used_percent"
-        ],
-        "metrics_collection_interval": 60,
-        "resources": [
-          "*"
-        ]
-      },
-      "diskio": {
-        "measurement": [
-          "io_time"
-        ],
-        "metrics_collection_interval": 60,
-        "resources": [
-          "*"
-        ]
-      },
-      "mem": {
-        "measurement": [
-          "mem_used_percent"
-        ],
-        "metrics_collection_interval": 60
-      }
+    vpc-cni = {
+      addon_version               = "v1.15.4-eksbuild.1"
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "PRESERVE"
+    }
+    aws-ebs-csi-driver = {
+      addon_version               = "v1.24.1-eksbuild.1"
+      resolve_conflicts_on_create = "OVERWRITE"
+      resolve_conflicts_on_update = "PRESERVE"
+      service_account_role_arn    = data.aws_iam_role.ebs_csi_driver.arn
     }
   }
 }
-EOF
 
-# Start CloudWatch agent
-systemctl enable amazon-cloudwatch-agent
-systemctl start amazon-cloudwatch-agent
+# EKS Add-ons automated installation
+resource "aws_eks_addon" "essential" {
+  for_each = local.essential_addons
 
-# Signal that the instance is ready
-/opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource NodeGroup --region ${AWS::Region}
+  cluster_name             = aws_eks_cluster.main.name
+  addon_name               = each.key
+  addon_version            = each.value.addon_version
+  resolve_conflicts        = each.value.resolve_conflicts_on_update
+  service_account_role_arn = lookup(each.value, "service_account_role_arn", null)
+
+  depends_on = [aws_eks_cluster.main]
+
+  tags = merge(var.common_tags, {
+    Name      = "${var.project_name}-${var.environment}-${each.key}"
+    Type      = "eks-addon"
+    CreatedBy = "terraform"
+  })
+}
+
+# Reference EBS CSI Driver IAM role từ Task 3
+data "aws_iam_role" "ebs_csi_driver" {
+  name = "${var.project_name}-${var.environment}-ebs-csi-driver-role"
+}
 ```
 
-## 3. EKS Add-ons Terraform Configuration
+### 3.2. Add-ons Variables
 
-### 3.1. Essential EKS Add-ons
+**File: `aws/infra/variables.tf` (minimal addon config):**
 
 ```hcl
-# EKS Add-ons
-resource "aws_eks_addon" "cluster_addons" {
-  for_each = var.cluster_addons
-
-  cluster_name         = aws_eks_cluster.main.name
-  addon_name           = each.key
-  addon_version        = each.value.addon_version
-  resolve_conflicts    = "OVERWRITE"
-
-  depends_on = [
-    aws_eks_cluster.main
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-${each.key}"
-    Type = "eks-addon"
-  })
-}
-
-# AWS Load Balancer Controller add-on (for ALB integration)
-resource "aws_eks_addon" "aws_load_balancer_controller" {
-  cluster_name         = aws_eks_cluster.main.name
-  addon_name           = "aws-load-balancer-controller"
-  addon_version        = "v2.6.3-eksbuild.1"
-  resolve_conflicts    = "OVERWRITE"
-  service_account_role_arn = aws_iam_role.aws_load_balancer_controller.arn
-
-  depends_on = [
-    aws_eks_cluster.main,
-    aws_iam_role.aws_load_balancer_controller
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-alb-controller"
-    Type = "eks-addon"
-  })
+# EKS Add-ons override versions (optional)
+variable "addon_versions" {
+  description = "Override default addon versions"
+  type        = map(string)
+  default     = {}  # Use default versions from locals
 }
 ```
 
-### 2.2. AWS Load Balancer Controller IAM Role
+{{% notice warning %}}
+**📝 Note về Node Groups:**
 
-```hcl
-# IAM Role for AWS Load Balancer Controller
-resource "aws_iam_role" "aws_load_balancer_controller" {
-  name = "${var.project_name}-${var.environment}-alb-controller"
+EKS Node Groups được cover chi tiết trong **Task 5**, bao gồm:
+- Basic node group creation qua Console (đủ cho most cases)
+- Advanced multi-node group strategies với Terraform
+- Mixed instance types, auto-scaling, cost optimization
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.eks_oidc.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
-            "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:aud" = "sts.amazonaws.com"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-alb-controller"
-    Type = "iam-role"
-    Service = "aws-load-balancer-controller"
-  })
-}
-
-# Attach AWS Load Balancer Controller IAM Policy
-resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
-  role       = aws_iam_role.aws_load_balancer_controller.name
-  policy_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/AWSLoadBalancerControllerIAMPolicy"
-}
-
-# Data source for current AWS account
-data "aws_caller_identity" "current" {}
-```
+Task 4 focus vào EKS Control Plane và integration với existing infrastructure.
+{{% /notice %}}
 
 ## 3. Kubectl Access Configuration
 
@@ -889,7 +520,7 @@ data "aws_caller_identity" "current" {}
    - Navigate to EKS service
    - Chọn "Create cluster"
 
-{{< imgborder src="/images/04-eks-cluster/01-create-eks-cluster.png" >}}
+![Create EKS Cluster](../images/04-eks-cluster/01-create-eks-cluster.png)
 
 2. **Basic Configuration:**
    ```
@@ -898,7 +529,7 @@ data "aws_caller_identity" "current" {}
    Cluster service role: mlops-retail-forecast-dev-eks-cluster-role
    ```
 
-{{< imgborder src="/images/04-eks-cluster/02-cluster-basic-config.png" >}}
+![Cluster Basic Config](../images/04-eks-cluster/02-cluster-basic-config.png)
 
 3. **Networking Configuration:**
    ```
@@ -911,7 +542,7 @@ data "aws_caller_identity" "current" {}
    Security groups: mlops-retail-forecast-dev-eks-control-plane-sg
    ```
 
-{{< imgborder src="/images/04-eks-cluster/03-networking-config.png" >}}
+![Networking Config](../images/04-eks-cluster/03-networking-config.png)
 
 4. **Cluster Endpoint Access:**
    ```
@@ -920,7 +551,7 @@ data "aws_caller_identity" "current" {}
    Public access source: Specific CIDR blocks (your IP)
    ```
 
-{{< imgborder src="/images/04-eks-cluster/04-endpoint-access.png" >}}
+![Endpoint Access](../images/04-eks-cluster/04-endpoint-access.png)
 
 5. **Logging Configuration:**
    ```
@@ -932,7 +563,7 @@ data "aws_caller_identity" "current" {}
    ✅ Scheduler
    ```
 
-{{< imgborder src="/images/04-eks-cluster/05-logging-config.png" >}}
+![Logging Config](../images/04-eks-cluster/05-logging-config.png)
 
 ### 3.2. Add-ons Installation
 
@@ -941,7 +572,7 @@ data "aws_caller_identity" "current" {}
    - Click "Add-ons" tab
    - Chọn "Add new"
 
-{{< imgborder src="/images/04-eks-cluster/06-addons-overview.png" >}}
+![Addons Overview](../images/04-eks-cluster/06-addons-overview.png)
 
 2. **Install Essential Add-ons:**
    
@@ -973,211 +604,146 @@ data "aws_caller_identity" "current" {}
    Service account role: Create new IAM role
    ```
 
-{{< imgborder src="/images/04-eks-cluster/07-install-addons.png" >}}
+![Install Addons](../images/04-eks-cluster/07-install-addons.png)
 
-## 4. VPC Endpoints Integration for Cost Optimization
+## 4. Integration với VPC Endpoints từ Task 2
 
 ### 4.1. VPC Endpoints Benefits cho EKS
 
-**Thay thế NAT Gateway bằng VPC Endpoints** để giảm chi phí và tăng bảo mật:
+**EKS sử dụng VPC Endpoints đã được tạo ở Task 2** để giảm chi phí và tăng bảo mật:
 
 ```
-Cost Comparison (Monthly):
-├── Traditional NAT Gateway: $71/month
-│   ├── 2x NAT Gateway: $64/month
-│   ├── 2x Elastic IP: $7.2/month
-│   └── Data transfer: $0.045/GB
-└── VPC Endpoints: $21.6/month
-    ├── S3 Gateway Endpoint: FREE
-    ├── ECR API Interface: $7.2/month
-    ├── ECR DKR Interface: $7.2/month
-    ├── CloudWatch Logs: $7.2/month
-    └── Data transfer: $0.01/GB (70% cheaper)
+✅ VPC Endpoints từ Task 2 (đã có sẵn):
+├── S3 Gateway Endpoint: FREE
+├── ECR API Interface: $7.2/month
+├── ECR DKR Interface: $7.2/month
+├── CloudWatch Logs: $7.2/month
+└── Total: $21.6/month (vs $71/month NAT Gateway)
 
 💰 Cost Savings: 70% reduction ($49.4/month saved)
 ```
 
-### 4.2. Essential VPC Endpoints cho EKS
+### 4.2. Terraform Integration với VPC Endpoints
 
-**File: `aws/infra/vpc-endpoints.tf`**
+**EKS sử dụng VPC Endpoints được tạo từ Task 2 thông qua data sources:**
 
 ```hcl
-# S3 Gateway Endpoint (FREE - no hourly charges)
-resource "aws_vpc_endpoint" "s3" {
-  vpc_id       = aws_vpc.main.id
-  service_name = "com.amazonaws.${var.aws_region}.s3"
-  
-  # Associate với private route tables
-  route_table_ids = aws_route_table.private[*].id
-  
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = "*"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:ListBucket",
-          "s3:DeleteObject"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.project_name}-${var.environment}-*",
-          "arn:aws:s3:::${var.project_name}-${var.environment}-*/*",
-          "arn:aws:s3:::amazon-eks-*",
-          "arn:aws:s3:::amazon-eks-*/*"
-        ]
-      }
-    ]
-  })
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-s3-endpoint"
-    Type = "gateway-endpoint"
-  })
+# Data sources to reference VPC Endpoints from Task 2
+data "aws_vpc_endpoints" "s3" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+  filter {
+    name   = "service-name"
+    values = ["com.amazonaws.${var.aws_region}.s3"]
+  }
 }
 
-# ECR API Interface Endpoint - cho Docker registry API calls
-resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
-  # Enable DNS resolution
-  private_dns_enabled = true
-  
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = "*"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
-          "ecr:DescribeRepositories",
-          "ecr:DescribeImages"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-ecr-api-endpoint"
-    Type = "interface-endpoint"
-  })
+data "aws_vpc_endpoints" "ecr_api" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+  filter {
+    name   = "service-name"
+    values = ["com.amazonaws.${var.aws_region}.ecr.api"]
+  }
 }
 
-# ECR DKR Interface Endpoint - cho Docker image pulls
-resource "aws_vpc_endpoint" "ecr_dkr" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
-  private_dns_enabled = true
-  
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = "*"
-        Action = [
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-ecr-dkr-endpoint"
-    Type = "interface-endpoint"
-  })
+data "aws_vpc_endpoints" "ecr_dkr" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+  filter {
+    name   = "service-name"
+    values = ["com.amazonaws.${var.aws_region}.ecr.dkr"]
+  }
 }
 
-# CloudWatch Logs Interface Endpoint - cho logging
-resource "aws_vpc_endpoint" "logs" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.logs"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
-  private_dns_enabled = true
-  
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = "*"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-          "logs:DescribeLogGroups",
-          "logs:DescribeLogStreams"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-logs-endpoint"
-    Type = "interface-endpoint"
-  })
+data "aws_vpc_endpoints" "logs" {
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
+  filter {
+    name   = "service-name"
+    values = ["com.amazonaws.${var.aws_region}.logs"]
+  }
 }
+```
 
-# CloudWatch Monitoring Interface Endpoint - cho metrics
-resource "aws_vpc_endpoint" "monitoring" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.monitoring"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
-  private_dns_enabled = true
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-monitoring-endpoint"
-    Type = "interface-endpoint"
-  })
-}
+**EKS Cluster dependencies với VPC Endpoints:**
 
-# STS Interface Endpoint - cho IAM role assumptions
-resource "aws_vpc_endpoint" "sts" {
-  vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${var.aws_region}.sts"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = aws_subnet.private[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
-  
-  private_dns_enabled = true
-  
+```hcl
+# EKS Cluster với dependency từ VPC Endpoints
+resource "aws_eks_cluster" "main" {
+  name     = "${var.project_name}-${var.environment}-cluster"
+  role_arn = aws_iam_role.eks_cluster_role.arn
+  version  = var.kubernetes_version
+
+  vpc_config {
+    subnet_ids              = var.private_subnet_ids
+    endpoint_private_access = true
+    endpoint_public_access  = true
+    public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
+    security_group_ids      = [aws_security_group.eks_control_plane.id]
+  }
+
+  # EKS Cluster phụ thuộc vào VPC Endpoints để private subnets access AWS services
+  depends_on = [
+    aws_iam_role_policy_attachment.eks_cluster_policy,
+    aws_iam_role_policy.eks_cluster_cloudwatch,
+    aws_cloudwatch_log_group.eks_cluster,
+    # VPC Endpoints từ Task 2 phải được tạo trước EKS
+    data.aws_vpc_endpoints.s3,
+    data.aws_vpc_endpoints.ecr_api,
+    data.aws_vpc_endpoints.ecr_dkr,
+    data.aws_vpc_endpoints.logs
+  ]
+
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-sts-endpoint"
-    Type = "interface-endpoint"
+    Name = "${var.project_name}-${var.environment}-cluster"
+    Type = "eks-cluster"
   })
 }
 ```
 
-### 4.3. Verification VPC Endpoints
+### 4.3. Verification VPC Endpoints Integration
 
-**Test ECR access qua VPC Endpoints:**
+**Test ECR access qua VPC Endpoints từ Task 2:**
 
 ```bash
-# Deploy test pod để verify ECR access
+# Verify VPC Endpoints từ Task 2 đã tồn tại
+aws ec2 describe-vpc-endpoints \
+  --filters "Name=vpc-id,Values=$(terraform output -raw vpc_id)" \
+  --query 'VpcEndpoints[*].{Service:ServiceName,State:State,Type:VpcEndpointType}'
+
+# Expected output:
+# [
+#   {
+#     "Service": "com.amazonaws.ap-southeast-1.s3",
+#     "State": "available",
+#     "Type": "Gateway"
+#   },
+#   {
+#     "Service": "com.amazonaws.ap-southeast-1.ecr.api", 
+#     "State": "available",
+#     "Type": "Interface"
+#   },
+#   {
+#     "Service": "com.amazonaws.ap-southeast-1.ecr.dkr",
+#     "State": "available", 
+#     "Type": "Interface"
+#   }
+# ]
+```
+
+**Test ECR access từ EKS pods:**
+
+```bash
+# Deploy test pod để verify ECR access qua VPC Endpoints
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Pod
@@ -1193,30 +759,15 @@ spec:
   restartPolicy: Always
 EOF
 
-# Check pod có thể pull image thành công
+# Check pod có thể pull image thành công qua VPC Endpoints
 kubectl get pods test-ecr-access
 kubectl describe pod test-ecr-access
 
-# Test S3 access từ trong pod
-kubectl exec -it test-ecr-access -- aws s3 ls
+# Test DNS resolution cho ECR endpoints (should resolve to private IPs)
+kubectl exec -it test-ecr-access -- nslookup ${AWS_ACCOUNT_ID}.dkr.ecr.ap-southeast-1.amazonaws.com
 
 # Cleanup
 kubectl delete pod test-ecr-access
-```
-
-**Verify VPC Endpoints hoạt động:**
-
-```bash
-# Check VPC endpoints status
-aws ec2 describe-vpc-endpoints \
-  --filters "Name=vpc-id,Values=$(terraform output -raw vpc_id)" \
-  --query 'VpcEndpoints[*].{Service:ServiceName,State:State,Type:VpcEndpointType}'
-
-# Test DNS resolution cho ECR endpoints từ EKS node
-kubectl run test-dns --image=busybox --rm -it --restart=Never -- \
-  nslookup ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
-
-# Expected: Should resolve to private IP addresses (10.0.x.x)
 ```
 
 ## 5. kubectl Configuration
@@ -1557,13 +1108,13 @@ output "cluster_oidc_issuer_url" {
 
 ## 👉 Kết quả Task 4
 
-Sau Task 4, bạn sẽ có EKS Cluster production-ready, chạy hoàn toàn trong private subnet + VPC Endpoints, tiết kiệm chi phí NAT Gateway và tăng mức độ bảo mật.
+Sau Task 4, bạn sẽ có EKS Cluster production-ready, chạy hoàn toàn trong private subnet và tích hợp với VPC Endpoints từ Task 2, tiết kiệm chi phí NAT Gateway và tăng mức độ bảo mật.
 
 ### ✅ Deliverables Completed
 
 - **EKS Control Plane ACTIVE**: Managed Kubernetes cluster với multi-AZ high availability
 - **Managed Node Groups**: EC2 instances trải đều trên ≥2 AZ với auto-scaling
-- **VPC Endpoints Integration**: ECR, S3, CloudWatch access không cần NAT Gateway
+- **VPC Endpoints Integration**: Sử dụng ECR, S3, CloudWatch endpoints từ Task 2
 - **Core Add-ons**: VPC CNI, CoreDNS, kube-proxy, metrics-server, EBS CSI driver
 - **kubectl Access**: Local development environment configured và tested
 - **Cost Optimization**: 70% giảm chi phí so với NAT Gateway approach
@@ -1574,7 +1125,7 @@ Sau Task 4, bạn sẽ có EKS Cluster production-ready, chạy hoàn toàn tron
 ✅ EKS Cluster: mlops-retail-forecast-dev-cluster (Kubernetes 1.28)
 ✅ Control Plane: Multi-AZ managed service với full logging
 ✅ Node Groups: 2-4 nodes (t3.medium/large) trong private subnets
-✅ VPC Endpoints: S3 (FREE) + ECR API/DKR + CloudWatch ($21.6/month)
+✅ VPC Endpoints: Sử dụng từ Task 2 - S3 (FREE) + ECR API/DKR + CloudWatch ($21.6/month)
 ✅ Security: Least privilege IAM roles + Security Groups
 ✅ Monitoring: CloudWatch integration với Container Insights
 ```
