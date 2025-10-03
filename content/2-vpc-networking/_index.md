@@ -1,31 +1,62 @@
 ---
-title: "VPC - Subnet - NAT - Security Group"
+title: "VPC / Networking"
 date: 2025-08-30T11:00:00+07:00
 weight: 2
 chapter: false
 pre: "<b>2. </b>"
 ---
 
-## Mục tiêu Task 2
+## 🎯 Mục tiêu
 
-Tạo networking foundation cho MLOps infrastructure:
+Thiết lập hạ tầng mạng multi-AZ VPC trên AWS phục vụ EKS, SageMaker và các dịch vụ phụ trợ, đảm bảo:
 
-1. **VPC Setup** - Tạo Virtual Private Cloud với multi-AZ cho high availability
-2. **Subnet Design** - Public và Private subnets trong 2 Availability Zones
-3. **NAT Gateway** - Cho phép private subnets truy cập Internet (pull images, updates)
-4. **Security Groups** - Network access control với least privilege principles
-5. **Terraform Infrastructure** - Infrastructure as Code với proper state management
+- **Cách ly rõ ràng** public subnet (cho ALB, bastion, NAT) và private subnet (cho EKS worker nodes, SageMaker jobs)
+- **Bảo mật và kiểm soát** luồng traffic ra/vào với Security Groups theo nguyên tắc least privilege
+- **Hỗ trợ private subnet** có thể truy cập Internet khi cần (download package, pull image từ ECR...)
+- **Infrastructure as Code** với Terraform modules có thể tái sử dụng
 
-{{% notice info %}}
-**📋 Scope Task 2: VPC Networking Foundation**
+## 📥 Input
 
-Task này tạo network infrastructure base cho toàn bộ MLOps platform:
-- ✅ VPC với multi-AZ design cho high availability
-- ✅ Public subnets cho Load Balancers và NAT Gateways
-- ✅ Private subnets cho EKS nodes và SageMaker
-- ✅ Security Groups với proper inbound/outbound rules
-- ✅ Terraform modules với reusable components
-{{% /notice %}}
+- **Terraform module** định nghĩa VPC, subnet, NAT, security group
+- **CIDR block** dự kiến (10.0.0.0/16 hoặc tùy chọn khác)
+- **Chính sách bảo mật mạng** từ tổ chức (SG, NACL baseline)
+- **Environment requirements** (dev/staging/prod) để tối ưu chi phí
+
+## 📌 Các bước chính
+
+1. **Tạo VPC** với CIDR không trùng với on-prem hoặc VPN
+2. **Public subnet**: đặt ở ≥2 AZ, chứa ALB, NAT Gateway hoặc NAT Instance
+3. **Private subnet**: đặt ở ≥2 AZ, chạy EKS worker node, SageMaker
+4. **Routing**:
+   - Public subnet → Internet Gateway
+   - Private subnet → NAT Gateway (hoặc NAT Instance, tùy lựa chọn)
+5. **Security Group**:
+   - ALB SG: inbound HTTP/HTTPS, outbound Internet
+   - Node SG: inbound từ ALB SG, outbound đến S3/ECR/CloudWatch
+6. **Outputs**: VPC ID, subnet ID, security group ID để các task sau (EKS, SageMaker, ALB) có thể dùng
+
+## ✅ Deliverables
+
+- **VPC hoạt động** với public/private subnet phân tách rõ ràng
+- **Networking diagram** thể hiện Internet Gateway, NAT, routing
+- **Output Terraform** để các module khác tái sử dụng
+- **Cost optimization strategy** cho từng environment
+
+## 📊 Acceptance Criteria
+
+- ✅ VPC có ít nhất 2 AZ với cả public và private subnet
+- ✅ Private subnet có thể truy cập Internet (ECR, S3, CloudWatch)
+- ✅ Security group theo nguyên tắc least privilege
+- ✅ CIDR không bị overlap với existing networks
+- ✅ Terraform outputs đầy đủ cho integration với tasks khác
+
+## ⚠️ Gotchas
+
+- **CIDR trùng** với mạng nội bộ gây lỗi khi kết nối VPN/DirectConnect
+- **NAT Gateway chi phí cao** (~$32/tháng/cái + phí traffic)
+- **Multi-AZ mặc định** cần 1 NAT Gateway/AZ → tăng chi phí gấp 2–3 lần
+- **Security Group limits** (60 rules/SG, 5 SGs/ENI)
+- **Route table limits** (50 routes/table)
 
 ## Kiến trúc VPC Networking
 
@@ -94,6 +125,7 @@ retail-forecast/
 
 {{% notice info %}}
 **📁 Project Structure Components:**
+{{% /notice %}}
 
 **Infrastructure (infra/):**
 - ✅ **main.tf**: Core VPC infrastructure với subnets, NAT gateways, security groups
@@ -114,7 +146,7 @@ retail-forecast/
 **CI/CD:**
 - ✅ **Jenkinsfile**: Jenkins pipeline cho automated deployment
 - ✅ **.travis.yml**: Travis CI alternative configuration
-{{% /notice %}}
+
 
 ### 1.2. Variables Configuration
 
@@ -613,7 +645,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    - Navigate to VPC service
    - Chọn "Create VPC"
 
-{{< imgborder src="/images/02-vpc-networking/01-create-vpc-console.png" title="Tạo VPC qua AWS Console" >}}
+{{< imgborder src="/images/02-vpc-networking/01-create-vpc-console.png" >}}
 
 2. **VPC Configuration:**
    ```
@@ -623,7 +655,7 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    Tenancy: Default
    ```
 
-{{< imgborder src="/images/02-vpc-networking/02-vpc-configuration.png" title="Cấu hình VPC với CIDR 10.0.0.0/16" >}}
+{{< imgborder src="/images/02-vpc-networking/02-vpc-configuration.png" >}}
 
 ### 3.2. Tạo Subnets
 
@@ -645,7 +677,10 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    IPv4 CIDR: 10.0.2.0/24
    ```
 
-{{< imgborder src="/images/02-vpc-networking/03-create-subnets.png" title="Tạo Public và Private Subnets" >}}
+{{< imgborder src="/images/02-vpc-networking/03.1-create-subnets.png" >}}
+
+{{< imgborder src="/images/02-vpc-networking/03.2-create-subnets.png" >}}
+
 
 2. **Private Subnets:**
    
@@ -656,12 +691,19 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    IPv4 CIDR: 10.0.101.0/24
    ```
 
+
    **Subnet 4 (ap-southeast-1b):**
    ```
    Name: mlops-retail-forecast-dev-private-ap-southeast-1b
    Availability Zone: ap-southeast-1b
    IPv4 CIDR: 10.0.102.0/24
    ```
+
+3. **Hoàn thành tạo subnet**
+
+{{< imgborder src="/images/02-vpc-networking/03.3-create-subnets.png" >}}
+
+
 
 ### 3.3. Internet Gateway Setup
 
@@ -671,136 +713,281 @@ Ngoài Terraform, bạn cũng có thể tạo VPC infrastructure qua AWS Console
    Name: mlops-retail-forecast-dev-igw
    ```
 
+{{< imgborder src="/images/02-vpc-networking/04.1-internet-gateway.png" >}}
+
+{{< imgborder src="/images/02-vpc-networking/04.2-internet-gateway.png" >}}
+
+
 2. **Attach to VPC:**
    - Select Internet Gateway → "Actions" → "Attach to VPC"
    - Chọn VPC đã tạo
 
-{{< imgborder src="/images/02-vpc-networking/04-internet-gateway.png" title="Tạo và attach Internet Gateway" >}}
 
-### 3.4. NAT Gateways Setup
+{{< imgborder src="/images/02-vpc-networking/04.3-internet-gateway.png" >}}
 
-1. **Tạo Elastic IPs:**
-   - Navigate to "Elastic IPs" → "Allocate Elastic IP address"
-   - Tạo 2 Elastic IPs cho 2 NAT Gateways
+{{< imgborder src="/images/02-vpc-networking/04.4-internet-gateway.png" >}}
 
-{{< imgborder src="/images/02-vpc-networking/05-elastic-ips.png" title="Allocate Elastic IPs cho NAT Gateways" >}}
+{{< imgborder src="/images/02-vpc-networking/04.5-internet-gateway.png" >}}
 
-2. **Tạo NAT Gateways:**
-   
-   **NAT Gateway 1:**
-   ```
-   Name: mlops-retail-forecast-dev-nat-ap-southeast-1a
-   Subnet: mlops-retail-forecast-dev-public-ap-southeast-1a
-   Elastic IP: [Select allocated EIP]
-   ```
 
-   **NAT Gateway 2:**
-   ```
-   Name: mlops-retail-forecast-dev-nat-ap-southeast-1b
-   Subnet: mlops-retail-forecast-dev-public-ap-southeast-1b
-   Elastic IP: [Select allocated EIP]
-   ```
 
-{{< imgborder src="/images/02-vpc-networking/06-nat-gateways.png" title="Tạo NAT Gateways trong Public Subnets" >}}
 
-### 3.5. Route Tables Configuration
+### 3.4. Route Tables Configuration
 
-1. **Public Route Table:**
-   - Navigate to "Route Tables" → "Create route table"
+#### 3.4.1. Tạo Public Route Table
+
+1. **Navigate to Route Tables:**
+   - Trong VPC Dashboard → "Route Tables" → "Create route table"
+
+{{< imgborder src="/images/02-vpc-networking/07.1-public-route-table.png" >}}
+
+2. **Create Public Route Table:**
    ```
    Name: mlops-retail-forecast-dev-public-rt
-   VPC: [Select created VPC]
+   VPC: vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)
    ```
 
-   **Routes:**
-   ```
-   Destination: 0.0.0.0/0
-   Target: [Internet Gateway]
-   ```
+{{< imgborder src="/images/02-vpc-networking/07.2-public-route-table.png" >}}
 
-{{< imgborder src="/images/02-vpc-networking/07-public-route-table.png" title="Cấu hình Public Route Table" >}}
 
-2. **Private Route Tables:**
+3. **Add Internet Gateway Route:**
+   - Sau khi tạo route table → Tab "Routes" → "Edit routes"
+   - Add route: `0.0.0.0/0` → Internet Gateway
+
+{{< imgborder src="/images/02-vpc-networking/07.3-public-route-table.png" >}}
+
+
+
+4. **Associate Public Subnets:**
+   - Tab "Subnet associations" → "Edit subnet associations"
+   - Chọn 2 public subnets (ap-southeast-1a và ap-southeast-1b)
+
+{{< imgborder src="/images/02-vpc-networking/07.4-public-route-table.png" >}}
+
+
+
+{{< imgborder src="/images/02-vpc-networking/07.5-public-route-table.png" >}}
+
+
+#### 3.4.2. Tạo Private Route Table (VPC Endpoints Approach)
+
+**Recommended:** Sử dụng **VPC Endpoints** thay vì NAT Gateway để tiết kiệm chi phí (~70% cost reduction).
+
+**Bước 1: Tạo Private Route Table**
+1. "Create route table" → Name: `mlops-retail-forecast-dev-private-rt`
+2. Chọn VPC: `mlops-retail-forecast-dev-vpc`
+3. "Create route table"
+
+**Bước 2: Giữ Default Routes**
+- **Không cần add thêm routes** - chỉ giữ local route (10.0.0.0/16 → local)
+- VPC Endpoints sẽ tự động handle routing đến AWS services
+
+**Bước 3: Associate Both Private Subnets**
+1. Tab "Subnet associations" → "Edit subnet associations"
+2. Chọn **cả 2 private subnets** (ap-southeast-1a và ap-southeast-1b)
+3. "Save associations"
+
+**Bước 4: Tạo VPC Endpoints (quan trọng)**
+- S3 Gateway Endpoint (FREE)
+- ECR API Interface Endpoint
+- ECR DKR Interface Endpoint  
+- CloudWatch Logs Interface Endpoint
+- (Xem chi tiết ở section 3.7.1)
+
+**Tại sao approach này tốt hơn?**
+- **VPC Endpoints** handle AWS services (S3, ECR, CloudWatch) directly
+- **No Internet access needed** cho private subnets
+- **Cost savings**: $21.6/month vs $71/month với NAT Gateway
+- **Better security**: Traffic không đi qua Internet
+
+{{< imgborder src="/images/02-vpc-networking/08-private-route-tables.png" >}}
+
+#### 3.4.3. Verification Route Tables (VPC Endpoints Approach)
+
+Sau khi hoàn thành, bạn sẽ có:
+```
+✅ 1 Public Route Table:
+   - mlops-retail-forecast-dev-public-rt
+   - Routes: 0.0.0.0/0 → Internet Gateway
+   - Associated: 2 public subnets
+
+✅ 1 Private Route Table:
+   - mlops-retail-forecast-dev-private-rt
+   - Routes: 10.0.0.0/16 → local (default)
+   - Associated: 2 private subnets
+   - AWS services access via VPC Endpoints
+
+✅ VPC Endpoints (thay thế NAT Gateway):
+   - S3 Gateway Endpoint (FREE)
+   - ECR API/DKR Interface Endpoints
+   - CloudWatch Logs Interface Endpoint
+   - Total cost: ~$21.6/month vs $71/month NAT Gateway
+```
+
+**Lưu ý quan trọng:**
+- Private subnets **không có Internet access** trực tiếp
+- Tất cả AWS services access qua VPC Endpoints
+- Nếu cần external Internet access → dùng NAT Instance cho dev ($10/month)
+
+### 3.5. Security Groups Setup
+
+Security Groups hoạt động như virtual firewall để kiểm soát inbound và outbound traffic cho AWS resources.
+
+#### 3.5.1. Tạo EKS Control Plane Security Group
+
+1. **Navigate to Security Groups:**
+   - Trong VPC Dashboard → "Security Groups" → "Create security group"
+
+{{< imgborder src="/images/02-vpc-networking/09.1-create-security-group.png" >}}
+
+2. **Basic Details:**
+   - **Security group name**: `mlops-retail-forecast-dev-eks-control-plane-sg`
+   - **Description**: `Security group for EKS control plane`
+   - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
+
+{{< imgborder src="/images/02-vpc-networking/09.2-eks-control-plane-basic.png" >}}
+
+3. **Inbound Rules:**
+   - Click "Add rule"
+   - **Type**: HTTPS
+   - **Port range**: 443 (auto-filled)
+   - **Source**: 0.0.0.0/0 (Anywhere-IPv4)
+   - **Description**: `HTTPS access for EKS API server`
+
+{{< imgborder src="/images/02-vpc-networking/09.3-eks-control-plane-inbound.png" >}}
+
+4. **Outbound Rules:**
+   - Giữ default rule: All traffic → 0.0.0.0/0
+   - **Description**: `All outbound traffic allowed`
+
+5. **Tags (Optional):**
+   - **Key**: `Name`
+   - **Value**: `mlops-retail-forecast-dev-eks-control-plane-sg`
+
+6. **Create Security Group**
+
+{{< imgborder src="/images/02-vpc-networking/09.4-eks-control-plane-complete.png" >}}
+
+#### 3.5.2. Tạo EKS Worker Nodes Security Group
+
+1. **Basic Details:**
+   - **Security group name**: `mlops-retail-forecast-dev-eks-nodes-sg`
+   - **Description**: `Security group for EKS worker nodes`
+   - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
+
+{{< imgborder src="/images/02-vpc-networking/09.5-eks-nodes-basic.png" >}}
+
+2. **Inbound Rules:**
    
-   **Route Table 1:**
-   ```
-   Name: mlops-retail-forecast-dev-private-rt-1
-   Routes: 0.0.0.0/0 → NAT Gateway 1
-   Associated Subnet: Private Subnet AZ-1a
-   ```
-
-   **Route Table 2:**
-   ```
-   Name: mlops-retail-forecast-dev-private-rt-2
-   Routes: 0.0.0.0/0 → NAT Gateway 2
-   Associated Subnet: Private Subnet AZ-1b
-   ```
-
-{{< imgborder src="/images/02-vpc-networking/08-private-route-tables.png" title="Cấu hình Private Route Tables với NAT Gateways" >}}
-
-### 3.6. Security Groups Setup
-
-1. **EKS Control Plane Security Group:**
-   ```
-   Name: mlops-retail-forecast-dev-eks-control-plane-sg
-   Description: Security group for EKS control plane
+   **Rule 1 - Traffic từ EKS Control Plane:**
+   - Click "Add rule"
+   - **Type**: All Traffic
+   - **Protocol**: All (auto-filled)
+   - **Port range**: All (auto-filled)
+   - **Source**: Custom → Chọn Security Group → `mlops-retail-forecast-dev-eks-control-plane-sg`
+   - **Description**: `Traffic from EKS control plane`
    
-   Inbound Rules:
-   - Type: HTTPS, Port: 443, Source: 0.0.0.0/0
-   
-   Outbound Rules:
-   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
-   ```
+   **Rule 2 - Inter-node Communication:**
+   - Click "Add rule"
+   - **Type**: All Traffic
+   - **Protocol**: All (auto-filled)
+   - **Port range**: All (auto-filled)
+   - **Source**: Custom → Chọn Security Group → `mlops-retail-forecast-dev-eks-nodes-sg` (self-reference)
+   - **Description**: `Inter-node communication`
 
-{{< imgborder src="/images/02-vpc-networking/09-eks-control-plane-sg.png" title="EKS Control Plane Security Group" >}}
+{{< imgborder src="/images/02-vpc-networking/09.6-eks-nodes-inbound.png" >}}
 
-2. **EKS Worker Nodes Security Group:**
-   ```
-   Name: mlops-retail-forecast-dev-eks-nodes-sg
-   Description: Security group for EKS worker nodes
-   
-   Inbound Rules:
-   - Type: All Traffic, Source: [EKS Control Plane SG]
-   - Type: All Traffic, Source: [Self - same SG]
-   
-   Outbound Rules:
-   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
-   ```
+3. **Outbound Rules:**
+   - Giữ default rule: All traffic → 0.0.0.0/0
+   - **Description**: `All outbound traffic for package downloads and AWS API calls`
 
-3. **Application Load Balancer Security Group:**
-   ```
-   Name: mlops-retail-forecast-dev-alb-sg
-   Description: Security group for Application Load Balancer
-   
-   Inbound Rules:
-   - Type: HTTP, Port: 80, Source: 0.0.0.0/0
-   - Type: HTTPS, Port: 443, Source: 0.0.0.0/0
-   
-   Outbound Rules:
-   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
-   ```
+4. **Tags:**
+   - **Key**: `Name`
+   - **Value**: `mlops-retail-forecast-dev-eks-nodes-sg`
 
-4. **SageMaker Security Group:**
-   ```
-   Name: mlops-retail-forecast-dev-sagemaker-sg
-   Description: Security group for SageMaker instances
-   
-   Inbound Rules: [None initially]
-   
-   Outbound Rules:
-   - Type: All Traffic, Protocol: All, Port: All, Destination: 0.0.0.0/0
-   ```
+{{< imgborder src="/images/02-vpc-networking/09.7-eks-nodes-complete.png" >}}
 
-{{< imgborder src="/images/02-vpc-networking/10-security-groups-overview.png" title="Tổng quan các Security Groups đã tạo" >}}
+#### 3.5.3. Tạo Application Load Balancer Security Group
 
-### 3.7. Console Verification
+1. **Basic Details:**
+   - **Security group name**: `mlops-retail-forecast-dev-alb-sg`
+   - **Description**: `Security group for Application Load Balancer`
+   - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
+
+{{< imgborder src="/images/02-vpc-networking/09.8-alb-basic.png" >}}
+
+2. **Inbound Rules:**
+   
+   **Rule 1 - HTTP Traffic:**
+   - Click "Add rule"
+   - **Type**: HTTP
+   - **Port range**: 80 (auto-filled)
+   - **Source**: 0.0.0.0/0 (Anywhere-IPv4)
+   - **Description**: `HTTP access from Internet`
+   
+   **Rule 2 - HTTPS Traffic:**
+   - Click "Add rule"
+   - **Type**: HTTPS
+   - **Port range**: 443 (auto-filled)
+   - **Source**: 0.0.0.0/0 (Anywhere-IPv4)
+   - **Description**: `HTTPS access from Internet`
+
+{{< imgborder src="/images/02-vpc-networking/09.9-alb-inbound.png" >}}
+
+3. **Outbound Rules:**
+   - Giữ default rule: All traffic → 0.0.0.0/0
+   - **Description**: `Outbound traffic to EKS nodes`
+
+4. **Tags:**
+   - **Key**: `Name`
+   - **Value**: `mlops-retail-forecast-dev-alb-sg`
+
+{{< imgborder src="/images/02-vpc-networking/09.10-alb-complete.png" >}}
+
+#### 3.5.4. Tạo VPC Endpoints Security Group
+
+1. **Basic Details:**
+   - **Security group name**: `mlops-retail-forecast-dev-vpc-endpoints-sg`
+   - **Description**: `Security group for VPC endpoints`
+   - **VPC**: Chọn `vpc-01f887abcfc9a090e (mlops-retail-forecast-dev-vpc)`
+
+{{< imgborder src="/images/02-vpc-networking/09.11-vpc-endpoints-basic.png" >}}
+
+2. **Inbound Rules:**
+   
+   **Rule 1 - HTTPS từ VPC:**
+   - Click "Add rule"
+   - **Type**: HTTPS
+   - **Port range**: 443 (auto-filled)
+   - **Source**: Custom → `10.0.0.0/16` (VPC CIDR)
+   - **Description**: `HTTPS access from VPC for AWS services`
+
+{{< imgborder src="/images/02-vpc-networking/09.12-vpc-endpoints-inbound.png" >}}
+
+3. **Outbound Rules:**
+   - Giữ default rule: All traffic → 0.0.0.0/0
+   - **Description**: `Outbound traffic to AWS services`
+
+4. **Tags:**
+   - **Key**: `Name`
+   - **Value**: `mlops-retail-forecast-dev-vpc-endpoints-sg`
+
+{{< imgborder src="/images/02-vpc-networking/09.13-vpc-endpoints-complete.png" >}}
+
+#### 3.5.5. Security Groups Summary
+
+Sau khi tạo xong, bạn sẽ có 4 Security Groups:
+
+{{< imgborder src="/images/02-vpc-networking/10-security-groups-overview.png" >}}
+
+### 3.6. Console Verification
 
 1. **VPC Resource Map:**
    - Navigate to VPC Dashboard
    - Chọn VPC đã tạo
    - Xem Resource Map để verify architecture
 
-{{< imgborder src="/images/02-vpc-networking/11-vpc-resource-map.png" title="VPC Resource Map showing complete architecture" >}}
+{{< imgborder src="/images/02-vpc-networking/11-vpc-resource-map.png" >}}
 
 2. **Network Topology:**
    ```
@@ -819,6 +1006,7 @@ Bạn đã tạo thành công VPC infrastructure qua AWS Console. Architecture n
 
 {{% notice info %}}
 **💡 Console vs Terraform:**
+{{% /notice %}}
 
 **Console Advantages:**
 - ✅ Visual interface dễ hiểu
@@ -832,7 +1020,242 @@ Bạn đã tạo thành công VPC infrastructure qua AWS Console. Architecture n
 - ✅ Automation-ready
 
 Khuyến nghị: Học Console để hiểu concepts, dùng Terraform cho production.
-{{% /notice %}}
+
+### 3.7. NAT Gateway là gì và tại sao tốn kém?
+
+**NAT (Network Address Translation) Gateway** là managed service của AWS cho phép resources trong private subnet truy cập Internet mà không expose public IP. Tuy nhiên, NAT Gateway rất tốn chi phí vì:
+
+1. **Hourly Charges**: $0.045/hour (~$32/month) per NAT Gateway
+2. **Data Processing**: $0.045/GB cho mọi data đi qua NAT Gateway
+3. **Multi-AZ Requirement**: Cần 1 NAT Gateway/AZ cho high availability
+4. **Always Running**: Không thể tắt khi không dùng như EC2
+
+**Tại sao cần NAT Gateway?**
+- EKS worker nodes cần pull Docker images từ ECR
+- Download packages và updates từ Internet
+- Access AWS services (S3, CloudWatch, Parameter Store)
+- Outbound HTTPS calls từ applications
+
+**Current Cost Impact (ap-southeast-1):**
+- **NAT Gateways**: 2 × $32 = $64/month (hourly charges)
+- **Elastic IPs**: 2 × $3.6 = $7.2/month  
+- **Data Transfer**: $0.045/GB processed (ECR pulls, updates, API calls)
+- **Total Baseline**: ~$71/month + traffic costs
+
+**Typical Data Transfer:**
+- ECR image pulls: 5-10GB/month
+- Package updates: 2-5GB/month  
+- API calls: 1-2GB/month
+- **Additional cost**: ~$0.36-0.77/month
+
+#### 3.7.1. VPC Endpoints - Giải pháp tối ưu chi phí
+
+**VPC Endpoints** cho phép private subnets truy cập AWS services mà không cần NAT Gateway, giảm đáng kể chi phí và tăng bảo mật.
+
+##### Tạo VPC Endpoints qua AWS Console
+
+**Bước 1: Navigate to VPC Endpoints**
+- Trong VPC Dashboard → "Endpoints" → "Create endpoint"
+
+{{< imgborder src="/images/02-vpc-networking/10.1-create-vpc-endpoint.png" >}}
+
+**Bước 2: Endpoint Settings**
+
+1. **Name tag (optional)**: `mlops-s3-endpoint`
+2. **Type**: Chọn **AWS services** (đã được chọn mặc định)
+
+{{< imgborder src="/images/02-vpc-networking/10.2-endpoint-settings.png" >}}
+
+**Bước 3: Tạo S3 Gateway Endpoint (FREE)**
+
+1. **Services**: Tìm và chọn `com.amazonaws.ap-southeast-1.s3` (Type: Gateway)
+2. **VPC**: Chọn VPC đã tạo từ dropdown
+3. **Route Tables**: Chọn private route table
+4. **Policy**: Full Access (default)
+
+{{< imgborder src="/images/02-vpc-networking/10.3-s3-gateway-endpoint.png" >}}
+
+**Bước 4: Tạo ECR API Interface Endpoint**
+
+1. **Name tag**: `mlops-ecr-api-endpoint`
+2. **Services**: Tìm và chọn `com.amazonaws.ap-southeast-1.ecr.api` (Type: Interface)
+3. **VPC**: Chọn VPC đã tạo từ dropdown "Select a VPC"
+4. **Subnets**: Chọn cả 2 private subnets trong Network settings
+5. **Security Groups**: Chọn `mlops-retail-forecast-dev-vpc-endpoints-sg`
+6. **Policy**: Full Access (default)
+7. **Private DNS names enabled**: ✅ Checked
+
+{{< imgborder src="/images/02-vpc-networking/10.4.1-ecr-api-endpoint.png" >}}
+{{< imgborder src="/images/02-vpc-networking/10.4.2-ecr-api-endpoint.png" >}}
+{{< imgborder src="/images/02-vpc-networking/10.4.3-ecr-api-endpoint.png" >}}
+
+
+
+**Bước 5: Tạo ECR DKR Interface Endpoint**
+
+1. **Name tag**: `mlops-ecr-dkr-endpoint`
+2. **Services**: Tìm và chọn `com.amazonaws.ap-southeast-1.ecr.dkr` (Type: Interface)
+3. **VPC**: Chọn VPC đã tạo từ dropdown "Select a VPC"
+4. **Network settings**: 
+   - **Subnets**: Chọn cả 2 private subnets
+   - **Security Groups**: Chọn VPC endpoints security group
+5. **Private DNS names enabled**: ✅ Checked
+
+{{< imgborder src="/images/02-vpc-networking/10.5.1-ecr-dkr-endpoint.png" >}}
+
+{{< imgborder src="/images/02-vpc-networking/10.5.2-ecr-dkr-endpoint.png" >}}
+
+{{< imgborder src="/images/02-vpc-networking/10.5.3-ecr-dkr-endpoint.png" >}}
+
+
+**Bước 6: Tạo CloudWatch Logs Interface Endpoint**
+
+1. **Name tag**: `mlops-cloudwatch-logs-endpoint`
+2. **Services**: Tìm và chọn `com.amazonaws.ap-southeast-1.logs` (Type: Interface)
+3. **VPC**: Chọn VPC đã tạo từ dropdown "Select a VPC"
+4. **Network settings**:
+   - **Subnets**: Chọn cả 2 private subnets
+   - **Security Groups**: Chọn VPC endpoints security group
+5. **Private DNS names enabled**: ✅ Checked
+
+{{< imgborder src="/images/02-vpc-networking/10.6.1-cloudwatch-logs-endpoint.png" >}}
+
+{{< imgborder src="/images/02-vpc-networking/10.6.2-cloudwatch-logs-endpoint.png" >}}
+
+{{< imgborder src="/images/02-vpc-networking/10.6.3-cloudwatch-logs-endpoint.png" >}}
+
+
+**Bước 7: Verification**
+
+Sau khi tạo xong, kiểm tra trong VPC Endpoints dashboard:
+
+{{< imgborder src="/images/02-vpc-networking/10.7-vpc-endpoints-overview.png" >}}
+
+**Lưu ý quan trọng khi tạo VPC Endpoints:**
+
+1. **Gateway vs Interface Endpoints:**
+   - **Gateway Endpoint** (S3): FREE, route qua route table
+   - **Interface Endpoint** (ECR, CloudWatch): $7.2/month + data transfer
+
+2. **Private DNS Names:**
+   - ✅ **Bật** cho Interface Endpoints để applications có thể dùng standard AWS service URLs
+   - Ví dụ: `ecr.ap-southeast-1.amazonaws.com` sẽ resolve đến VPC endpoint
+
+3. **Security Groups:**
+   - Interface Endpoints cần Security Group cho phép HTTPS (443) từ VPC CIDR
+   - Gateway Endpoints không cần Security Group
+
+4. **Subnet Selection:**
+   - Interface Endpoints: Chọn private subnets trong cả 2 AZ cho high availability
+   - Gateway Endpoints: Chỉ cần associate với route tables
+
+##### Terraform Implementation (Alternative):
+```hcl
+# S3 Gateway Endpoint (FREE - no hourly charges)
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id       = aws_vpc.main.id
+  service_name = "com.amazonaws.ap-southeast-1.s3"
+  
+  # Associate với route tables
+  route_table_ids = aws_route_table.private[*].id
+  
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-s3-endpoint"
+    Type = "gateway-endpoint"
+  })
+}
+
+# ECR API Endpoint - cho Docker registry API calls
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.ap-southeast-1.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  
+  # Enable DNS resolution
+  private_dns_enabled = true
+  
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-ecr-api-endpoint"
+    Type = "interface-endpoint"
+  })
+}
+
+# ECR DKR Endpoint - cho Docker image pulls
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.ap-southeast-1.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  
+  private_dns_enabled = true
+  
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-ecr-dkr-endpoint"
+    Type = "interface-endpoint"
+  })
+}
+
+# CloudWatch Logs Endpoint - cho logging
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.ap-southeast-1.logs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  
+  private_dns_enabled = true
+  
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-logs-endpoint"
+    Type = "interface-endpoint"
+  })
+}
+
+# Security Group for VPC Endpoints
+resource "aws_security_group" "vpc_endpoints" {
+  name_prefix = "${var.project_name}-${var.environment}-vpc-endpoints"
+  vpc_id      = aws_vpc.main.id
+  description = "Security group for VPC endpoints"
+
+  # Allow HTTPS from VPC
+  ingress {
+    description = "HTTPS from VPC"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = [var.vpc_cidr]
+  }
+
+  # Allow all outbound (required for endpoints)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-vpc-endpoints-sg"
+    Type = "security-group"
+  })
+}
+```
+
+**VPC Endpoints Cost Breakdown:**
+- **S3 Gateway Endpoint**: FREE (no charges)
+- **ECR API Interface Endpoint**: $7.2/month + $0.01/GB
+- **ECR DKR Interface Endpoint**: $7.2/month + $0.01/GB  
+- **CloudWatch Logs Endpoint**: $7.2/month + $0.01/GB
+- **Total**: ~$21.6/month + minimal data transfer costs
+
+**Benefits:**
+- ✅ **70% cost reduction** so với NAT Gateway ($21.6 vs $71/month)
+- ✅ **Better security**: Traffic không đi qua Internet
+- ✅ **Lower latency**: Direct connection đến AWS services
+- ✅ **No bandwidth limits**: Không bị giới hạn NAT Gateway bandwidth
 
 ## 4. Terraform Deployment
 
@@ -868,7 +1291,7 @@ Changes to Outputs:
     ]
 ```
 
-### 3.2. Apply Infrastructure
+### 4.2. Apply Infrastructure
 
 ```bash
 # Apply infrastructure
@@ -953,50 +1376,58 @@ aws ec2 describe-route-tables \
   --query 'RouteTables[*].{RouteTableId:RouteTableId,Routes:Routes[*].{Destination:DestinationCidrBlock,Target:GatewayId//NatGatewayId}}'
 ```
 
-## 6. Cost Optimization Notes
+## 👉 Kết quả Task 2
 
-### 6.1. Current Cost Impact
+Sau Task 2, ta có một hạ tầng mạng chuẩn AWS, phân tách private/public rõ ràng, đủ bảo mật, và có chiến lược giảm chi phí NAT phù hợp với từng môi trường (dev/staging vs prod).
 
-**Monthly Costs (ap-southeast-1):**
-- **NAT Gateways**: 2 × $32 = $64/month
-- **Elastic IPs**: 2 × $3.6 = $7.2/month  
-- **Data Transfer**: Variable based on usage
-- **Total Baseline**: ~$71/month
+### ✅ Deliverables Completed
 
-### 6.2. Cost Optimization Strategies
+- **VPC Infrastructure**: Multi-AZ VPC với proper CIDR design (10.0.0.0/16)
+- **Subnets**: Public/Private subnets phân tách rõ ràng trong 2 availability zones
+- **Internet Access**: NAT Gateway/Instance cho private subnets truy cập Internet
+- **Security Groups**: Least privilege access rules cho EKS, ALB, SageMaker
+- **Cost Optimization**: Chiến lược giảm chi phí cho từng environment
+- **Terraform Outputs**: Infrastructure as Code với proper outputs cho integration
 
-1. **Single NAT Gateway** (Dev Environment):
-   ```hcl
-   # For development, use single NAT Gateway
-   resource "aws_nat_gateway" "main" {
-     count = var.environment == "prod" ? length(var.public_subnets) : 1
-     # ... rest of configuration
-   }
-   ```
+### Architecture Achieved
 
-2. **VPC Endpoints** (Future Tasks):
-   - S3 Gateway Endpoint (Free)
-   - ECR Interface Endpoint (Reduce NAT Gateway usage)
+```
+✅ VPC: 10.0.0.0/16 (4 subnets across 2 AZs)
+✅ Internet Gateway: Attached và configured
+✅ NAT Solutions: Gateway (prod) / Instance (dev) / VPC Endpoints
+✅ Route Tables: 3 (1 public, 2 private) với proper routing
+✅ Security Groups: 4 (EKS Control Plane, Nodes, ALB, SageMaker)
+✅ Cost Options: $10-71/month tùy environment và requirements
+```
 
-3. **Spot Instances** (EKS Nodes):
-   - 60-90% cost savings for worker nodes
-   - Will be configured in Task 5
+### Cost Summary
 
-## Kết quả Task 2
+| Environment | Solution | Monthly Cost | Availability |
+|-------------|----------|--------------|--------------|
+| **Development** | NAT Instance + VPC Endpoints | ~$31.6 | 99.5% |
+| **Staging** | VPC Endpoints + Single NAT Gateway | ~$53.6 | 99.95% |
+| **Production** | VPC Endpoints + Single NAT Gateway | ~$53.6 | 99.95% |
+| **VPC Endpoints Only** | S3/ECR/CloudWatch Endpoints | ~$21.6 | 99.99% |
 
-✅ **VPC Infrastructure**: Multi-AZ VPC với proper CIDR design  
-✅ **Subnets**: Public/Private subnets trong 2 availability zones  
-✅ **NAT Gateways**: High availability Internet access cho private subnets  
-✅ **Security Groups**: Least privilege access rules cho EKS, ALB, SageMaker  
-✅ **Terraform State**: Infrastructure as Code với proper outputs  
+**Cost Savings vs Traditional Multi-AZ NAT Gateway:**
+- Development: 55% savings ($31.6 vs $71)
+- Staging/Production: 25% savings ($53.6 vs $71)
 
-{{% notice tip %}}
-**🚀 Next Steps:** 
-- **Task 3**: IAM Roles & IRSA configuration
-- **Task 4**: EKS cluster deployment sử dụng VPC infrastructure
-- **Task 5**: EKS managed node groups trong private subnets
+{{% notice success %}}
+**🎯 Ready for Next Tasks:**
+
+Network foundation đã sẵn sàng để deploy:
+- ✅ **Task 3**: IAM Roles & IRSA configuration
+- ✅ **Task 4**: EKS cluster deployment trong VPC infrastructure
+- ✅ **Task 5**: EKS managed node groups trong private subnets
+- ✅ **Task 6**: Application Load Balancer integration
 {{% /notice %}}
 
-{{% notice warning %}}
-**💰 Cost Reminder**: NAT Gateways là major cost component (~$71/month). Sẽ optimize bằng VPC Endpoints trong tasks sau.
+{{% notice info %}}
+**🔧 Integration Points:**
+
+Terraform outputs từ Task 2 sẽ được sử dụng bởi:
+- **EKS Module**: `vpc_id`, `private_subnet_ids`, `eks_*_security_group_id`
+- **ALB Module**: `public_subnet_ids`, `alb_security_group_id`
+- **SageMaker Module**: `private_subnet_ids`, `sagemaker_security_group_id`
 {{% /notice %}}
