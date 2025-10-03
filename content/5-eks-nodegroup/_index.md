@@ -120,7 +120,7 @@ graph TB
    - Navigate to IAM → Roles
    - Chọn "Create role"
 
-{{< imgborder src="/images/05-eks-nodegroup/01-create-nodegroup-role.png" >}}
+![Create Node Group Role](../images/05-eks-nodegroup/01-create-nodegroup-role.png)
 
 2. **Select Trusted Entity:**
    ```
@@ -128,7 +128,7 @@ graph TB
    Service or use case: EC2
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/02-select-trusted-entity.png" >}}
+![Select Trusted Entity](../images/05-eks-nodegroup/02-select-trusted-entity.png)
 
 3. **Attach Required Policies:**
    ```
@@ -138,7 +138,7 @@ graph TB
    ✅ CloudWatchAgentServerPolicy
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/03-attach-policies.png" >}}
+![Attach Policies](../images/05-eks-nodegroup/03-attach-policies.png)
 
 4. **Role Configuration:**
    ```
@@ -146,7 +146,7 @@ graph TB
    Description: IAM role for EKS managed node group
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/04-role-configuration.png" >}}
+![Role Configuration](../images/05-eks-nodegroup/04-role-configuration.png)
 
 ### 1.2. Node Group Creation via Console
 
@@ -156,7 +156,7 @@ graph TB
    - Click "Compute" tab
    - Chọn "Add node group"
 
-{{< imgborder src="/images/05-eks-nodegroup/05-add-nodegroup.png" >}}
+![Add Node Group](../images/05-eks-nodegroup/05-add-nodegroup.png)
 
 2. **Node Group Configuration:**
    ```
@@ -168,7 +168,7 @@ graph TB
    Kubernetes taints: None
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/06-nodegroup-config.png" >}}
+![Node Group Config](../images/05-eks-nodegroup/06-nodegroup-config.png)
 
 3. **Compute and Scaling Configuration:**
    ```
@@ -183,7 +183,7 @@ graph TB
    - Maximum size: 4
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/07-compute-scaling.png" >}}
+![Compute Scaling](../images/05-eks-nodegroup/07-compute-scaling.png)
 
 4. **Node Group Networking:**
    ```
@@ -195,7 +195,7 @@ graph TB
    ⬜ Enable SSH access (optional for debugging)
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/08-networking-config.png" >}}
+![Networking Config](../images/05-eks-nodegroup/08-networking-config.png)
 
 5. **Advanced Options:**
    ```
@@ -208,7 +208,7 @@ graph TB
    - NodeGroup: primary
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/09-advanced-options.png" >}}
+![Advanced Options](../images/05-eks-nodegroup/09-advanced-options.png)
 
 ### 1.3. Node Group Verification
 
@@ -217,21 +217,21 @@ graph TB
    - Verify status: "Active"
    - Check node count: 2/2 running
 
-{{< imgborder src="/images/05-eks-nodegroup/10-nodegroup-status.png" >}}
+![Node Group Status](../images/05-eks-nodegroup/10-nodegroup-status.png)
 
 2. **EC2 Instances Verification:**
    - Navigate to EC2 Console
    - Filter by tag: `aws:eks:cluster-name = mlops-retail-forecast-dev-cluster`
    - Verify 2 instances running
 
-{{< imgborder src="/images/05-eks-nodegroup/11-ec2-instances.png" >}}
+![EC2 Instances](../images/05-eks-nodegroup/11-ec2-instances.png)
 
 3. **Auto Scaling Group:**
    - Navigate to EC2 Auto Scaling
    - Find ASG: `eks-mlops-retail-forecast-dev-nodegroup-*`
    - Verify desired/min/max capacity
 
-{{< imgborder src="/images/05-eks-nodegroup/12-autoscaling-group.png" >}}
+![Autoscaling Group](../images/05-eks-nodegroup/12-autoscaling-group.png)
 
 ### 1.4. Kubernetes Nodes Verification
 
@@ -244,7 +244,7 @@ graph TB
    kubectl cluster-info
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/13-kubectl-config.png" >}}
+![Kubectl Config](../images/05-eks-nodegroup/13-kubectl-config.png)
 
 2. **Check Node Status:**
    ```bash
@@ -258,7 +258,7 @@ graph TB
    kubectl describe node <node-name>
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/14-kubectl-nodes.png" >}}
+![Kubectl Nodes](../images/05-eks-nodegroup/14-kubectl-nodes.png)
 
 3. **Verify Node Labels and Capacity:**
    ```bash
@@ -269,7 +269,7 @@ graph TB
    kubectl describe nodes | grep -A 5 "Capacity\|Allocatable"
    ```
 
-{{< imgborder src="/images/05-eks-nodegroup/15-node-details.png" >}}
+![Node Details](../images/05-eks-nodegroup/15-node-details.png)
 
 {{% notice success %}}
 **🎯 Console Implementation Complete!**
@@ -302,586 +302,137 @@ Khuyến nghị: Console cho learning, Terraform cho production.
 
 ---
 
-## 2. EKS Node Group Terraform Configuration
+## 2. Terraform cho Advanced Node Group Strategies
 
-### 2.1. Main Node Group Resource
+{{% notice info %}}
+**💡 Khi nào cần Terraform cho Node Groups:**
+- ✅ **Multiple node groups** với different purposes (On-Demand + Spot)
+- ✅ **Cost optimization** với mixed instance types và capacity strategies  
+- ✅ **Advanced workload isolation** với taints/tolerations
+- ✅ **Custom launch templates** với specialized configurations
+- ✅ **Production automation** với consistent scaling policies
 
-**Tạo file `aws/infra/eks-nodegroup.tf`:**
+**Console đủ cho:** Single node group, basic scaling, standard configurations
+{{% /notice %}}
+
+### 2.1. Cost-Optimized Multi-Node Group Strategy
+
+**File: `aws/infra/eks-nodegroups-advanced.tf`**
 
 ```hcl
-# Data source for EKS cluster
+# Data sources từ existing infrastructure
 data "aws_eks_cluster" "main" {
-  name = aws_eks_cluster.main.name
+  name = "${var.project_name}-${var.environment}-cluster"
 }
 
-# IAM Role for EKS Node Group
-resource "aws_iam_role" "eks_nodegroup" {
+data "aws_subnets" "private" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
+  filter {
+    name   = "tag:Type"
+    values = ["private-subnet"]
+  }
+}
+
+# Reference IAM role từ Task 3 (hoặc Console-created)
+data "aws_iam_role" "nodegroup" {
   name = "${var.project_name}-${var.environment}-nodegroup-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-nodegroup-role"
-    Type = "iam-role"
-    Service = "eks-nodegroup"
-  })
 }
 
-# IAM Role Policy Attachments for Node Group
-resource "aws_iam_role_policy_attachment" "eks_nodegroup_worker_node_policy" {
-  role       = aws_iam_role.eks_nodegroup.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_nodegroup_cni_policy" {
-  role       = aws_iam_role.eks_nodegroup.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_nodegroup_ecr_readonly_policy" {
-  role       = aws_iam_role.eks_nodegroup.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-}
-
-resource "aws_iam_role_policy_attachment" "eks_nodegroup_cloudwatch_policy" {
-  role       = aws_iam_role.eks_nodegroup.name
-  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
-}
-
-# EKS Managed Node Group
-resource "aws_eks_node_group" "main" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-${var.environment}-nodegroup"
-  node_role_arn   = aws_iam_role.eks_nodegroup.arn
-  subnet_ids      = [
-    aws_subnet.private["ap-southeast-1a"].id,
-    aws_subnet.private["ap-southeast-1b"].id
-  ]
-
-  # Instance configuration
-  capacity_type  = var.nodegroup_capacity_type
-  instance_types = var.nodegroup_instance_types
-  disk_size      = var.nodegroup_disk_size
-
-  # Scaling configuration
-  scaling_config {
-    desired_size = var.nodegroup_desired_size
-    max_size     = var.nodegroup_max_size
-    min_size     = var.nodegroup_min_size
-  }
-
-  # Update configuration
-  update_config {
-    max_unavailable = var.nodegroup_max_unavailable
-  }
-
-  # Labels
-  labels = var.nodegroup_labels
-
-  # Taints (if any)
-  dynamic "taint" {
-    for_each = var.nodegroup_taints
-    content {
-      key    = taint.value.key
-      value  = taint.value.value
-      effect = taint.value.effect
-    }
-  }
-
-  # Launch template (optional)
-  dynamic "launch_template" {
-    for_each = var.enable_launch_template ? [1] : []
-    content {
-      id      = aws_launch_template.eks_nodegroup[0].id
-      version = aws_launch_template.eks_nodegroup[0].latest_version
-    }
-  }
-
-  # Ensure dependencies are met
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_nodegroup_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cni_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_ecr_readonly_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cloudwatch_policy,
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-nodegroup"
-    Type = "eks-nodegroup"
-  })
-}
-
-# Launch Template for advanced configuration (optional)
-resource "aws_launch_template" "eks_nodegroup" {
-  count = var.enable_launch_template ? 1 : 0
-  
-  name_prefix   = "${var.project_name}-${var.environment}-nodegroup-"
-  image_id      = var.nodegroup_ami_id
-  instance_type = var.nodegroup_instance_types[0]
-
-  vpc_security_group_ids = [aws_security_group.eks_nodes.id]
-
-  user_data = base64encode(templatefile("${path.module}/userdata.sh", {
-    cluster_name        = aws_eks_cluster.main.name
-    cluster_endpoint    = aws_eks_cluster.main.endpoint
-    cluster_ca          = aws_eks_cluster.main.certificate_authority[0].data
-    bootstrap_arguments = var.nodegroup_bootstrap_arguments
-  }))
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = merge(var.common_tags, {
-      Name = "${var.project_name}-${var.environment}-worker-node"
-      Type = "eks-worker-node"
-    })
-  }
-
-  tag_specifications {
-    resource_type = "volume"
-    tags = merge(var.common_tags, {
-      Name = "${var.project_name}-${var.environment}-worker-node-volume"
-      Type = "ebs-volume"
-    })
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-nodegroup-lt"
-    Type = "launch-template"
-  })
-}
-
-# Security Group for EKS Worker Nodes
-resource "aws_security_group" "eks_nodes" {
-  name_prefix = "${var.project_name}-${var.environment}-eks-nodes-"
-  vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "Worker node port range"
-    from_port   = 1025
-    to_port     = 65535
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
-  }
-
-  ingress {
-    description = "Allow HTTPS"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.main.cidr_block]
-  }
-
-  egress {
-    description = "All outbound traffic"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-eks-nodes-sg"
-    Type = "security-group"
-  })
-}
-
-# Security Group Rule: Allow cluster control plane to communicate with nodes
-resource "aws_security_group_rule" "cluster_to_nodes" {
-  type                     = "ingress"
-  from_port                = 1025
-  to_port                  = 65535
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.eks_control_plane.id
-  security_group_id        = aws_security_group.eks_nodes.id
-}
-
-# Security Group Rule: Allow nodes to communicate with cluster control plane
-resource "aws_security_group_rule" "nodes_to_cluster" {
-  type                     = "egress"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  source_security_group_id = aws_security_group.eks_control_plane.id
-  security_group_id        = aws_security_group.eks_nodes.id
-}
-```
-
-### 2.2. Additional Variables
-
-**Thêm vào `aws/infra/variables.tf`:**
-
-```hcl
-# EKS Node Group Configuration
-variable "nodegroup_capacity_type" {
-  description = "Type of capacity associated with the EKS Node Group. Valid values: ON_DEMAND, SPOT"
-  type        = string
-  default     = "ON_DEMAND"
-}
-
-variable "nodegroup_instance_types" {
-  description = "List of instance types associated with the EKS Node Group"
-  type        = list(string)
-  default     = ["t3.medium"]
-}
-
-variable "nodegroup_disk_size" {
-  description = "Disk size in GiB for worker nodes"
-  type        = number
-  default     = 20
-}
-
-variable "nodegroup_desired_size" {
-  description = "Desired number of worker nodes"
-  type        = number
-  default     = 2
-}
-
-variable "nodegroup_max_size" {
-  description = "Maximum number of worker nodes"
-  type        = number
-  default     = 4
-}
-
-variable "nodegroup_min_size" {
-  description = "Minimum number of worker nodes"
-  type        = number
-  default     = 1
-}
-
-variable "nodegroup_max_unavailable" {
-  description = "Maximum number of nodes unavailable at once during version update"
-  type        = number
-  default     = 1
-}
-
-variable "nodegroup_labels" {
-  description = "Key-value map of Kubernetes labels for nodes"
-  type        = map(string)
-  default = {
-    "nodegroup-type" = "primary"
-    "environment"    = "dev"
-  }
-}
-
-variable "nodegroup_taints" {
-  description = "List of Kubernetes taints to apply to nodes"
-  type = list(object({
-    key    = string
-    value  = string
-    effect = string
-  }))
-  default = []
-}
-
-# Launch Template Options
-variable "enable_launch_template" {
-  description = "Enable launch template for advanced node configuration"
-  type        = bool
-  default     = false
-}
-
-variable "nodegroup_ami_id" {
-  description = "AMI ID for EKS worker nodes (if using launch template)"
-  type        = string
-  default     = ""
-}
-
-variable "nodegroup_bootstrap_arguments" {
-  description = "Additional arguments for EKS bootstrap script"
-  type        = string
-  default     = ""
-}
-```
-
-### 2.3. Environment-specific Configuration
-
-**Cập nhật `aws/terraform.tfvars`:**
-
-```hcl
-# EKS Node Group configuration
-nodegroup_capacity_type     = "ON_DEMAND"
-nodegroup_instance_types    = ["t3.medium"]
-nodegroup_disk_size        = 20
-nodegroup_desired_size     = 2
-nodegroup_max_size         = 4
-nodegroup_min_size         = 1
-nodegroup_max_unavailable  = 1
-
-nodegroup_labels = {
-  "nodegroup-type" = "primary"
-  "environment"    = "dev"
-  "project"        = "mlops-retail-forecast"
-}
-
-# Advanced configuration
-enable_launch_template = false
-nodegroup_bootstrap_arguments = ""
-```
-
-### 2.4. User Data Script (Optional)
-
-**Tạo file `aws/infra/userdata.sh`:**
-
-```bash
-#!/bin/bash
-
-# Update packages
-yum update -y
-
-# Install additional packages
-yum install -y amazon-cloudwatch-agent
-
-# Configure CloudWatch agent
-cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << EOF
-{
-  "agent": {
-    "metrics_collection_interval": 60,
-    "run_as_user": "cwagent"
-  },
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          {
-            "file_path": "/var/log/messages",
-            "log_group_name": "/aws/eks/${cluster_name}/worker-nodes",
-            "log_stream_name": "{instance_id}/messages"
-          }
-        ]
-      }
-    }
-  },
-  "metrics": {
-    "namespace": "EKS/WorkerNodes",
-    "metrics_collected": {
-      "cpu": {
-        "measurement": [
-          "cpu_usage_idle",
-          "cpu_usage_iowait",
-          "cpu_usage_user",
-          "cpu_usage_system"
-        ],
-        "metrics_collection_interval": 60
-      },
-      "disk": {
-        "measurement": [
-          "used_percent"
-        ],
-        "metrics_collection_interval": 60,
-        "resources": [
-          "*"
-        ]
-      },
-      "mem": {
-        "measurement": [
-          "mem_used_percent"
-        ],
-        "metrics_collection_interval": 60
-      }
-    }
-  }
-}
-EOF
-
-# Start CloudWatch agent
-systemctl enable amazon-cloudwatch-agent
-systemctl start amazon-cloudwatch-agent
-
-# Bootstrap EKS worker node
-/etc/eks/bootstrap.sh ${cluster_name} ${bootstrap_arguments}
-```
-
-## 3. Mixed Instance Types & Spot Optimization
-
-### 3.1. Cost Optimization Strategy
-
-**Mixed Instance Types** cho phép kết hợp On-Demand và Spot instances để tối ưu chi phí:
-
-```
-Cost Comparison (Monthly - ap-southeast-1):
-├── On-Demand Only (2x t3.medium): $60.00/month
-├── Spot Only (2x t3.medium): ~$18.00/month (70% savings)
-└── Mixed (1 On-Demand + 1 Spot): ~$39.00/month (35% savings)
-
-💰 Spot Savings: Up to 70% cost reduction
-⚠️ Risk: Spot interruption (2-minute notice)
-```
-
-### 3.2. Multiple Node Groups Configuration
-
-**File: `aws/infra/eks-nodegroups-mixed.tf`**
-
-```hcl
-# On-Demand Node Group (Core Services)
+# On-Demand Node Group cho Core Services
 resource "aws_eks_node_group" "on_demand" {
-  cluster_name    = aws_eks_cluster.main.name
+  cluster_name    = data.aws_eks_cluster.main.name
   node_group_name = "${var.project_name}-${var.environment}-ondemand"
-  node_role_arn   = aws_iam_role.eks_nodegroup.arn
-  subnet_ids      = aws_subnet.private[*].id
+  node_role_arn   = data.aws_iam_role.nodegroup.arn
+  subnet_ids      = data.aws_subnets.private.ids
 
-  # On-Demand configuration
+  # On-Demand configuration cho stability
   capacity_type  = "ON_DEMAND"
   instance_types = var.ondemand_instance_types
-  disk_size      = var.nodegroup_disk_size
+  disk_size      = 20
 
-  # Conservative scaling for core services
+  # Conservative scaling cho core workloads
   scaling_config {
     desired_size = var.ondemand_desired_size
     max_size     = var.ondemand_max_size
     min_size     = var.ondemand_min_size
   }
 
-  # Update configuration
-  update_config {
-    max_unavailable = 1
-  }
-
-  # Labels for core services
+  # Labels cho workload scheduling
   labels = {
     "nodegroup-type" = "on-demand"
     "workload-type"  = "core"
     "environment"    = var.environment
   }
 
-  # Taints to ensure only core services run here
+  # Taints để chỉ core services schedule lên đây
   taint {
     key    = "node-type"
     value  = "on-demand"
     effect = "NO_SCHEDULE"
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_nodegroup_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cni_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_ecr_readonly_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cloudwatch_policy,
-  ]
-
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-${var.environment}-ondemand-nodegroup"
     Type = "eks-nodegroup-ondemand"
+    Purpose = "core-services"
   })
 }
 
-# Spot Node Group (Batch Workloads)
+# Spot Node Group cho Batch Workloads (70% cost savings)
 resource "aws_eks_node_group" "spot" {
-  cluster_name    = aws_eks_cluster.main.name
+  cluster_name    = data.aws_eks_cluster.main.name
   node_group_name = "${var.project_name}-${var.environment}-spot"
-  node_role_arn   = aws_iam_role.eks_nodegroup.arn
-  subnet_ids      = aws_subnet.private[*].id
+  node_role_arn   = data.aws_iam_role.nodegroup.arn
+  subnet_ids      = data.aws_subnets.private.ids
 
-  # Spot configuration
+  # Spot configuration cho cost savings
   capacity_type  = "SPOT"
-  instance_types = var.spot_instance_types
-  disk_size      = var.nodegroup_disk_size
+  instance_types = var.spot_instance_types  # Multiple types cho availability
+  disk_size      = 20
 
-  # Aggressive scaling for batch workloads
+  # Aggressive scaling cho batch workloads
   scaling_config {
     desired_size = var.spot_desired_size
     max_size     = var.spot_max_size
     min_size     = var.spot_min_size
   }
 
-  # Update configuration
+  # Update configuration cho spot interruptions
   update_config {
-    max_unavailable_percentage = 50  # Higher tolerance for spot
+    max_unavailable_percentage = 50  # Higher tolerance
   }
 
-  # Labels for batch workloads
+  # Labels cho batch workloads
   labels = {
     "nodegroup-type" = "spot"
     "workload-type"  = "batch"
     "environment"    = var.environment
   }
 
-  # Taints for spot-tolerant workloads
+  # Taints cho spot-tolerant workloads
   taint {
     key    = "node-type"
     value  = "spot"
     effect = "NO_SCHEDULE"
   }
 
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_nodegroup_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cni_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_ecr_readonly_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cloudwatch_policy,
-  ]
-
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-${var.environment}-spot-nodegroup"
     Type = "eks-nodegroup-spot"
-  })
-}
-
-# General Purpose Node Group (Mixed Workloads)
-resource "aws_eks_node_group" "general" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-${var.environment}-general"
-  node_role_arn   = aws_iam_role.eks_nodegroup.arn
-  subnet_ids      = aws_subnet.private[*].id
-
-  # Mixed capacity (On-Demand + Spot)
-  capacity_type  = var.general_capacity_type
-  instance_types = var.general_instance_types
-  disk_size      = var.nodegroup_disk_size
-
-  # Balanced scaling
-  scaling_config {
-    desired_size = var.general_desired_size
-    max_size     = var.general_max_size
-    min_size     = var.general_min_size
-  }
-
-  # Update configuration
-  update_config {
-    max_unavailable = 1
-  }
-
-  # Labels for general workloads
-  labels = {
-    "nodegroup-type" = "general"
-    "workload-type"  = "general"
-    "environment"    = var.environment
-  }
-
-  # No taints - accepts all workloads
-
-  depends_on = [
-    aws_iam_role_policy_attachment.eks_nodegroup_worker_node_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cni_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_ecr_readonly_policy,
-    aws_iam_role_policy_attachment.eks_nodegroup_cloudwatch_policy,
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-general-nodegroup"
-    Type = "eks-nodegroup-general"
+    Purpose = "batch-workloads"
   })
 }
 ```
 
-### 3.3. Mixed Instance Variables
+### 2.2. Cost Optimization Variables
 
-**Thêm vào `aws/infra/variables.tf`:**
+**File: `aws/infra/variables.tf`:**
 
 ```hcl
-# On-Demand Node Group
+# On-Demand Node Group (Core Services)
 variable "ondemand_instance_types" {
   description = "Instance types for On-Demand node group"
   type        = list(string)
@@ -906,11 +457,11 @@ variable "ondemand_min_size" {
   default     = 1
 }
 
-# Spot Node Group
+# Spot Node Group (Batch Workloads - 70% cost savings)
 variable "spot_instance_types" {
-  description = "Instance types for Spot node group"
+  description = "Multiple instance types for Spot availability"
   type        = list(string)
-  default     = ["t3.medium", "t3.large", "m5.large"]  # Multiple types for availability
+  default     = ["t3.medium", "t3.large", "m5.large"]
 }
 
 variable "spot_desired_size" {
@@ -926,69 +477,49 @@ variable "spot_max_size" {
 }
 
 variable "spot_min_size" {
-  description = "Minimum number of Spot nodes"
+  description = "Minimum number of Spot nodes"  
   type        = number
-  default     = 0
-}
-
-# General Purpose Node Group
-variable "general_capacity_type" {
-  description = "Capacity type for general node group"
-  type        = string
-  default     = "ON_DEMAND"  # Can be changed to SPOT for cost optimization
-}
-
-variable "general_instance_types" {
-  description = "Instance types for general node group"
-  type        = list(string)
-  default     = ["t3.medium", "t3.large"]
-}
-
-variable "general_desired_size" {
-  description = "Desired number of general nodes"
-  type        = number
-  default     = 2
-}
-
-variable "general_max_size" {
-  description = "Maximum number of general nodes"
-  type        = number
-  default     = 4
-}
-
-variable "general_min_size" {
-  description = "Minimum number of general nodes"
-  type        = number
-  default     = 1
+  default     = 0  # Can scale to zero
 }
 ```
 
-### 3.4. Environment-specific Configuration
+### 2.3. Production Configuration
 
-**Cập nhật `aws/terraform.tfvars`:**
+**File: `aws/terraform.tfvars`:**
 
 ```hcl
-# On-Demand Node Group (Core Services)
+# Cost-optimized node group strategy
 ondemand_instance_types = ["t3.medium"]
 ondemand_desired_size   = 1
 ondemand_max_size       = 2
 ondemand_min_size       = 1
 
-# Spot Node Group (Batch Workloads)
+# Spot instances với multiple types cho availability
 spot_instance_types = ["t3.medium", "t3.large", "m5.large"]
 spot_desired_size   = 2
 spot_max_size       = 6
 spot_min_size       = 0
-
-# General Purpose Node Group
-general_capacity_type   = "ON_DEMAND"  # Change to "SPOT" for more savings
-general_instance_types  = ["t3.medium", "t3.large"]
-general_desired_size    = 2
-general_max_size        = 4
-general_min_size        = 1
 ```
 
-### 3.5. Workload Deployment Strategies
+## 3. Workload Scheduling Strategies
+
+### 3.1. Multi-Node Group Cost Analysis
+
+**Cost Comparison (Monthly - ap-southeast-1):**
+
+```
+Node Group Strategy Comparison:
+├── Single On-Demand Group (3x t3.medium): $90.00/month
+├── Mixed Strategy (1 On-Demand + 2 Spot): $48.00/month (47% savings)
+└── Advanced Strategy (Multiple groups): $39.00/month (57% savings)
+
+💰 Advanced Multi-Group Benefits:
+- Core services: Stable On-Demand nodes (1x t3.medium = $30/month)
+- Batch workloads: Cost-effective Spot nodes (2x t3.medium = $18/month)
+- Burst capacity: Auto-scaling based on workload type
+```
+
+### 3.2. Kubernetes Workload Deployment Examples
 
 **Core Services (On-Demand Nodes):**
 
@@ -998,6 +529,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: inference-api-core
+  namespace: mlops-retail-forecast
 spec:
   replicas: 2
   selector:
@@ -1010,20 +542,19 @@ spec:
         app: inference-api
         tier: core
     spec:
-      # Tolerate on-demand taint
+      # Schedule on On-Demand nodes chỉ
       tolerations:
       - key: "node-type"
         operator: "Equal"
         value: "on-demand"
         effect: "NoSchedule"
       
-      # Prefer on-demand nodes
       nodeSelector:
         nodegroup-type: "on-demand"
       
       containers:
       - name: api
-        image: your-account.dkr.ecr.ap-southeast-1.amazonaws.com/inference-api:latest
+        image: ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/inference-api:latest
         resources:
           requests:
             memory: "512Mi"
@@ -1041,6 +572,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: batch-processor
+  namespace: mlops-retail-forecast
 spec:
   replicas: 3
   selector:
@@ -1058,144 +590,55 @@ spec:
         value: "spot"
         effect: "NoSchedule"
       
-      # Prefer spot nodes
       nodeSelector:
         nodegroup-type: "spot"
       
+      # Graceful shutdown cho spot interruptions
+      terminationGracePeriodSeconds: 120
+      
       containers:
       - name: processor
-        image: your-account.dkr.ecr.ap-southeast-1.amazonaws.com/batch-processor:latest
+        image: ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/batch-processor:latest
         resources:
           requests:
             memory: "256Mi"
             cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "200m"
 ```
 
 ## 4. Auto-Scaling & HPA Integration
 
-### 4.1. Cluster Autoscaler Installation
+{{% notice tip %}}
+**💡 Auto-scaling Strategy:**
+- ✅ **Cluster Autoscaler**: Scale nodes based on pod demand (Terraform hoặc kubectl)
+- ✅ **HPA**: Scale pods based on CPU/memory (kubectl apply)
+- ✅ **VPA**: Optimize resource requests (kubectl addon)
 
-**File: `aws/k8s/cluster-autoscaler.yaml`**
+**Best practice**: Use both Cluster Autoscaler + HPA cho complete automation
+{{% /notice %}}
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cluster-autoscaler
-  namespace: kube-system
-  labels:
-    app: cluster-autoscaler
-spec:
-  selector:
-    matchLabels:
-      app: cluster-autoscaler
-  template:
-    metadata:
-      labels:
-        app: cluster-autoscaler
-    spec:
-      serviceAccountName: cluster-autoscaler
-      containers:
-      - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.21.0
-        name: cluster-autoscaler
-        resources:
-          limits:
-            cpu: 100m
-            memory: 300Mi
-          requests:
-            cpu: 100m
-            memory: 300Mi
-        command:
-        - ./cluster-autoscaler
-        - --v=4
-        - --stderrthreshold=info
-        - --cloud-provider=aws
-        - --skip-nodes-with-local-storage=false
-        - --expander=least-waste
-        - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/mlops-retail-forecast-dev-cluster
-        - --balance-similar-node-groups
-        - --skip-nodes-with-system-pods=false
-        env:
-        - name: AWS_REGION
-          value: ap-southeast-1
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  labels:
-    k8s-addon: cluster-autoscaler.addons.k8s.io
-    k8s-app: cluster-autoscaler
-  name: cluster-autoscaler
-  namespace: kube-system
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mlops-retail-forecast-dev-cluster-autoscaler
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cluster-autoscaler
-  labels:
-    k8s-addon: cluster-autoscaler.addons.k8s.io
-    k8s-app: cluster-autoscaler
-rules:
-- apiGroups: [""]
-  resources: ["events", "endpoints"]
-  verbs: ["create", "patch"]
-- apiGroups: [""]
-  resources: ["pods/eviction"]
-  verbs: ["create"]
-- apiGroups: [""]
-  resources: ["pods/status"]
-  verbs: ["update"]
-- apiGroups: [""]
-  resources: ["endpoints"]
-  resourceNames: ["cluster-autoscaler"]
-  verbs: ["get", "update"]
-- apiGroups: [""]
-  resources: ["nodes"]
-  verbs: ["watch", "list", "get", "update"]
-- apiGroups: [""]
-  resources: ["pods", "services", "replicationcontrollers", "persistentvolumeclaims", "persistentvolumes"]
-  verbs: ["watch", "list", "get"]
-- apiGroups: ["extensions"]
-  resources: ["replicasets", "daemonsets"]
-  verbs: ["watch", "list", "get"]
-- apiGroups: ["policy"]
-  resources: ["poddisruptionbudgets"]
-  verbs: ["watch", "list"]
-- apiGroups: ["apps"]
-  resources: ["statefulsets", "replicasets", "daemonsets"]
-  verbs: ["watch", "list", "get"]
-- apiGroups: ["storage.k8s.io"]
-  resources: ["storageclasses", "csinodes"]
-  verbs: ["watch", "list", "get"]
-- apiGroups: ["batch", "extensions"]
-  resources: ["jobs"]
-  verbs: ["get", "list", "watch", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cluster-autoscaler
-  labels:
-    k8s-addon: cluster-autoscaler.addons.k8s.io
-    k8s-app: cluster-autoscaler
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-autoscaler
-subjects:
-- kind: ServiceAccount
-  name: cluster-autoscaler
-  namespace: kube-system
+### 4.1. Essential Cluster Autoscaler (Simplified)
+
+**File: `aws/k8s/cluster-autoscaler-simple.yaml`**
+
+```bash
+# Quick Cluster Autoscaler installation
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/autoscaler/master/cluster-autoscaler/cloudprovider/aws/examples/cluster-autoscaler-autodiscover.yaml
+
+# Patch untuk EKS cluster name
+kubectl patch deployment cluster-autoscaler \
+  -n kube-system \
+  -p '{"spec":{"template":{"metadata":{"annotations":{"cluster-autoscaler.kubernetes.io/safe-to-evict":"false"}}}}}'
+
+# Set cluster name
+kubectl set env deployment cluster-autoscaler \
+  -n kube-system \
+  AWS_REGION=ap-southeast-1 \
+  CLUSTER_NAME=mlops-retail-forecast-dev-cluster
 ```
 
-### 4.2. Horizontal Pod Autoscaler (HPA)
+### 4.2. Simple HPA for Inference API
 
-**File: `aws/k8s/hpa-inference.yaml`**
+**File: `aws/k8s/hpa-simple.yaml`**
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -1217,212 +660,63 @@ spec:
       target:
         type: Utilization
         averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Percent
-        value: 50
-        periodSeconds: 60
-    scaleUp:
-      stabilizationWindowSeconds: 60
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 60
-      - type: Pods
-        value: 2
-        periodSeconds: 60
-      selectPolicy: Max
 ```
 
-## 5. Node Group Deployment
-
-### 3.1. Terraform Deployment
+### 4.3. Apply Auto-scaling
 
 ```bash
-# Navigate to Terraform directory
-cd aws/infra
+# Apply HPA
+kubectl apply -f aws/k8s/hpa-simple.yaml
 
-# Initialize Terraform (if not done)
-terraform init
+# Verify HPA
+kubectl get hpa -n mlops-retail-forecast
 
-# Plan deployment
-terraform plan -var-file="terraform.tfvars"
-
-# Apply configuration
-terraform apply -var-file="terraform.tfvars" -auto-approve
+# Check scaling events
+kubectl describe hpa inference-api-hpa -n mlops-retail-forecast
 ```
 
-### 3.2. Verify Deployment
+## 5. Quick Deployment & Verification
+
+### 5.1. Console Approach (Recommended for Most Cases)
 
 ```bash
-# Get EKS cluster info
-aws eks describe-cluster --name mlops-retail-forecast-dev-cluster --region ap-southeast-1
+# After creating node group via Console (Section 1):
+# 1. Configure kubectl
+aws eks update-kubeconfig --region ap-southeast-1 --name mlops-retail-forecast-dev-cluster
 
-# Get node group info
-aws eks describe-nodegroup \
-  --cluster-name mlops-retail-forecast-dev-cluster \
-  --nodegroup-name mlops-retail-forecast-dev-nodegroup \
-  --region ap-southeast-1
-
-# Update kubectl config
-aws eks update-kubeconfig \
-  --region ap-southeast-1 \
-  --name mlops-retail-forecast-dev-cluster
-
-# Verify nodes
+# 2. Verify nodes
 kubectl get nodes
-kubectl get nodes -o wide
+kubectl get nodes --show-labels
+
+# 3. Deploy test workload
+kubectl create deployment nginx --image=nginx
+kubectl expose deployment nginx --port=80 --type=LoadBalancer
 ```
 
----
-
-## 4. Node Management và Troubleshooting
-
-### 4.1. Scaling Operations
+### 5.2. Terraform Approach (Advanced Multi-Node Groups)
 
 ```bash
-# Manual scaling via AWS CLI
-aws eks update-nodegroup-config \
-  --cluster-name mlops-retail-forecast-dev-cluster \
-  --nodegroup-name mlops-retail-forecast-dev-nodegroup \
-  --scaling-config minSize=1,maxSize=6,desiredSize=3 \
-  --region ap-southeast-1
+# For advanced strategies (Section 2):
+cd aws/infra
+terraform plan -var-file="terraform.tfvars"
+terraform apply -var-file="terraform.tfvars"
 
-# Scale via kubectl (temporary)
-kubectl scale deployment <deployment-name> --replicas=0
-kubectl scale deployment <deployment-name> --replicas=3
+# Verify multiple node groups
+kubectl get nodes --show-labels | grep nodegroup-type
 ```
 
-### 4.2. Node Health Check
+### 5.3. Essential Monitoring
 
 ```bash
-# Check node conditions
-kubectl describe nodes | grep -A 10 "Conditions:"
-
-# Check node capacity
-kubectl describe nodes | grep -A 5 "Capacity\|Allocatable"
-
-# Get node metrics (requires metrics-server)
+# Check node health
 kubectl top nodes
-```
 
-### 4.3. Troubleshooting Common Issues
+# Check auto-scaling status
+kubectl get hpa -A
+kubectl get pods -n kube-system | grep autoscaler
 
-**Node NotReady:**
-```bash
-# Check node events
-kubectl describe node <node-name>
-
-# Check kubelet logs
-kubectl logs -n kube-system -l k8s-app=aws-node
-
-# Check system pods
-kubectl get pods -n kube-system -o wide
-```
-
-**Pod Scheduling Issues:**
-```bash
-# Check pod events
-kubectl describe pod <pod-name>
-
-# Check node taints và tolerations
-kubectl describe nodes | grep -A 3 "Taints:"
-
-# Check resource constraints
-kubectl describe nodes | grep -A 5 "Allocated resources:"
-```
-
----
-
-## 5. Best Practices
-
-### 5.1. Instance Type Selection
-
-```hcl
-# Cost-optimized (Development)
-nodegroup_instance_types = ["t3.medium", "t3.large"]
-
-# Balanced (Staging)
-nodegroup_instance_types = ["m5.large", "m5.xlarge"]
-
-# Performance-optimized (Production)
-nodegroup_instance_types = ["c5.xlarge", "c5.2xlarge"]
-
-# Mixed instances (Cost optimization)
-nodegroup_instance_types = ["t3.medium", "t3.large", "m5.large"]
-```
-
-### 5.2. Scaling Strategy
-
-```hcl
-# Conservative scaling
-nodegroup_min_size     = 2
-nodegroup_desired_size = 2
-nodegroup_max_size     = 4
-
-# Aggressive scaling
-nodegroup_min_size     = 1
-nodegroup_desired_size = 3
-nodegroup_max_size     = 10
-```
-
-### 5.3. Security Hardening
-
-```hcl
-# Use custom AMI with hardening
-nodegroup_ami_id = "ami-xxxxxxxxx"  # Custom hardened AMI
-
-# Enable IMDSv2
-user_data = base64encode(templatefile("userdata.sh", {
-  imds_v2_required = true
-}))
-```
-
----
-
-## 6. Monitoring và Alerting
-
-### 6.1. CloudWatch Metrics
-
-```bash
-# Node CPU utilization
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/EKS \
-  --metric-name CPUUtilization \
-  --dimensions Name=ClusterName,Value=mlops-retail-forecast-dev-cluster \
-  --start-time 2024-01-01T00:00:00Z \
-  --end-time 2024-01-01T23:59:59Z \
-  --period 3600 \
-  --statistics Average
-
-# Node memory utilization
-aws cloudwatch get-metric-statistics \
-  --namespace CWAgent \
-  --metric-name mem_used_percent \
-  --dimensions Name=InstanceId,Value=i-xxxxxxxxx \
-  --start-time 2024-01-01T00:00:00Z \
-  --end-time 2024-01-01T23:59:59Z \
-  --period 3600 \
-  --statistics Average
-```
-
-### 6.2. Kubernetes Monitoring
-
-```bash
-# Install metrics-server
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-
-# Get resource usage
-kubectl top nodes
-kubectl top pods --all-namespaces
+# View node events
+kubectl get events --sort-by='.lastTimestamp' | grep Node
 ```
 
 ---
