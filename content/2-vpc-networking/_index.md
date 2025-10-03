@@ -303,28 +303,71 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 Basic VPC infrastructure đã sẵn sàng. Tiếp theo sẽ setup VPC Endpoints với Terraform cho cost optimization.
 {{% /notice %}}
 
-## 2. Terraform cho VPC Endpoints Cost Optimization
+## 2. Terraform cho Integration Outputs (Optional)
 
 {{% notice info %}}
-**💡 Tại sao cần Terraform cho VPC Endpoints:**
-- ✅ **Complex configuration** - Multiple endpoints với specific settings
-- ✅ **Cost optimization** - Automated endpoint management
-- ✅ **Integration outputs** - Structured data cho EKS, ALB modules
-- ✅ **Environment consistency** - Reproducible across dev/staging/prod
+**💡 Khi nào cần Terraform cho Task 2:**
+- ✅ **Integration outputs** - Structured data cho EKS, ALB modules trong subsequent tasks
+- ✅ **Environment automation** - Reproducible deployment across dev/staging/prod
+- ✅ **Infrastructure as Code** - Version control cho VPC configuration
 
-**Console setup VPC Endpoints rất phức tạp và dễ sai sót**
+**Console đủ cho:** VPC, subnets, Security Groups, VPC Endpoints (đã có hướng dẫn chi tiết ở Section 1)
 {{% /notice %}}
 
-### 2.1. VPC Endpoints Configuration
+### 2.0. Terraform Purpose & Expected Results
 
-**File: `aws/infra/vpc-endpoints.tf`**
+{{% notice success %}}
+**🎯 Mục đích của Terraform code trong Task 2 (Optional):**
+
+**Input:** 
+- VPC infrastructure đã tạo qua Console (VPC, subnets, Security Groups, VPC Endpoints)
+- Cần integration outputs cho Task 4-5 (EKS cluster, ALB)
+
+**Terraform sẽ làm gì:**
+1. **Reference existing infrastructure** từ Console (không tạo mới gì cả)
+2. **Create data sources** để query VPC, subnets, Security Groups
+3. **Generate outputs** cho subsequent Terraform modules
+4. **Enable integration** với EKS, ALB modules
+
+**Kết quả sau khi chạy:**
+- ✅ Terraform outputs available: VPC ID, subnet IDs, Security Group IDs
+- ✅ Integration ready: Data sources cho Task 4-5 Terraform modules
+- ✅ Infrastructure as Code: VPC configuration được track trong Terraform state
+- ✅ No new resources created: Chỉ reference existing infrastructure
+
+**Lưu ý:** Nếu bạn chỉ dùng Console cho tất cả tasks, không cần phần Terraform này!
+{{% /notice %}}
+
+{{% notice warning %}}
+**📝 Important Note:**
+
+VPC Endpoints đã được tạo qua Console ở Section 1. Terraform code dưới đây CHỈ để:
+- **Reference existing resources** cho integration
+- **Generate outputs** cho subsequent tasks
+
+**KHÔNG tạo VPC Endpoints mới!** Nếu bạn đã tạo qua Console rồi thì skip phần Terraform này.
+{{% /notice %}}
+
+### 2.1. Data Sources cho Integration (Reference Only)
+
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Reference existing VPC infrastructure** đã tạo qua Console
+2. **Query VPC Endpoints** đã tạo qua Console (không tạo mới)
+3. **Generate outputs** cho Task 4-5 integration
+4. **Enable Terraform state tracking** cho existing resources
+
+**Kết quả:** Terraform có thể reference Console-created resources cho subsequent tasks
+{{% /notice %}}
+
+**File: `aws/infra/vpc-data-sources.tf`**
 
 ```hcl
-# Data sources - reference existing VPC từ Console
+# BƯỚC 1: Reference VPC infrastructure từ Console (không tạo mới)
 data "aws_vpc" "main" {
   filter {
     name   = "tag:Name"
-    values = ["mlops-retail-forecast-dev-vpc"]
+    values = ["mlops-retail-forecast-dev-vpc"]  # VPC từ Console
   }
 }
 
@@ -335,22 +378,26 @@ data "aws_subnets" "private" {
   }
   filter {
     name   = "tag:Name"
-    values = ["*private*"]
+    values = ["*private*"]  # Private subnets từ Console
   }
 }
 
-data "aws_route_tables" "private" {
-  vpc_id = data.aws_vpc.main.id
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
   filter {
     name   = "tag:Name"
-    values = ["*private*"]
+    values = ["*public*"]  # Public subnets từ Console
   }
 }
 
-data "aws_security_group" "vpc_endpoints" {
+# BƯỚC 2: Reference Security Groups từ Console
+data "aws_security_group" "eks_control_plane" {
   filter {
     name   = "tag:Name"
-    values = ["mlops-retail-forecast-dev-vpc-endpoints-sg"]
+    values = ["mlops-retail-forecast-dev-eks-control-plane-sg"]  # SG từ Console
   }
   filter {
     name   = "vpc-id"
@@ -358,7 +405,50 @@ data "aws_security_group" "vpc_endpoints" {
   }
 }
 
-# Variables
+data "aws_security_group" "eks_nodes" {
+  filter {
+    name   = "tag:Name"
+    values = ["mlops-retail-forecast-dev-eks-nodes-sg"]  # SG từ Console
+  }
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
+}
+
+data "aws_security_group" "alb" {
+  filter {
+    name   = "tag:Name"
+    values = ["mlops-retail-forecast-dev-alb-sg"]  # SG từ Console
+  }
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
+  }
+}
+
+# BƯỚC 3: Reference VPC Endpoints từ Console (đã tạo ở Section 1)
+data "aws_vpc_endpoint" "s3" {
+  vpc_id       = data.aws_vpc.main.id
+  service_name = "com.amazonaws.ap-southeast-1.s3"
+}
+
+data "aws_vpc_endpoint" "ecr_api" {
+  vpc_id       = data.aws_vpc.main.id
+  service_name = "com.amazonaws.ap-southeast-1.ecr.api"
+}
+
+data "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id       = data.aws_vpc.main.id
+  service_name = "com.amazonaws.ap-southeast-1.ecr.dkr"
+}
+
+data "aws_vpc_endpoint" "logs" {
+  vpc_id       = data.aws_vpc.main.id
+  service_name = "com.amazonaws.ap-southeast-1.logs"
+}
+
+# BƯỚC 4: Variables cho integration
 variable "project_name" {
   description = "Name of the MLOps project"
   type        = string
@@ -369,84 +459,6 @@ variable "environment" {
   description = "Environment name"
   type        = string
   default     = "dev"
-}
-
-variable "common_tags" {
-  description = "Common tags for all resources"
-  type        = map(string)
-  default = {
-    Project     = "MLOpsRetailForecast"
-    Environment = "dev"
-    ManagedBy   = "Terraform"
-    Component   = "vpc-endpoints"
-  }
-}
-
-# S3 Gateway Endpoint (FREE - no hourly charges)
-resource "aws_vpc_endpoint" "s3" {
-  vpc_id       = data.aws_vpc.main.id
-  service_name = "com.amazonaws.ap-southeast-1.s3"
-  
-  # Associate với private route tables
-  route_table_ids = data.aws_route_tables.private.ids
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-s3-endpoint"
-    Type = "gateway-endpoint"
-    Cost = "free"
-  })
-}
-
-# ECR API Endpoint - cho Docker registry API calls
-resource "aws_vpc_endpoint" "ecr_api" {
-  vpc_id              = data.aws_vpc.main.id
-  service_name        = "com.amazonaws.ap-southeast-1.ecr.api"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = data.aws_subnets.private.ids
-  security_group_ids  = [data.aws_security_group.vpc_endpoints.id]
-  
-  # Enable DNS resolution
-  private_dns_enabled = true
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-ecr-api-endpoint"
-    Type = "interface-endpoint"
-    Cost = "7.2-usd-monthly"
-  })
-}
-
-# ECR DKR Endpoint - cho Docker image pulls
-resource "aws_vpc_endpoint" "ecr_dkr" {
-  vpc_id              = data.aws_vpc.main.id
-  service_name        = "com.amazonaws.ap-southeast-1.ecr.dkr"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = data.aws_subnets.private.ids
-  security_group_ids  = [data.aws_security_group.vpc_endpoints.id]
-  
-  private_dns_enabled = true
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-ecr-dkr-endpoint"
-    Type = "interface-endpoint"
-    Cost = "7.2-usd-monthly"
-  })
-}
-
-# CloudWatch Logs Endpoint - cho logging
-resource "aws_vpc_endpoint" "logs" {
-  vpc_id              = data.aws_vpc.main.id
-  service_name        = "com.amazonaws.ap-southeast-1.logs"
-  vpc_endpoint_type   = "Interface"
-  subnet_ids          = data.aws_subnets.private.ids
-  security_group_ids  = [data.aws_security_group.vpc_endpoints.id]
-  
-  private_dns_enabled = true
-  
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-logs-endpoint"
-    Type = "interface-endpoint"
-    Cost = "7.2-usd-monthly"
-  })
 }
 ```
 
@@ -499,47 +511,46 @@ output "vpc_endpoints_security_group_id" {
 }
 ```
 
-## 3. VPC Endpoints Deployment
+## 3. Optional: Terraform Integration Setup
 
-### 3.1. Terraform Deployment
+### 3.1. Khi nào cần Terraform cho Task 2
+
+{{% notice info %}}
+**💡 Chỉ cần Terraform nếu:**
+- ✅ Bạn sẽ dùng Terraform cho Task 4-5 (EKS cluster, node groups)
+- ✅ Cần integration outputs cho subsequent Terraform modules
+- ✅ Muốn Infrastructure as Code cho production environments
+
+**Nếu bạn dùng Console cho tất cả:** Skip phần này hoàn toàn!
+{{% /notice %}}
 
 ```bash
-# Navigate to infrastructure directory
+# CHỈ chạy nếu cần integration với Terraform modules khác
 cd aws/infra
 
-# Initialize Terraform (if first time)
+# Initialize Terraform (reference existing resources only)
 terraform init
 
-# Plan VPC Endpoints deployment
-terraform plan -target=aws_vpc_endpoint.s3 \
-               -target=aws_vpc_endpoint.ecr_api \
-               -target=aws_vpc_endpoint.ecr_dkr \
-               -target=aws_vpc_endpoint.logs \
-               -var-file="terraform.tfvars"
+# Plan - chỉ tạo data sources, không tạo resources mới
+terraform plan -var-file="terraform.tfvars"
 
-# Apply VPC Endpoints
-terraform apply -target=aws_vpc_endpoint.s3 \
-                -target=aws_vpc_endpoint.ecr_api \
-                -target=aws_vpc_endpoint.ecr_dkr \
-                -target=aws_vpc_endpoint.logs \
-                -var-file="terraform.tfvars"
+# Apply - import existing resources vào Terraform state
+terraform apply -var-file="terraform.tfvars"
 ```
 
-**Expected Output:**
+**Expected Output (No new resources created):**
 ```
-Apply complete! Resources: 4 added, 0 changed, 0 destroyed.
+Apply complete! Resources: 0 added, 0 changed, 0 destroyed.
 
-VPC Endpoints Created:
-✅ S3 Gateway Endpoint (FREE)
-✅ ECR API Interface Endpoint ($7.2/month)
-✅ ECR DKR Interface Endpoint ($7.2/month)
-✅ CloudWatch Logs Interface Endpoint ($7.2/month)
+Data Sources Created:
+✅ VPC, subnets, Security Groups referenced
+✅ VPC Endpoints referenced (đã tạo qua Console)
+✅ Terraform outputs available cho Task 4-5
 
-Total Monthly Cost: ~$21.6 (vs $71 with NAT Gateway)
-Cost Savings: 70% reduction
+Note: Không có resources mới được tạo - chỉ reference existing infrastructure
 ```
 
-### 3.2. Manual VPC Endpoints via Console (Alternative)
+### 3.2. VPC Endpoints via Console (Recommended)
 
 Nếu muốn tạo VPC Endpoints qua Console:
 
@@ -617,17 +628,17 @@ aws ec2 describe-vpc-endpoints \
 
 ## 👉 Kết quả Task 2
 
-✅ **Basic VPC Infrastructure** (Console): Multi-AZ VPC với proper subnet design  
-✅ **VPC Endpoints** (Terraform): Cost-optimized AWS services access  
-✅ **Cost Optimization**: 70% savings ($21.6 vs $71/month)  
-✅ **Integration Ready**: Terraform outputs cho EKS, ALB, SageMaker modules  
+✅ **VPC Infrastructure** (Console): Multi-AZ VPC với proper subnet design  
+✅ **VPC Endpoints** (Console): Cost-optimized AWS services access  
+✅ **Cost Optimization**: 70% savings ($21.6 vs $71/month NAT Gateway)  
+✅ **Integration Ready**: Optional Terraform data sources cho subsequent tasks  
 
 {{% notice success %}}
-**🎯 Task 2 Optimized!**
+**🎯 Task 2 Complete!**
 
-**Console Setup:** Quick VPC foundation (15 phút)  
-**Terraform VPC Endpoints:** Cost optimization và automation (5 phút)  
-**Result:** Production-ready VPC với 70% cost savings
+**Console Setup:** Complete VPC + VPC Endpoints (20 phút)  
+**Optional Terraform:** Chỉ cho integration outputs (5 phút)  
+**Result:** Production-ready VPC với 70% cost savings, no duplication!
 {{% /notice %}}
 
 ### Architecture Achieved

@@ -315,11 +315,11 @@ IAM Security Architecture
 ### 1.6. Quick Verification
 
 **IAM Roles Summary:**
-Navigate to IAM → Roles và verify:
-```
-✅ mlops-retail-forecast-dev-eks-cluster-role
-✅ mlops-retail-forecast-dev-eks-nodegroup-role  
-✅ mlops-retail-forecast-dev-sagemaker-execution
+   Navigate to IAM → Roles và verify:
+   ```
+   ✅ mlops-retail-forecast-dev-eks-cluster-role
+   ✅ mlops-retail-forecast-dev-eks-nodegroup-role
+   ✅ mlops-retail-forecast-dev-sagemaker-execution
 ```
 
 ![Roles Overview](../images/03-iam-roles-irsa/10-roles-overview.png)
@@ -348,27 +348,64 @@ Basic service roles đã sẵn sàng cho EKS và SageMaker. Tiếp theo sẽ set
 **Console đủ cho:** EKS/SageMaker service roles, basic policy attachments
 {{% /notice %}}
 
+### 2.0. Terraform Code Purpose & Expected Results
+
+{{% notice success %}}
+**🎯 Mục đích của Terraform code trong Task 3:**
+
+**Input:** 
+- EKS cluster từ Task 4 (OIDC issuer URL)
+- Basic service roles từ Console (EKS, SageMaker roles)
+- GitHub repository information cho CI/CD
+
+**Terraform sẽ làm gì:**
+1. **Create OIDC providers** cho EKS và GitHub Actions
+2. **Setup IRSA roles** với fine-grained S3 và CloudWatch permissions
+3. **Configure CI/CD automation** với GitHub Actions OIDC
+4. **Implement security policies** với least privilege principles
+5. **Enable audit trail** cho compliance và monitoring
+
+**Kết quả sau khi chạy:**
+- ✅ IRSA hoạt động: Pods access S3 không cần hardcoded credentials
+- ✅ GitHub Actions có thể deploy lên EKS securely
+- ✅ Service Accounts với proper annotations
+- ✅ Least privilege: Mỗi service chỉ có minimum required permissions
+- ✅ Audit ready: CloudTrail integration cho security compliance
+- ✅ Production security: Zero long-lived credentials
+{{% /notice %}}
+
 ### 2.1. IRSA Foundation - OIDC Provider
+
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Tìm EKS cluster** đã tạo ở Task 4 để lấy OIDC issuer URL
+2. **Get SSL certificate** từ EKS OIDC endpoint cho security validation
+3. **Create OIDC Identity Provider** trong AWS IAM để trust EKS cluster
+4. **Enable IRSA authentication** cho Kubernetes Service Accounts
+
+**Kết quả:** AWS IAM có thể trust và authenticate Kubernetes Service Accounts
+{{% /notice %}}
 
 **File: `aws/infra/iam-irsa.tf`**
 
 ```hcl
-# Reference existing EKS cluster (từ Task 4)
+# BƯỚC 1: Tìm EKS cluster từ Task 4 (không tạo mới)
 data "aws_eks_cluster" "main" {
-  name = "${var.project_name}-${var.environment}-cluster"
+  name = "${var.project_name}-${var.environment}-cluster"  # EKS từ Task 4
 }
 
-# Get OIDC issuer certificate
+# BƯỚC 2: Get OIDC issuer certificate cho security validation
 data "tls_certificate" "eks_oidc" {
-  url = data.aws_eks_cluster.main.identity[0].oidc[0].issuer
+  url = data.aws_eks_cluster.main.identity[0].oidc[0].issuer  # EKS OIDC endpoint
 }
 
-# Create OIDC Identity Provider cho IRSA
+# BƯỚC 3: Create OIDC Identity Provider trong AWS IAM
 resource "aws_iam_openid_connect_provider" "eks_oidc" {
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]
-  url             = data.aws_eks_cluster.main.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]  # AWS STS service
+  thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]  # SSL cert validation
+  url             = data.aws_eks_cluster.main.identity[0].oidc[0].issuer  # EKS OIDC URL
 
+  # Purpose: Cho phép AWS IAM trust Kubernetes Service Accounts
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-${var.environment}-eks-oidc"
     Type = "oidc-provider"
@@ -379,22 +416,34 @@ resource "aws_iam_openid_connect_provider" "eks_oidc" {
 
 ### 2.2. IRSA Role for ML Workloads (S3 Access)
 
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Create IAM role** chỉ có thể được assume bởi specific Kubernetes Service Account
+2. **Setup trust policy** với exact namespace và service account matching
+3. **Grant S3 permissions** chỉ cho ML data buckets (least privilege)
+4. **Enable secure access** từ pods mà không cần hardcoded AWS credentials
+
+**Kết quả:** Pods với Service Account `s3-access-sa` có thể access S3 securely
+{{% /notice %}}
+
 ```hcl
-# IRSA Role for ML workloads to access S3
+# BƯỚC 1: Create IRSA Role cho ML workloads access S3
 resource "aws_iam_role" "irsa_s3_access" {
   name = "${var.project_name}-${var.environment}-irsa-s3-access"
 
+  # Trust Policy: CHỈ specific Service Account có thể assume role này
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Principal = {
-          Federated = aws_iam_openid_connect_provider.eks_oidc.arn
+          Federated = aws_iam_openid_connect_provider.eks_oidc.arn  # OIDC provider từ bước trước
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
           StringEquals = {
+            # QUAN TRỌNG: Exact match namespace và service account name
             "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:sub" = "system:serviceaccount:mlops-retail-forecast:s3-access-sa"
             "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:aud" = "sts.amazonaws.com"
           }
@@ -410,23 +459,25 @@ resource "aws_iam_role" "irsa_s3_access" {
   })
 }
 
-# S3 access policy for IRSA
+# BƯỚC 2: S3 access policy - LEAST PRIVILEGE cho ML buckets only
 resource "aws_iam_role_policy" "irsa_s3_policy" {
   name = "${var.project_name}-${var.environment}-irsa-s3-policy"
   role = aws_iam_role.irsa_s3_access.id
 
+  # Permissions: Chỉ access ML data buckets, không phải tất cả S3
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
+          "s3:GetObject",     # Read files
+          "s3:PutObject",     # Upload files  
+          "s3:DeleteObject",  # Delete files
+          "s3:ListBucket"     # List bucket contents
         ]
         Resource = [
+          # CHỈ access specific ML buckets
           "arn:aws:s3:::${var.project_name}-${var.environment}-ml-data",
           "arn:aws:s3:::${var.project_name}-${var.environment}-ml-data/*",
           "arn:aws:s3:::${var.project_name}-${var.environment}-ml-artifacts",
@@ -683,21 +734,51 @@ spec:
 
 ### 5.1. Terraform Deployment (IRSA Only)
 
+{{% notice success %}}
+**🚀 IRSA Deployment Process:**
+
+**Bước 1:** Terraform tìm EKS cluster từ Task 4  
+**Bước 2:** Create OIDC Identity Provider cho IRSA  
+**Bước 3:** Setup IRSA roles với least privilege policies  
+**Bước 4:** Configure Service Accounts với proper annotations  
+**Bước 5:** Test secure access từ pods (no hardcoded credentials!)  
+
+**Time required:** ~5-10 phút cho IRSA setup
+{{% /notice %}}
+
 ```bash
-# Navigate to infrastructure directory
+# BƯỚC 1: Navigate to infrastructure directory
 cd aws/infra
 
-# Plan IRSA resources only
+# BƯỚC 2: Plan IRSA resources (xem Terraform sẽ tạo gì)
 terraform plan -target=aws_iam_openid_connect_provider.eks_oidc \
                -target=aws_iam_role.irsa_s3_access \
                -target=aws_iam_role.irsa_cloudwatch_access \
                -var-file="terraform.tfvars"
 
-# Apply IRSA configuration
+# BƯỚC 3: Apply IRSA configuration
 terraform apply -target=aws_iam_openid_connect_provider.eks_oidc \
                 -target=aws_iam_role.irsa_s3_access \
                 -target=aws_iam_role.irsa_cloudwatch_access \
                 -var-file="terraform.tfvars"
+```
+
+**Expected Apply Output:**
+```
+Apply complete! Resources: 5 added, 0 changed, 0 destroyed.
+
+Resources Created:
+✅ aws_iam_openid_connect_provider.eks_oidc (OIDC provider cho EKS)
+✅ aws_iam_role.irsa_s3_access (S3 access role cho ML workloads)
+✅ aws_iam_role_policy.irsa_s3_policy (Least privilege S3 permissions)
+✅ aws_iam_role.irsa_cloudwatch_access (CloudWatch monitoring role)
+✅ aws_iam_role_policy_attachment.irsa_cloudwatch_policy (CloudWatch permissions)
+
+Security Benefits:
+🔐 Zero hardcoded credentials trong pods
+🔐 Least privilege: Chỉ access specific S3 buckets
+🔐 Service Account based authentication
+🔐 Audit trail ready cho compliance
 ```
 
 ### 5.2. Verify IRSA Setup
