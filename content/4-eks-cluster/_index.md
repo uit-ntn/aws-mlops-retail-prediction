@@ -41,10 +41,11 @@ Sử dụng VPC Endpoints thay cho NAT Gateway để tối ưu chi phí và tăn
    - Metrics Server (cần cho HPA)
    - Cluster Autoscaler (optional, scale node theo pod demand)
 
-5. **Sử dụng VPC Endpoints từ Task 2**
-   - ECR API & DKR: sử dụng endpoints đã tạo ở Task 2 để pod pull container image
-   - S3 Gateway Endpoint: sử dụng endpoint đã tạo ở Task 2 để node/pod đọc/ghi dữ liệu ML
-   - CloudWatch Logs/Monitoring: sử dụng endpoints đã tạo ở Task 2 cho logging và metrics
+5. **Integration với VPC Endpoints từ Task 2**
+   - **Reference existing VPC Endpoints** đã tạo ở Task 2 (không tạo mới)
+   - **ECR API & DKR**: pods pull container images qua VPC Endpoints
+   - **S3 Gateway**: nodes/pods access ML data qua Gateway Endpoint (FREE)
+   - **CloudWatch Logs**: logging và metrics qua Interface Endpoint
 
 ## ✅ Deliverables
 
@@ -292,12 +293,47 @@ Khuyến nghị: Console cho learning, Terraform cho production.
 **Console đủ cho:** Basic EKS cluster tạo một lần, learning, testing
 {{% /notice %}}
 
+### 2.0. Terraform Code Purpose & Expected Results
+
+{{% notice success %}}
+**🎯 Mục đích của Terraform code trong Task 4:**
+
+**Input:** 
+- VPC infrastructure từ Task 2 (VPC, subnets, Security Groups, VPC Endpoints)
+- IAM roles từ Task 3 (EKS cluster role, node group role)
+
+**Terraform sẽ làm gì:**
+1. **Reference existing infrastructure** từ Task 2-3 (không tạo mới)
+2. **Create EKS cluster** với proper integration
+3. **Install essential add-ons** automatically
+4. **Configure security** với KMS encryption
+5. **Enable logging** cho production monitoring
+
+**Kết quả sau khi chạy:**
+- ✅ EKS cluster ACTIVE và ready to use
+- ✅ kubectl có thể connect được
+- ✅ Pods có thể pull images từ ECR qua VPC Endpoints
+- ✅ Logs được gửi lên CloudWatch
+- ✅ Add-ons (CoreDNS, kube-proxy, VPC CNI) hoạt động
+- ✅ Cost optimized: sử dụng VPC Endpoints thay vì NAT Gateway
+{{% /notice %}}
+
 ### 2.1. EKS Cluster với VPC Integration
+
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Tìm VPC và subnets** đã tạo ở Task 2
+2. **Tìm IAM roles** đã tạo ở Task 3  
+3. **Tạo EKS cluster** kết nối với infrastructure có sẵn
+4. **Enable logging và encryption** cho production
+
+**Kết quả:** EKS cluster hoạt động trong VPC đã có, sử dụng VPC Endpoints để tiết kiệm chi phí
+{{% /notice %}}
 
 **File: `aws/infra/eks-cluster.tf`**
 
 ```hcl
-# Data sources from Task 2 VPC outputs
+# BƯỚC 1: Tìm VPC infrastructure từ Task 2 (không tạo mới)
 data "aws_vpc" "main" {
   filter {
     name   = "tag:Name"
@@ -327,26 +363,27 @@ data "aws_subnets" "public" {
   }
 }
 
-# EKS Cluster với integration từ Task 2-3
+# BƯỚC 2: Tạo EKS cluster với integration từ Task 2-3
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-${var.environment}-cluster"
-  role_arn = data.aws_iam_role.eks_cluster.arn  # From Task 3
+  role_arn = data.aws_iam_role.eks_cluster.arn  # IAM role từ Task 3
   version  = var.kubernetes_version
 
+  # Networking: sử dụng VPC từ Task 2
   vpc_config {
     subnet_ids              = concat(data.aws_subnets.private.ids, data.aws_subnets.public.ids)
-    endpoint_private_access = true
-    endpoint_public_access  = true
+    endpoint_private_access = true   # Worker nodes connect privately
+    endpoint_public_access  = true   # Developers can access from outside
     public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
     security_group_ids      = [data.aws_security_group.eks_control_plane.id]
   }
 
-  # Production logging
+  # Production logging (gửi lên CloudWatch)
   enabled_cluster_log_types = [
     "api", "audit", "authenticator", "controllerManager", "scheduler"
   ]
 
-  # Encryption với KMS từ Task 3
+  # Encryption: bảo mật secrets với KMS
   encryption_config {
     provider {
       key_arn = data.aws_kms_key.eks.arn
@@ -354,12 +391,13 @@ resource "aws_eks_cluster" "main" {
     resources = ["secrets"]
   }
 
-  # Dependencies từ previous tasks
+  # Dependencies: đảm bảo infrastructure từ Task 2-3 đã sẵn sàng
   depends_on = [
-    data.aws_vpc_endpoints.s3,      # Task 2 VPC Endpoints
-    data.aws_vpc_endpoints.ecr_api,
-    data.aws_vpc_endpoints.ecr_dkr,
-    data.aws_iam_role.eks_cluster   # Task 3 IAM
+    data.aws_vpc_endpoint.s3,      # VPC Endpoints từ Task 2
+    data.aws_vpc_endpoint.ecr_api,
+    data.aws_vpc_endpoint.ecr_dkr,
+    data.aws_vpc_endpoint.logs,
+    data.aws_iam_role.eks_cluster   # IAM từ Task 3
   ]
 
   tags = merge(var.common_tags, {
@@ -369,22 +407,20 @@ resource "aws_eks_cluster" "main" {
   })
 }
 
-# Reference IAM role từ Task 3
+# BƯỚC 3: Reference resources từ previous tasks (không tạo mới)
 data "aws_iam_role" "eks_cluster" {
-  name = "${var.project_name}-${var.environment}-eks-cluster-role"
+  name = "${var.project_name}-${var.environment}-eks-cluster-role"  # Từ Task 3
 }
 
-# Reference Security Group từ Task 2
 data "aws_security_group" "eks_control_plane" {
   filter {
     name   = "tag:Name"
-    values = ["${var.project_name}-${var.environment}-eks-control-plane-sg"]
+    values = ["${var.project_name}-${var.environment}-eks-control-plane-sg"]  # Từ Task 2
   }
 }
 
-# Reference KMS Key từ Task 3
 data "aws_kms_key" "eks" {
-  key_id = "alias/${var.project_name}-${var.environment}-eks"
+  key_id = "alias/${var.project_name}-${var.environment}-eks"  # Từ Task 3
 }
 ```
 
@@ -432,37 +468,51 @@ cluster_endpoint_public_access_cidrs = [
 
 ### 3.1. Essential Add-ons via Terraform (cho automation)
 
+{{% notice tip %}}
+**🔍 Add-ons code này làm gì:**
+1. **Định nghĩa essential add-ons** cần thiết cho EKS hoạt động
+2. **Tự động install** các add-ons sau khi EKS cluster ready
+3. **Manage versions** và conflict resolution
+4. **Link với IAM roles** từ Task 3 cho permissions
+
+**Kết quả:** EKS cluster có đầy đủ add-ons để pods có thể chạy, networking hoạt động, storage available
+{{% /notice %}}
+
 **File: `aws/infra/eks-addons.tf`**
 
 ```hcl
-# Essential EKS Add-ons cho production (automated management)
+# BƯỚC 1: Định nghĩa essential add-ons và versions
 locals {
   essential_addons = {
-    coredns = {
+    # DNS resolution trong cluster
+  coredns = {
       addon_version               = "v1.10.1-eksbuild.5"
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "PRESERVE"
-    }
-    kube-proxy = {
+  }
+    # Network proxy cho pods
+  kube-proxy = {
       addon_version               = "v1.28.2-eksbuild.2"
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "PRESERVE"
-    }
-    vpc-cni = {
+  }
+    # VPC networking cho pods
+  vpc-cni = {
       addon_version               = "v1.15.4-eksbuild.1"
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "PRESERVE"
-    }
-    aws-ebs-csi-driver = {
+  }
+    # EBS storage cho persistent volumes
+  aws-ebs-csi-driver = {
       addon_version               = "v1.24.1-eksbuild.1"
       resolve_conflicts_on_create = "OVERWRITE"
       resolve_conflicts_on_update = "PRESERVE"
-      service_account_role_arn    = data.aws_iam_role.ebs_csi_driver.arn
+      service_account_role_arn    = data.aws_iam_role.ebs_csi_driver.arn  # IAM từ Task 3
     }
   }
 }
 
-# EKS Add-ons automated installation
+# BƯỚC 2: Tự động install tất cả add-ons
 resource "aws_eks_addon" "essential" {
   for_each = local.essential_addons
 
@@ -472,7 +522,7 @@ resource "aws_eks_addon" "essential" {
   resolve_conflicts        = each.value.resolve_conflicts_on_update
   service_account_role_arn = lookup(each.value, "service_account_role_arn", null)
 
-  depends_on = [aws_eks_cluster.main]
+  depends_on = [aws_eks_cluster.main]  # Chờ cluster ready trước
 
   tags = merge(var.common_tags, {
     Name      = "${var.project_name}-${var.environment}-${each.key}"
@@ -481,9 +531,9 @@ resource "aws_eks_addon" "essential" {
   })
 }
 
-# Reference EBS CSI Driver IAM role từ Task 3
+# BƯỚC 3: Reference IAM role từ Task 3 cho EBS CSI Driver
 data "aws_iam_role" "ebs_csi_driver" {
-  name = "${var.project_name}-${var.environment}-ebs-csi-driver-role"
+  name = "${var.project_name}-${var.environment}-ebs-csi-driver-role"  # Từ Task 3
 }
 ```
 
@@ -623,104 +673,115 @@ Task 4 focus vào EKS Control Plane và integration với existing infrastructur
 💰 Cost Savings: 70% reduction ($49.4/month saved)
 ```
 
-### 4.2. Terraform Integration với VPC Endpoints
+### 4.2. Reference VPC Endpoints từ Task 2
 
-**EKS sử dụng VPC Endpoints được tạo từ Task 2 thông qua data sources:**
+**EKS sử dụng VPC Endpoints đã được tạo ở Task 2** - không cần tạo lại:
 
 ```hcl
-# Data sources to reference VPC Endpoints from Task 2
-data "aws_vpc_endpoints" "s3" {
+# Data sources to reference VPC Endpoints from Task 2 (already created)
+data "aws_vpc_endpoint" "s3" {
   filter {
     name   = "vpc-id"
-    values = [var.vpc_id]
+    values = [data.aws_vpc.main.id]
   }
   filter {
     name   = "service-name"
-    values = ["com.amazonaws.${var.aws_region}.s3"]
+    values = ["com.amazonaws.ap-southeast-1.s3"]
   }
 }
 
-data "aws_vpc_endpoints" "ecr_api" {
+data "aws_vpc_endpoint" "ecr_api" {
   filter {
     name   = "vpc-id"
-    values = [var.vpc_id]
+    values = [data.aws_vpc.main.id]
   }
   filter {
     name   = "service-name"
-    values = ["com.amazonaws.${var.aws_region}.ecr.api"]
+    values = ["com.amazonaws.ap-southeast-1.ecr.api"]
   }
 }
 
-data "aws_vpc_endpoints" "ecr_dkr" {
+data "aws_vpc_endpoint" "ecr_dkr" {
   filter {
     name   = "vpc-id"
-    values = [var.vpc_id]
+    values = [data.aws_vpc.main.id]
   }
   filter {
     name   = "service-name"
-    values = ["com.amazonaws.${var.aws_region}.ecr.dkr"]
+    values = ["com.amazonaws.ap-southeast-1.ecr.dkr"]
   }
 }
 
-data "aws_vpc_endpoints" "logs" {
+data "aws_vpc_endpoint" "logs" {
   filter {
     name   = "vpc-id"
-    values = [var.vpc_id]
+    values = [data.aws_vpc.main.id]
   }
   filter {
     name   = "service-name"
-    values = ["com.amazonaws.${var.aws_region}.logs"]
+    values = ["com.amazonaws.ap-southeast-1.logs"]
   }
 }
 ```
 
-**EKS Cluster dependencies với VPC Endpoints:**
+**EKS Cluster chỉ cần reference VPC Endpoints từ Task 2:**
 
 ```hcl
-# EKS Cluster với dependency từ VPC Endpoints
+# EKS Cluster sử dụng VPC Endpoints đã có từ Task 2
 resource "aws_eks_cluster" "main" {
   name     = "${var.project_name}-${var.environment}-cluster"
-  role_arn = aws_iam_role.eks_cluster_role.arn
+  role_arn = data.aws_iam_role.eks_cluster.arn
   version  = var.kubernetes_version
 
   vpc_config {
-    subnet_ids              = var.private_subnet_ids
+    subnet_ids              = concat(data.aws_subnets.private.ids, data.aws_subnets.public.ids)
     endpoint_private_access = true
     endpoint_public_access  = true
     public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
-    security_group_ids      = [aws_security_group.eks_control_plane.id]
+    security_group_ids      = [data.aws_security_group.eks_control_plane.id]
   }
 
-  # EKS Cluster phụ thuộc vào VPC Endpoints để private subnets access AWS services
+  # Production logging
+  enabled_cluster_log_types = [
+    "api", "audit", "authenticator", "controllerManager", "scheduler"
+  ]
+
+  # Encryption với KMS từ Task 3
+  encryption_config {
+    provider {
+      key_arn = data.aws_kms_key.eks.arn
+    }
+    resources = ["secrets"]
+  }
+
+  # Dependencies - VPC Endpoints từ Task 2 đã tồn tại
   depends_on = [
-    aws_iam_role_policy_attachment.eks_cluster_policy,
-    aws_iam_role_policy.eks_cluster_cloudwatch,
-    aws_cloudwatch_log_group.eks_cluster,
-    # VPC Endpoints từ Task 2 phải được tạo trước EKS
-    data.aws_vpc_endpoints.s3,
-    data.aws_vpc_endpoints.ecr_api,
-    data.aws_vpc_endpoints.ecr_dkr,
-    data.aws_vpc_endpoints.logs
+    data.aws_vpc_endpoint.s3,      # Task 2 VPC Endpoints (already exists)
+    data.aws_vpc_endpoint.ecr_api,
+    data.aws_vpc_endpoint.ecr_dkr,
+    data.aws_vpc_endpoint.logs,
+    data.aws_iam_role.eks_cluster   # Task 3 IAM
   ]
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-${var.environment}-cluster"
     Type = "eks-cluster"
+    CreatedBy = "terraform"
   })
 }
 ```
 
 ### 4.3. Verification VPC Endpoints Integration
 
-**Test ECR access qua VPC Endpoints từ Task 2:**
+**Verify VPC Endpoints từ Task 2 đã sẵn sàng cho EKS:**
 
 ```bash
-# Verify VPC Endpoints từ Task 2 đã tồn tại
+# Verify VPC Endpoints từ Task 2 đã tồn tại và available
 aws ec2 describe-vpc-endpoints \
   --filters "Name=vpc-id,Values=$(terraform output -raw vpc_id)" \
   --query 'VpcEndpoints[*].{Service:ServiceName,State:State,Type:VpcEndpointType}'
 
-# Expected output:
+# Expected output (VPC Endpoints từ Task 2):
 # [
 #   {
 #     "Service": "com.amazonaws.ap-southeast-1.s3",
@@ -734,6 +795,11 @@ aws ec2 describe-vpc-endpoints \
 #   },
 #   {
 #     "Service": "com.amazonaws.ap-southeast-1.ecr.dkr",
+#     "State": "available", 
+#     "Type": "Interface"
+#   },
+#   {
+#     "Service": "com.amazonaws.ap-southeast-1.logs",
 #     "State": "available", 
 #     "Type": "Interface"
 #   }
@@ -837,22 +903,45 @@ coredns        2/2     2            2           10m
 
 ## 5. Terraform Deployment
 
-### 5.1. Plan và Apply
+### 5.1. Step-by-Step Terraform Deployment
+
+{{% notice success %}}
+**🚀 Deployment Process:**
+
+**Bước 1:** Terraform tìm infrastructure từ Task 2-3  
+**Bước 2:** Tạo EKS cluster với proper integration  
+**Bước 3:** Install essential add-ons automatically  
+**Bước 4:** Configure kubectl access  
+**Bước 5:** Verify cluster và add-ons hoạt động  
+
+**Time required:** ~15-20 phút
+{{% /notice %}}
 
 ```bash
-# Navigate to infrastructure directory
+# BƯỚC 1: Navigate to infrastructure directory
 cd aws/infra
 
-# Plan EKS cluster creation
-terraform plan -target=aws_eks_cluster.main -var-file="../terraform.tfvars"
+# BƯỚC 2: Plan EKS cluster creation (xem Terraform sẽ làm gì)
+terraform plan -target=aws_eks_cluster.main \
+               -target=aws_eks_addon.essential \
+               -var-file="terraform.tfvars"
 
-# Apply EKS cluster
-terraform apply -target=aws_eks_cluster.main -var-file="../terraform.tfvars"
+# BƯỚC 3: Apply EKS cluster và add-ons
+terraform apply -target=aws_eks_cluster.main \
+                -target=aws_eks_addon.essential \
+                -var-file="terraform.tfvars"
 ```
 
 **Expected Apply Output:**
 ```
 Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+
+Resources Created:
+✅ aws_eks_cluster.main
+✅ aws_eks_addon.essential["coredns"]
+✅ aws_eks_addon.essential["kube-proxy"] 
+✅ aws_eks_addon.essential["vpc-cni"]
+✅ aws_eks_addon.essential["aws-ebs-csi-driver"]
 
 Outputs:
 cluster_id = "mlops-retail-forecast-dev-cluster"

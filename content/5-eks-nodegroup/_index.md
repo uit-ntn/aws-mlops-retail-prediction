@@ -315,14 +315,52 @@ Khuyến nghị: Console cho learning, Terraform cho production.
 **Console đủ cho:** Single node group, basic scaling, standard configurations
 {{% /notice %}}
 
+### 2.0. Terraform Code Purpose & Expected Results
+
+{{% notice success %}}
+**🎯 Mục đích của Terraform code trong Task 5:**
+
+**Input:** 
+- EKS cluster từ Task 4 (cluster name, endpoint)
+- VPC infrastructure từ Task 2 (private subnets)
+- IAM roles từ Task 3 (node group role với ECR, S3, CloudWatch permissions)
+
+**Terraform sẽ làm gì:**
+1. **Reference existing EKS cluster** từ Task 4 (không tạo mới)
+2. **Create multiple node groups** với different strategies (On-Demand + Spot)
+3. **Configure cost optimization** với mixed instance types và capacity types
+4. **Setup workload isolation** với node taints và labels
+5. **Enable auto-scaling** với intelligent scaling policies
+
+**Kết quả sau khi chạy:**
+- ✅ Multiple node groups ACTIVE (On-Demand + Spot)
+- ✅ Cost optimization: 47-70% savings với Spot instances
+- ✅ Workload isolation: Core services vs Batch workloads
+- ✅ Auto-scaling: Nodes scale based on pod demand
+- ✅ High availability: Nodes trải đều trên multiple AZ
+- ✅ Production ready: Proper taints, labels, resource limits
+{{% /notice %}}
+
 ### 2.1. Cost-Optimized Multi-Node Group Strategy
+
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Tìm EKS cluster** đã tạo ở Task 4
+2. **Tìm private subnets** từ Task 2 để deploy nodes
+3. **Tạo 2 node groups** với strategies khác nhau:
+   - **On-Demand**: Stable, expensive, cho core services
+   - **Spot**: 70% cheaper, có thể bị interrupt, cho batch workloads
+4. **Setup workload isolation** với taints/tolerations
+
+**Kết quả:** Cost-optimized node groups với intelligent workload scheduling
+{{% /notice %}}
 
 **File: `aws/infra/eks-nodegroups-advanced.tf`**
 
 ```hcl
-# Data sources từ existing infrastructure
+# BƯỚC 1: Tìm existing infrastructure (không tạo mới)
 data "aws_eks_cluster" "main" {
-  name = "${var.project_name}-${var.environment}-cluster"
+  name = "${var.project_name}-${var.environment}-cluster"  # EKS từ Task 4
 }
 
 data "aws_subnets" "private" {
@@ -332,46 +370,46 @@ data "aws_subnets" "private" {
   }
   filter {
     name   = "tag:Type"
-    values = ["private-subnet"]
+    values = ["private-subnet"]  # Private subnets từ Task 2
   }
 }
 
 # Reference IAM role từ Task 3 (hoặc Console-created)
 data "aws_iam_role" "nodegroup" {
-  name = "${var.project_name}-${var.environment}-nodegroup-role"
+  name = "${var.project_name}-${var.environment}-nodegroup-role"  # IAM từ Task 3
 }
 
-# On-Demand Node Group cho Core Services
+# BƯỚC 2: On-Demand Node Group cho Core Services (Stable, Expensive)
 resource "aws_eks_node_group" "on_demand" {
   cluster_name    = data.aws_eks_cluster.main.name
   node_group_name = "${var.project_name}-${var.environment}-ondemand"
   node_role_arn   = data.aws_iam_role.nodegroup.arn
   subnet_ids      = data.aws_subnets.private.ids
 
-  # On-Demand configuration cho stability
+  # On-Demand: Stable nhưng expensive, cho critical workloads
   capacity_type  = "ON_DEMAND"
   instance_types = var.ondemand_instance_types
   disk_size      = 20
 
-  # Conservative scaling cho core workloads
+  # Conservative scaling: ít nodes nhưng stable
   scaling_config {
-    desired_size = var.ondemand_desired_size
-    max_size     = var.ondemand_max_size
-    min_size     = var.ondemand_min_size
+    desired_size = var.ondemand_desired_size  # Default: 1
+    max_size     = var.ondemand_max_size      # Default: 2
+    min_size     = var.ondemand_min_size      # Default: 1
   }
 
-  # Labels cho workload scheduling
+  # Labels: Kubernetes scheduler sẽ dùng để place pods
   labels = {
     "nodegroup-type" = "on-demand"
     "workload-type"  = "core"
     "environment"    = var.environment
   }
 
-  # Taints để chỉ core services schedule lên đây
+  # Taints: Chỉ pods có tolerations mới schedule được lên đây
   taint {
     key    = "node-type"
     value  = "on-demand"
-    effect = "NO_SCHEDULE"
+    effect = "NO_SCHEDULE"  # Block pods không có toleration
   }
 
   tags = merge(var.common_tags, {
@@ -381,28 +419,28 @@ resource "aws_eks_node_group" "on_demand" {
   })
 }
 
-# Spot Node Group cho Batch Workloads (70% cost savings)
+# BƯỚC 3: Spot Node Group cho Batch Workloads (70% cost savings)
 resource "aws_eks_node_group" "spot" {
   cluster_name    = data.aws_eks_cluster.main.name
   node_group_name = "${var.project_name}-${var.environment}-spot"
   node_role_arn   = data.aws_iam_role.nodegroup.arn
   subnet_ids      = data.aws_subnets.private.ids
 
-  # Spot configuration cho cost savings
+  # Spot: 70% cheaper nhưng có thể bị AWS interrupt bất kỳ lúc nào
   capacity_type  = "SPOT"
-  instance_types = var.spot_instance_types  # Multiple types cho availability
+  instance_types = var.spot_instance_types  # Multiple types tăng availability
   disk_size      = 20
 
-  # Aggressive scaling cho batch workloads
+  # Aggressive scaling: nhiều nodes cho batch processing
   scaling_config {
-    desired_size = var.spot_desired_size
-    max_size     = var.spot_max_size
-    min_size     = var.spot_min_size
+    desired_size = var.spot_desired_size  # Default: 2
+    max_size     = var.spot_max_size      # Default: 6
+    min_size     = var.spot_min_size      # Default: 0 (có thể scale về 0)
   }
 
-  # Update configuration cho spot interruptions
+  # Update config: tolerate higher disruption cho spot instances
   update_config {
-    max_unavailable_percentage = 50  # Higher tolerance
+    max_unavailable_percentage = 50  # 50% nodes có thể unavailable cùng lúc
   }
 
   # Labels cho batch workloads
@@ -412,7 +450,7 @@ resource "aws_eks_node_group" "spot" {
     "environment"    = var.environment
   }
 
-  # Taints cho spot-tolerant workloads
+  # Taints: Chỉ batch workloads có toleration mới chạy ở đây
   taint {
     key    = "node-type"
     value  = "spot"
@@ -521,10 +559,20 @@ Node Group Strategy Comparison:
 
 ### 3.2. Kubernetes Workload Deployment Examples
 
-**Core Services (On-Demand Nodes):**
+{{% notice tip %}}
+**🔍 Workload Scheduling Strategy:**
+1. **Core Services** → On-Demand nodes (stable, expensive)
+2. **Batch Workloads** → Spot nodes (70% cheaper, interruptible)
+3. **Tolerations** → Cho phép pods chạy trên tainted nodes
+4. **Node Selectors** → Force pods chạy trên specific node types
+
+**Kết quả:** Intelligent cost optimization với workload isolation
+{{% /notice %}}
+
+**Core Services (On-Demand Nodes - Stable, Critical):**
 
 ```yaml
-# deployment-core.yaml
+# deployment-core.yaml - Chạy trên On-Demand nodes (stable)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -542,13 +590,14 @@ spec:
         app: inference-api
         tier: core
     spec:
-      # Schedule on On-Demand nodes chỉ
+      # QUAN TRỌNG: Tolerations cho phép pod chạy trên tainted On-Demand nodes
       tolerations:
       - key: "node-type"
         operator: "Equal"
         value: "on-demand"
-        effect: "NoSchedule"
+        effect: "NoSchedule"  # Match với taint trong Terraform
       
+      # Force pod chỉ chạy trên On-Demand nodes
       nodeSelector:
         nodegroup-type: "on-demand"
       
@@ -564,10 +613,10 @@ spec:
             cpu: "500m"
 ```
 
-**Batch Workloads (Spot Nodes):**
+**Batch Workloads (Spot Nodes - 70% Cheaper, Interruptible):**
 
 ```yaml
-# deployment-batch.yaml
+# deployment-batch.yaml - Chạy trên Spot nodes (70% cheaper)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -583,17 +632,18 @@ spec:
       labels:
         app: batch-processor
     spec:
-      # Tolerate spot interruptions
+      # QUAN TRỌNG: Tolerations cho phép pod chạy trên tainted Spot nodes
       tolerations:
       - key: "node-type"
         operator: "Equal"
         value: "spot"
-        effect: "NoSchedule"
+        effect: "NoSchedule"  # Match với taint trong Terraform
       
+      # Force pod chỉ chạy trên Spot nodes (70% cheaper)
       nodeSelector:
         nodegroup-type: "spot"
       
-      # Graceful shutdown cho spot interruptions
+      # Graceful shutdown: Spot instances có thể bị AWS interrupt với 2 phút notice
       terminationGracePeriodSeconds: 120
       
       containers:
@@ -603,6 +653,15 @@ spec:
           requests:
             memory: "256Mi"
             cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+        
+        # Handle spot interruptions gracefully
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]  # Grace period
 ```
 
 ## 4. Auto-Scaling & HPA Integration
@@ -695,14 +754,52 @@ kubectl expose deployment nginx --port=80 --type=LoadBalancer
 
 ### 5.2. Terraform Approach (Advanced Multi-Node Groups)
 
-```bash
-# For advanced strategies (Section 2):
-cd aws/infra
-terraform plan -var-file="terraform.tfvars"
-terraform apply -var-file="terraform.tfvars"
+{{% notice success %}}
+**🚀 Advanced Deployment Process:**
 
-# Verify multiple node groups
+**Bước 1:** Terraform tìm EKS cluster từ Task 4  
+**Bước 2:** Tạo multiple node groups với cost optimization  
+**Bước 3:** Configure workload isolation với taints/tolerations  
+**Bước 4:** Verify nodes và test workload scheduling  
+
+**Time required:** ~10-15 phút cho multiple node groups
+{{% /notice %}}
+
+```bash
+# BƯỚC 1: Deploy advanced multi-node group strategy
+cd aws/infra
+
+# BƯỚC 2: Plan deployment (xem Terraform sẽ tạo gì)
+terraform plan -target=aws_eks_node_group.on_demand \
+               -target=aws_eks_node_group.spot \
+               -var-file="terraform.tfvars"
+
+# BƯỚC 3: Apply node groups
+terraform apply -target=aws_eks_node_group.on_demand \
+                -target=aws_eks_node_group.spot \
+                -var-file="terraform.tfvars"
+
+# BƯỚC 4: Verify multiple node groups created
 kubectl get nodes --show-labels | grep nodegroup-type
+
+# Expected output:
+# node1    Ready    <none>   5m    v1.28.3   nodegroup-type=on-demand,workload-type=core
+# node2    Ready    <none>   5m    v1.28.3   nodegroup-type=spot,workload-type=batch
+# node3    Ready    <none>   5m    v1.28.3   nodegroup-type=spot,workload-type=batch
+```
+
+**Expected Apply Output:**
+```
+Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
+
+Resources Created:
+✅ aws_eks_node_group.on_demand (1 node, t3.medium, On-Demand)
+✅ aws_eks_node_group.spot (2 nodes, t3.medium, Spot - 70% cheaper)
+
+Cost Optimization:
+💰 On-Demand: $30/month (stable, core services)
+💰 Spot: $18/month (vs $60 On-Demand - 70% savings)
+💰 Total: $48/month (vs $90 all On-Demand - 47% savings)
 ```
 
 ### 5.3. Essential Monitoring
