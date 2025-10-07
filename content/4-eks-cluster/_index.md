@@ -41,24 +41,34 @@ Sử dụng VPC Endpoints thay cho NAT Gateway để tối ưu chi phí và tăn
    - Metrics Server (cần cho HPA)
    - Cluster Autoscaler (optional, scale node theo pod demand)
 
-5. **Integration với VPC Endpoints từ Task 2**
-   - **Reference existing VPC Endpoints** đã tạo ở Task 2 (không tạo mới)
+5. **IRSA Setup (IAM Roles for Service Accounts)**
+   - Tạo OIDC Identity Provider cho EKS cluster
+   - Setup IRSA roles cho S3 và CloudWatch access
+   - Configure Service Accounts với proper annotations
+   - Test secure pod authentication (no hardcoded credentials)
+
+6. **Integration với VPC Endpoints từ Task 2**
+   - **Reference existing VPC Endpoints** đã tạo ở Task 2 (Console) - không tạo mới
    - **ECR API & DKR**: pods pull container images qua VPC Endpoints
    - **S3 Gateway**: nodes/pods access ML data qua Gateway Endpoint (FREE)
    - **CloudWatch Logs**: logging và metrics qua Interface Endpoint
 
 ## ✅ Deliverables
 
-- **EKS cluster ACTIVE** với node groups trải trên nhiều AZ
+- **EKS cluster ACTIVE** với node groups (t2.micro FREE tier)
+- **IRSA configured** với OIDC provider và Service Account authentication
 - **Node có thể pull image** từ ECR qua VPC Endpoint (không cần NAT Gateway)
-- **Logs/metrics** từ pod được gửi lên CloudWatch thành công
+- **Pods có thể access S3/CloudWatch** qua IRSA (no hardcoded credentials)
+- **Cost optimized** với FREE tier instances và VPC Endpoints
 - **kubeconfig usable** cho CI/CD pipeline
 
 ## 📊 Acceptance Criteria
 
 - ✅ `kubectl get nodes` → tất cả node trạng thái Ready
 - ✅ Add-ons (CNI, CoreDNS, kube-proxy, metrics-server) chạy ổn định
+- ✅ IRSA OIDC provider created và linked với EKS cluster
 - ✅ Pod mẫu deploy lên EKS pull image từ ECR thành công
+- ✅ Pod có thể access S3 qua IRSA Service Account
 - ✅ CloudWatch hiển thị log và metrics từ EKS pod thông qua VPC Endpoint
 
 ## ⚠️ Gotchas
@@ -112,16 +122,17 @@ EKS Control Plane Architecture
 - ✅ **Cost optimization** với right-sized control plane
 {{% /notice %}}
 
-## 1. Alternative: AWS Console Implementation
+## 1. EKS Cluster Creation via Console
 
-### 1.1. EKS Cluster Creation via Console
+{{% notice info %}}
+**💡 Console Approach cho EKS:**
+Console đủ cho basic EKS cluster setup. Terraform chỉ cần cho IRSA và automation.
+{{% /notice %}}
+
+### 1.1. Basic EKS Cluster Setup
 
 1. **Navigate to EKS Console:**
-   - Đăng nhập AWS Console
-   - Navigate to EKS service
-   - Chọn "Create cluster"
-
-![Create EKS Cluster](../images/04-eks-cluster/01-create-eks-cluster.png)
+   - AWS Console → EKS → "Create cluster"
 
 2. **Basic Configuration:**
    ```
@@ -130,31 +141,14 @@ EKS Control Plane Architecture
    Cluster service role: mlops-retail-forecast-dev-eks-cluster-role
    ```
 
-![Cluster Basic Config](../images/04-eks-cluster/02-cluster-basic-config.png)
-
 3. **Networking Configuration:**
    ```
    VPC: mlops-retail-forecast-dev-vpc
-   Subnets: 
-     - mlops-retail-forecast-dev-private-ap-southeast-1a
-     - mlops-retail-forecast-dev-private-ap-southeast-1b
-     - mlops-retail-forecast-dev-public-ap-southeast-1a
-     - mlops-retail-forecast-dev-public-ap-southeast-1b
+   Subnets: All 4 subnets (public + private)
    Security groups: mlops-retail-forecast-dev-eks-control-plane-sg
    ```
 
-![Networking Config](../images/04-eks-cluster/03-networking-config.png)
-
-4. **Cluster Endpoint Access:**
-   ```
-   Endpoint private access: Enabled
-   Endpoint public access: Enabled
-   Public access source: Specific CIDR blocks (your IP)
-   ```
-
-![Endpoint Access](../images/04-eks-cluster/04-endpoint-access.png)
-
-5. **Logging Configuration:**
+4. **Logging Configuration:**
    ```
    Control plane logging:
    ✅ API server
@@ -164,176 +158,356 @@ EKS Control Plane Architecture
    ✅ Scheduler
    ```
 
-![Logging Config](../images/04-eks-cluster/05-logging-config.png)
+### 1.2. Essential Add-ons Installation
 
-6. **Encryption Configuration:**
-   ```
-   Secrets encryption: Enabled
-   KMS key: Create new key or use existing
-   Key alias: alias/mlops-retail-forecast-dev-eks
-   ```
-
-![Encryption Config](../images/04-eks-cluster/06-encryption-config.png)
-
-### 1.2. Add-ons Installation via Console
-
-1. **Navigate to Add-ons Tab:**
-   - Chọn cluster vừa tạo
-   - Click "Add-ons" tab
-   - Chọn "Add new"
-
-![Addons Overview](../images/04-eks-cluster/07-addons-overview.png)
-
-2. **Install Essential Add-ons:**
-   
-   **CoreDNS:**
-   ```
-   Name: coredns
-   Version: v1.10.1-eksbuild.5
-   Configuration: Default
-   ```
-
-   **kube-proxy:**
-   ```
-   Name: kube-proxy
-   Version: v1.28.2-eksbuild.2
-   Configuration: Default
-   ```
-
-   **VPC CNI:**
-   ```
-   Name: vpc-cni
-   Version: v1.15.4-eksbuild.1
-   Configuration: Default
-   ```
-
-   **EBS CSI Driver:**
-   ```
-   Name: aws-ebs-csi-driver
-   Version: v1.24.1-eksbuild.1
-   Service account role: Create new IAM role
-   ```
-
-![Install Addons](../images/04-eks-cluster/08-install-addons.png)
-
-3. **AWS Load Balancer Controller:**
-   ```
-   Name: aws-load-balancer-controller
-   Version: v2.6.3-eksbuild.1
-   Service account role: mlops-retail-forecast-dev-alb-controller
-   ```
-
-![ALB Controller Addon](../images/04-eks-cluster/09-alb-controller-addon.png)
-
-### 1.3. Cluster Verification via Console
-
-1. **Cluster Overview:**
-   - Check cluster status: "Active"
-   - Verify Kubernetes version: 1.28
-   - Confirm endpoint access configuration
-
-![Cluster Overview](../images/04-eks-cluster/10-cluster-overview.png)
-
-2. **Add-ons Status:**
-   ```
-   ✅ coredns: Active
-   ✅ kube-proxy: Active
-   ✅ vpc-cni: Active
-   ✅ aws-ebs-csi-driver: Active
-   ✅ aws-load-balancer-controller: Active
-   ```
-
-![Addons Status](../images/04-eks-cluster/11-addons-status.png)
-
-3. **CloudWatch Logs:**
-   - Navigate to CloudWatch → Log groups
-   - Verify log group: `/aws/eks/mlops-retail-forecast-dev-cluster/cluster`
-   - Check log streams cho control plane components
-
-![CloudWatch Logs](../images/04-eks-cluster/12-cloudwatch-logs.png)
+**Install qua Console:**
+- **CoreDNS**: v1.10.1-eksbuild.5
+- **kube-proxy**: v1.28.2-eksbuild.2  
+- **VPC CNI**: v1.15.4-eksbuild.1
+- **EBS CSI Driver**: v1.24.1-eksbuild.1
 
 {{% notice success %}}
-**🎯 Console Implementation Complete!**
+**🎯 Console Setup Complete!**
 
-EKS cluster đã được tạo thành công với:
-- ✅ Multi-AZ control plane
-- ✅ Proper IAM integration
+Basic EKS cluster đã sẵn sàng:
+- ✅ Control plane ACTIVE
 - ✅ Essential add-ons installed
 - ✅ CloudWatch logging enabled
-- ✅ Secrets encryption configured
+- ✅ Ready cho IRSA setup
 {{% /notice %}}
+
+## 2. Cost Optimization - Free Tier EC2 Instances
 
 {{% notice info %}}
-**💡 Console vs Terraform:**
-
-**Console Advantages:**
-- ✅ Visual cluster creation wizard
-- ✅ Real-time status updates
-- ✅ Easy add-ons management
-- ✅ Integrated validation
-
-**Terraform Advantages:**
-- ✅ Infrastructure as Code
-- ✅ Version control
-- ✅ Reproducible deployments
-- ✅ Automation-ready
-
-Khuyến nghị: Console cho learning, Terraform cho production.
+**💡 Free Tier Optimization:**
+Sử dụng t2.micro instances (free tier) để giảm chi phí cho development/testing.
 {{% /notice %}}
 
-## 2. Terraform cho Advanced EKS Configuration
+### 2.1. Free Tier Instance Types
+
+**Recommended cho Development:**
+```
+t2.micro (Free Tier):
+- 1 vCPU, 1 GB RAM
+- 750 hours/month FREE (12 months)
+- Perfect cho basic testing và learning
+
+t2.small (Low Cost):
+- 1 vCPU, 2 GB RAM  
+- $16.06/month
+- Better performance cho development
+```
+
+### 2.2. Cost Comparison
+
+| Instance Type | vCPU | RAM | Free Tier | Monthly Cost |
+|---------------|------|-----|-----------|--------------|
+| **t2.micro**  | 1    | 1GB | ✅ 750h    | **$0** (12 months) |
+| **t2.small**  | 1    | 2GB | ❌         | $16.06 |
+| **t3.medium** | 2    | 4GB | ❌         | $30.40 |
+
+**Savings with Free Tier:**
+- **t2.micro**: $0/month (12 months free)
+- **Total EKS cost**: ~$73/month (control plane only)
+- **Node cost**: $0/month (free tier)
+
+## 3. Terraform cho IRSA Setup (Essential Only)
 
 {{% notice info %}}
-**💡 Khi nào cần Terraform cho EKS:**
-- ✅ **Integration phức tạp** với existing VPC/IAM từ Task 2-3  
-- ✅ **Automated CI/CD deployment** với consistent configuration  
-- ✅ **Advanced security** như KMS encryption, fine-grained IAM  
-- ✅ **Production workloads** cần reproducible infrastructure  
+**💡 Khi nào cần Terraform cho Task 4:**
+- ✅ **IRSA setup** - Complex OIDC integration không thể làm dễ qua Console
+- ✅ **Automation** - CI/CD deployment cần reproducible setup
 
-**Console đủ cho:** Basic EKS cluster tạo một lần, learning, testing
+**Console đủ cho:** EKS cluster, add-ons, basic configuration
 {{% /notice %}}
 
-### 2.0. Terraform Code Purpose & Expected Results
+### 3.1. IRSA Setup Purpose
 
 {{% notice success %}}
 **🎯 Mục đích của Terraform code trong Task 4:**
 
 **Input:** 
-- VPC infrastructure từ Task 2 (VPC, subnets, Security Groups, VPC Endpoints)
-- IAM roles từ Task 3 (EKS cluster role, node group role)
+- EKS cluster đã tạo qua Console
+- VPC infrastructure từ Task 2
 
 **Terraform sẽ làm gì:**
-1. **Reference existing infrastructure** từ Task 2-3 (không tạo mới)
-2. **Create EKS cluster** với proper integration
-3. **Install essential add-ons** automatically
-4. **Configure security** với KMS encryption
-5. **Enable logging** cho production monitoring
+1. **Reference existing EKS cluster** từ Console
+2. **Setup IRSA** với OIDC provider và roles
+3. **Configure Service Accounts** với proper annotations
+4. **Enable secure pod authentication** (no hardcoded credentials)
 
 **Kết quả sau khi chạy:**
-- ✅ EKS cluster ACTIVE và ready to use
-- ✅ kubectl có thể connect được
-- ✅ Pods có thể pull images từ ECR qua VPC Endpoints
-- ✅ Logs được gửi lên CloudWatch
-- ✅ Add-ons (CoreDNS, kube-proxy, VPC CNI) hoạt động
-- ✅ Cost optimized: sử dụng VPC Endpoints thay vì NAT Gateway
+- ✅ IRSA OIDC provider created
+- ✅ S3/CloudWatch access roles configured
+- ✅ Pods có thể access AWS services securely
+- ✅ No hardcoded credentials needed
 {{% /notice %}}
 
-### 2.1. EKS Cluster với VPC Integration
+### 3.2. IRSA Foundation - OIDC Provider
 
 {{% notice tip %}}
 **🔍 Code này làm gì:**
-1. **Tìm VPC và subnets** đã tạo ở Task 2
-2. **Tìm IAM roles** đã tạo ở Task 3  
-3. **Tạo EKS cluster** kết nối với infrastructure có sẵn
-4. **Enable logging và encryption** cho production
+1. **Tìm EKS cluster** vừa tạo để lấy OIDC issuer URL
+2. **Get SSL certificate** từ EKS OIDC endpoint cho security validation
+3. **Create OIDC Identity Provider** trong AWS IAM để trust EKS cluster
+4. **Enable IRSA authentication** cho Kubernetes Service Accounts
 
-**Kết quả:** EKS cluster hoạt động trong VPC đã có, sử dụng VPC Endpoints để tiết kiệm chi phí
+**Kết quả:** AWS IAM có thể trust và authenticate Kubernetes Service Accounts
 {{% /notice %}}
 
-**File: `aws/infra/eks-cluster.tf`**
+**File: `aws/infra/eks-irsa.tf`**
 
 ```hcl
-# BƯỚC 1: Tìm VPC infrastructure từ Task 2 (không tạo mới)
+# BƯỚC 1: Get OIDC issuer certificate từ EKS cluster vừa tạo
+data "tls_certificate" "eks_oidc" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer  # EKS OIDC endpoint
+}
+
+# BƯỚC 2: Create OIDC Identity Provider trong AWS IAM
+resource "aws_iam_openid_connect_provider" "eks_oidc" {
+  client_id_list  = ["sts.amazonaws.com"]  # AWS STS service
+  thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]  # SSL cert validation
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer  # EKS OIDC URL
+
+  # Purpose: Cho phép AWS IAM trust Kubernetes Service Accounts
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-eks-oidc"
+    Type = "oidc-provider"
+    Purpose = "irsa-authentication"
+  })
+}
+```
+
+### 3.3. IRSA Role for ML Workloads (S3 Access)
+
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Create IAM role** chỉ có thể được assume bởi specific Kubernetes Service Account
+2. **Setup trust policy** với exact namespace và service account matching
+3. **Grant S3 permissions** chỉ cho ML data buckets (least privilege)
+4. **Enable secure access** từ pods mà không cần hardcoded AWS credentials
+
+**Kết quả:** Pods với Service Account `s3-access-sa` có thể access S3 securely
+{{% /notice %}}
+
+```hcl
+# BƯỚC 1: Create IRSA Role cho ML workloads access S3
+resource "aws_iam_role" "irsa_s3_access" {
+  name = "${var.project_name}-${var.environment}-irsa-s3-access"
+
+  # Trust Policy: CHỈ specific Service Account có thể assume role này
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks_oidc.arn  # OIDC provider từ bước trước
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            # QUAN TRỌNG: Exact match namespace và service account name
+            "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:sub" = "system:serviceaccount:mlops-retail-forecast:s3-access-sa"
+            "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-irsa-s3-access"
+    Type = "iam-role"
+    Service = "irsa-s3"
+  })
+}
+
+# BƯỚC 2: S3 access policy - LEAST PRIVILEGE cho ML buckets only
+resource "aws_iam_role_policy" "irsa_s3_policy" {
+  name = "${var.project_name}-${var.environment}-irsa-s3-policy"
+  role = aws_iam_role.irsa_s3_access.id
+
+  # Permissions: Chỉ access ML data buckets, không phải tất cả S3
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",     # Read files
+          "s3:PutObject",     # Upload files  
+          "s3:DeleteObject",  # Delete files
+          "s3:ListBucket"     # List bucket contents
+        ]
+        Resource = [
+          # CHỈ access specific ML buckets
+          "arn:aws:s3:::${var.project_name}-${var.environment}-ml-data",
+          "arn:aws:s3:::${var.project_name}-${var.environment}-ml-data/*",
+          "arn:aws:s3:::${var.project_name}-${var.environment}-ml-artifacts",
+          "arn:aws:s3:::${var.project_name}-${var.environment}-ml-artifacts/*"
+        ]
+      }
+    ]
+  })
+}
+```
+
+### 3.4. IRSA Role for CloudWatch Monitoring
+
+```hcl
+# IRSA Role for CloudWatch monitoring
+resource "aws_iam_role" "irsa_cloudwatch_access" {
+  name = "${var.project_name}-${var.environment}-irsa-cloudwatch"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.eks_oidc.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:sub" = "system:serviceaccount:mlops-retail-forecast:cloudwatch-sa"
+            "${replace(aws_iam_openid_connect_provider.eks_oidc.url, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-irsa-cloudwatch"
+    Type = "iam-role"
+    Service = "irsa-cloudwatch"
+  })
+}
+
+# CloudWatch permissions for IRSA
+resource "aws_iam_role_policy_attachment" "irsa_cloudwatch_policy" {
+  role       = aws_iam_role.irsa_cloudwatch_access.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+# Custom CloudWatch metrics policy
+resource "aws_iam_role_policy" "irsa_cloudwatch_custom" {
+  name = "${var.project_name}-${var.environment}-irsa-cloudwatch-custom"
+  role = aws_iam_role.irsa_cloudwatch_access.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:PutMetricData",
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = [
+              "MLOps/RetailForecast",
+              "AWS/EKS",
+              "ContainerInsights"
+            ]
+          }
+        }
+      }
+    ]
+  })
+}
+```
+
+### 3.5. Kubernetes Service Accounts với IRSA Annotations
+
+**File: `aws/k8s/service-accounts.yaml`**
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mlops-retail-forecast
+  labels:
+    name: mlops-retail-forecast
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: s3-access-sa
+  namespace: mlops-retail-forecast
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mlops-retail-forecast-dev-irsa-s3-access
+  labels:
+    app.kubernetes.io/name: s3-access-service-account
+    app.kubernetes.io/component: rbac
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudwatch-sa
+  namespace: mlops-retail-forecast
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mlops-retail-forecast-dev-irsa-cloudwatch
+  labels:
+    app.kubernetes.io/name: cloudwatch-service-account
+    app.kubernetes.io/component: monitoring
+```
+
+### 3.6. Test Pod với IRSA Authentication
+
+**File: `aws/k8s/test-pod-irsa.yaml`**
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-irsa-s3-access
+  namespace: mlops-retail-forecast
+spec:
+  serviceAccountName: s3-access-sa  # IRSA Service Account
+  containers:
+  - name: test-s3-access
+    image: amazon/aws-cli:latest
+    command: ["/bin/bash"]
+    args: ["-c", "aws s3 ls && sleep 3600"]
+    env:
+    - name: AWS_DEFAULT_REGION
+      value: "ap-southeast-1"
+  restartPolicy: Never
+```
+
+### 3.7. Node Group với t2.micro (Free Tier)
+
+{{% notice tip %}}
+**🔍 Code này làm gì:**
+1. **Create managed node group** với t2.micro instances (FREE tier)
+2. **Reference existing EKS cluster** từ Console
+3. **Configure auto-scaling** và security settings
+4. **Enable cost optimization** với free tier instances
+
+**Kết quả:** EKS cluster có worker nodes để chạy pods
+{{% /notice %}}
+
+**File: `aws/infra/eks-nodegroup.tf`**
+
+```hcl
+# Reference existing EKS cluster từ Console
+data "aws_eks_cluster" "main" {
+  name = "${var.project_name}-${var.environment}-cluster"
+}
+
+# Reference IAM role cho node group từ Task 3
+data "aws_iam_role" "node_group" {
+  name = "${var.project_name}-${var.environment}-eks-node-group-role"
+}
+
+# Reference VPC và subnets từ Task 2
 data "aws_vpc" "main" {
   filter {
     name   = "tag:Name"
@@ -352,584 +526,191 @@ data "aws_subnets" "private" {
   }
 }
 
-data "aws_subnets" "public" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.main.id]
-  }
-  filter {
-    name   = "tag:Type"
-    values = ["public-subnet"]
-  }
-}
+# Create managed node group với t2.micro (FREE tier)
+resource "aws_eks_node_group" "main" {
+  cluster_name    = data.aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-${var.environment}-node-group"
+  node_role_arn   = data.aws_iam_role.node_group.arn
+  subnet_ids      = data.aws_subnets.private.ids
 
-# BƯỚC 2: Tạo EKS cluster với integration từ Task 2-3
-resource "aws_eks_cluster" "main" {
-  name     = "${var.project_name}-${var.environment}-cluster"
-  role_arn = data.aws_iam_role.eks_cluster.arn  # IAM role từ Task 3
-  version  = var.kubernetes_version
+  # FREE Tier instance configuration
+  instance_types = ["t2.micro"]  # FREE tier instances
+  capacity_type  = "ON_DEMAND"   # On-demand để đảm bảo free tier
 
-  # Networking: sử dụng VPC từ Task 2
-  vpc_config {
-    subnet_ids              = concat(data.aws_subnets.private.ids, data.aws_subnets.public.ids)
-    endpoint_private_access = true   # Worker nodes connect privately
-    endpoint_public_access  = true   # Developers can access from outside
-    public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
-    security_group_ids      = [data.aws_security_group.eks_control_plane.id]
+  # Scaling configuration
+  scaling_config {
+    desired_size = 2  # 2 nodes cho high availability
+    max_size     = 4  # Scale up khi cần
+    min_size     = 1  # Scale down để tiết kiệm
   }
 
-  # Production logging (gửi lên CloudWatch)
-  enabled_cluster_log_types = [
-    "api", "audit", "authenticator", "controllerManager", "scheduler"
-  ]
-
-  # Encryption: bảo mật secrets với KMS
-  encryption_config {
-    provider {
-      key_arn = data.aws_kms_key.eks.arn
-    }
-    resources = ["secrets"]
+  # Update configuration
+  update_config {
+    max_unavailable_percentage = 50
   }
 
-  # Dependencies: đảm bảo infrastructure từ Task 2-3 đã sẵn sàng
-  depends_on = [
-    data.aws_vpc_endpoint.s3,      # VPC Endpoints từ Task 2
-    data.aws_vpc_endpoint.ecr_api,
-    data.aws_vpc_endpoint.ecr_dkr,
-    data.aws_vpc_endpoint.logs,
-    data.aws_iam_role.eks_cluster   # IAM từ Task 3
-  ]
+  # Launch template để tối ưu cho free tier
+  launch_template {
+    name    = aws_launch_template.node_group.name
+    version = aws_launch_template.node_group.latest_version
+  }
+
+  depends_on = [aws_launch_template.node_group]
 
   tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-cluster"
-    Type = "eks-cluster"
-    CreatedBy = "terraform"
+    Name = "${var.project_name}-${var.environment}-node-group"
+    Type = "eks-node-group"
+    InstanceType = "t2.micro"
+    FreeTier = "true"
   })
 }
 
-# BƯỚC 3: Reference resources từ previous tasks (không tạo mới)
-data "aws_iam_role" "eks_cluster" {
-  name = "${var.project_name}-${var.environment}-eks-cluster-role"  # Từ Task 3
-}
+# Launch template cho node group optimization
+resource "aws_launch_template" "node_group" {
+  name_prefix   = "${var.project_name}-${var.environment}-node-"
+  description   = "Launch template for EKS node group with t2.micro optimization"
+  image_id      = data.aws_ssm_parameter.eks_ami.value  # Latest EKS optimized AMI
+  instance_type = "t2.micro"
 
-data "aws_security_group" "eks_control_plane" {
-  filter {
-    name   = "tag:Name"
-    values = ["${var.project_name}-${var.environment}-eks-control-plane-sg"]  # Từ Task 2
+  # User data để optimize cho free tier
+  user_data = base64encode(templatefile("${path.module}/user_data.sh", {
+    cluster_name = data.aws_eks_cluster.main.name
+    cluster_endpoint = data.aws_eks_cluster.main.endpoint
+    cluster_ca = data.aws_eks_cluster.main.certificate_authority[0].data
+  }))
+
+  vpc_security_group_ids = [aws_security_group.node_group.id]
+
+  # Block device mapping cho free tier storage
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 20  # 20GB (within 30GB free tier)
+      volume_type           = "gp3"
+      delete_on_termination = true
+      encrypted             = true
+    }
   }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(var.common_tags, {
+      Name = "${var.project_name}-${var.environment}-node"
+      Type = "eks-node"
+      InstanceType = "t2.micro"
+      FreeTier = "true"
+    })
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-launch-template"
+    Type = "launch-template"
+  })
 }
 
-data "aws_kms_key" "eks" {
-  key_id = "alias/${var.project_name}-${var.environment}-eks"  # Từ Task 3
+# Security group cho node group
+resource "aws_security_group" "node_group" {
+  name_prefix = "${var.project_name}-${var.environment}-node-group-"
+  vpc_id      = data.aws_vpc.main.id
+
+  # Allow all traffic within VPC
+  ingress {
+    from_port = 0
+    to_port   = 65535
+    protocol  = "tcp"
+    cidr_blocks = [data.aws_vpc.main.cidr_block]
+  }
+
+  # Allow all outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-${var.environment}-node-group-sg"
+    Type = "security-group"
+  })
 }
-```
 
-### 2.2. Essential Variables cho Terraform
-
-**File: `aws/infra/variables.tf` (chỉ cần thêm essential vars):**
-
-```hcl
-# Core EKS configuration
-variable "kubernetes_version" {
-  description = "Kubernetes version for EKS cluster"
-  type        = string
-  default     = "1.28"
+# Get latest EKS optimized AMI
+data "aws_ssm_parameter" "eks_ami" {
+  name = "/aws/service/eks/optimized-ami/1.28/amazon-linux-2023/x86_64/amazon-eks-node-al2023-x86_64-v20231213/recommended/image_id"
 }
 
-variable "cluster_endpoint_public_access_cidrs" {
-  description = "CIDR blocks for public API access (restrict in production)"
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
-```
-
-### 2.3. Production Terraform Configuration
-
-**File: `aws/terraform.tfvars`:**
-
-```hcl
-# Production EKS configuration
-kubernetes_version = "1.28"
-cluster_endpoint_public_access_cidrs = [
-  "203.0.113.0/24",  # Your office IP range
-  "198.51.100.0/24"  # VPN IP range
-]
-```
-
-## 3. Add-ons Management (Choose Console or Terraform)
-
-{{% notice tip %}}
-**💡 Add-ons Installation Strategy:**
-- ✅ **Console**: Quick setup, one-time installation, visual management
-- ✅ **Terraform**: Automated updates, version control, CI/CD integration
-
-**Recommendation**: Console cho initial setup, Terraform cho production automation
-{{% /notice %}}
-
-### 3.1. Essential Add-ons via Terraform (cho automation)
-
-{{% notice tip %}}
-**🔍 Add-ons code này làm gì:**
-1. **Định nghĩa essential add-ons** cần thiết cho EKS hoạt động
-2. **Tự động install** các add-ons sau khi EKS cluster ready
-3. **Manage versions** và conflict resolution
-4. **Link với IAM roles** từ Task 3 cho permissions
-
-**Kết quả:** EKS cluster có đầy đủ add-ons để pods có thể chạy, networking hoạt động, storage available
-{{% /notice %}}
-
-**File: `aws/infra/eks-addons.tf`**
-
-```hcl
-# BƯỚC 1: Định nghĩa essential add-ons và versions
+# User data script cho node initialization
+# File: aws/infra/user_data.sh
 locals {
-  essential_addons = {
-    # DNS resolution trong cluster
-  coredns = {
-      addon_version               = "v1.10.1-eksbuild.5"
-      resolve_conflicts_on_create = "OVERWRITE"
-      resolve_conflicts_on_update = "PRESERVE"
-  }
-    # Network proxy cho pods
-  kube-proxy = {
-      addon_version               = "v1.28.2-eksbuild.2"
-      resolve_conflicts_on_create = "OVERWRITE"
-      resolve_conflicts_on_update = "PRESERVE"
-  }
-    # VPC networking cho pods
-  vpc-cni = {
-      addon_version               = "v1.15.4-eksbuild.1"
-      resolve_conflicts_on_create = "OVERWRITE"
-      resolve_conflicts_on_update = "PRESERVE"
-  }
-    # EBS storage cho persistent volumes
-  aws-ebs-csi-driver = {
-      addon_version               = "v1.24.1-eksbuild.1"
-      resolve_conflicts_on_create = "OVERWRITE"
-      resolve_conflicts_on_update = "PRESERVE"
-      service_account_role_arn    = data.aws_iam_role.ebs_csi_driver.arn  # IAM từ Task 3
-    }
-  }
-}
-
-# BƯỚC 2: Tự động install tất cả add-ons
-resource "aws_eks_addon" "essential" {
-  for_each = local.essential_addons
-
-  cluster_name             = aws_eks_cluster.main.name
-  addon_name               = each.key
-  addon_version            = each.value.addon_version
-  resolve_conflicts        = each.value.resolve_conflicts_on_update
-  service_account_role_arn = lookup(each.value, "service_account_role_arn", null)
-
-  depends_on = [aws_eks_cluster.main]  # Chờ cluster ready trước
-
-  tags = merge(var.common_tags, {
-    Name      = "${var.project_name}-${var.environment}-${each.key}"
-    Type      = "eks-addon"
-    CreatedBy = "terraform"
-  })
-}
-
-# BƯỚC 3: Reference IAM role từ Task 3 cho EBS CSI Driver
-data "aws_iam_role" "ebs_csi_driver" {
-  name = "${var.project_name}-${var.environment}-ebs-csi-driver-role"  # Từ Task 3
-}
-```
-
-### 3.2. Add-ons Variables
-
-**File: `aws/infra/variables.tf` (minimal addon config):**
-
-```hcl
-# EKS Add-ons override versions (optional)
-variable "addon_versions" {
-  description = "Override default addon versions"
-  type        = map(string)
-  default     = {}  # Use default versions from locals
-}
-```
-
-{{% notice warning %}}
-**📝 Note về Node Groups:**
-
-EKS Node Groups được cover chi tiết trong **Task 5**, bao gồm:
-- Basic node group creation qua Console (đủ cho most cases)
-- Advanced multi-node group strategies với Terraform
-- Mixed instance types, auto-scaling, cost optimization
-
-Task 4 focus vào EKS Control Plane và integration với existing infrastructure.
-{{% /notice %}}
-
-## 3. Kubectl Access Configuration
-
-### 3.1. EKS Cluster Creation via Console
-
-1. **Navigate to EKS Console:**
-   - Đăng nhập AWS Console
-   - Navigate to EKS service
-   - Chọn "Create cluster"
-
-![Create EKS Cluster](../images/04-eks-cluster/01-create-eks-cluster.png)
-
-2. **Basic Configuration:**
-   ```
-   Cluster name: mlops-retail-forecast-dev-cluster
-   Kubernetes version: 1.28
-   Cluster service role: mlops-retail-forecast-dev-eks-cluster-role
-   ```
-
-![Cluster Basic Config](../images/04-eks-cluster/02-cluster-basic-config.png)
-
-3. **Networking Configuration:**
-   ```
-   VPC: mlops-retail-forecast-dev-vpc
-   Subnets: 
-     - mlops-retail-forecast-dev-private-ap-southeast-1a
-     - mlops-retail-forecast-dev-private-ap-southeast-1b
-     - mlops-retail-forecast-dev-public-ap-southeast-1a
-     - mlops-retail-forecast-dev-public-ap-southeast-1b
-   Security groups: mlops-retail-forecast-dev-eks-control-plane-sg
-   ```
-
-![Networking Config](../images/04-eks-cluster/03-networking-config.png)
-
-4. **Cluster Endpoint Access:**
-   ```
-   Endpoint private access: Enabled
-   Endpoint public access: Enabled
-   Public access source: Specific CIDR blocks (your IP)
-   ```
-
-![Endpoint Access](../images/04-eks-cluster/04-endpoint-access.png)
-
-5. **Logging Configuration:**
-   ```
-   Control plane logging:
-   ✅ API server
-   ✅ Audit
-   ✅ Authenticator
-   ✅ Controller manager
-   ✅ Scheduler
-   ```
-
-![Logging Config](../images/04-eks-cluster/05-logging-config.png)
-
-### 3.2. Add-ons Installation
-
-1. **Navigate to Add-ons Tab:**
-   - Chọn cluster vừa tạo
-   - Click "Add-ons" tab
-   - Chọn "Add new"
-
-![Addons Overview](../images/04-eks-cluster/06-addons-overview.png)
-
-2. **Install Essential Add-ons:**
-   
-   **CoreDNS:**
-   ```
-   Name: coredns
-   Version: v1.10.1-eksbuild.5
-   Configuration: Default
-   ```
-
-   **kube-proxy:**
-   ```
-   Name: kube-proxy
-   Version: v1.28.2-eksbuild.2
-   Configuration: Default
-   ```
-
-   **VPC CNI:**
-   ```
-   Name: vpc-cni
-   Version: v1.15.4-eksbuild.1
-   Configuration: Default
-   ```
-
-   **EBS CSI Driver:**
-   ```
-   Name: aws-ebs-csi-driver
-   Version: v1.24.1-eksbuild.1
-   Service account role: Create new IAM role
-   ```
-
-![Install Addons](../images/04-eks-cluster/07-install-addons.png)
-
-## 4. Integration với VPC Endpoints từ Task 2
-
-### 4.1. VPC Endpoints Benefits cho EKS
-
-**EKS sử dụng VPC Endpoints đã được tạo ở Task 2** để giảm chi phí và tăng bảo mật:
-
-```
-✅ VPC Endpoints từ Task 2 (đã có sẵn):
-├── S3 Gateway Endpoint: FREE
-├── ECR API Interface: $7.2/month
-├── ECR DKR Interface: $7.2/month
-├── CloudWatch Logs: $7.2/month
-└── Total: $21.6/month (vs $71/month NAT Gateway)
-
-💰 Cost Savings: 70% reduction ($49.4/month saved)
-```
-
-### 4.2. Reference VPC Endpoints từ Task 2
-
-**EKS sử dụng VPC Endpoints đã được tạo ở Task 2** - không cần tạo lại:
-
-```hcl
-# Data sources to reference VPC Endpoints from Task 2 (already created)
-data "aws_vpc_endpoint" "s3" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.main.id]
-  }
-  filter {
-    name   = "service-name"
-    values = ["com.amazonaws.ap-southeast-1.s3"]
-  }
-}
-
-data "aws_vpc_endpoint" "ecr_api" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.main.id]
-  }
-  filter {
-    name   = "service-name"
-    values = ["com.amazonaws.ap-southeast-1.ecr.api"]
-  }
-}
-
-data "aws_vpc_endpoint" "ecr_dkr" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.main.id]
-  }
-  filter {
-    name   = "service-name"
-    values = ["com.amazonaws.ap-southeast-1.ecr.dkr"]
-  }
-}
-
-data "aws_vpc_endpoint" "logs" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.main.id]
-  }
-  filter {
-    name   = "service-name"
-    values = ["com.amazonaws.ap-southeast-1.logs"]
-  }
-}
-```
-
-**EKS Cluster chỉ cần reference VPC Endpoints từ Task 2:**
-
-```hcl
-# EKS Cluster sử dụng VPC Endpoints đã có từ Task 2
-resource "aws_eks_cluster" "main" {
-  name     = "${var.project_name}-${var.environment}-cluster"
-  role_arn = data.aws_iam_role.eks_cluster.arn
-  version  = var.kubernetes_version
-
-  vpc_config {
-    subnet_ids              = concat(data.aws_subnets.private.ids, data.aws_subnets.public.ids)
-    endpoint_private_access = true
-    endpoint_public_access  = true
-    public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
-    security_group_ids      = [data.aws_security_group.eks_control_plane.id]
-  }
-
-  # Production logging
-  enabled_cluster_log_types = [
-    "api", "audit", "authenticator", "controllerManager", "scheduler"
-  ]
-
-  # Encryption với KMS từ Task 3
-  encryption_config {
-    provider {
-      key_arn = data.aws_kms_key.eks.arn
-    }
-    resources = ["secrets"]
-  }
-
-  # Dependencies - VPC Endpoints từ Task 2 đã tồn tại
-  depends_on = [
-    data.aws_vpc_endpoint.s3,      # Task 2 VPC Endpoints (already exists)
-    data.aws_vpc_endpoint.ecr_api,
-    data.aws_vpc_endpoint.ecr_dkr,
-    data.aws_vpc_endpoint.logs,
-    data.aws_iam_role.eks_cluster   # Task 3 IAM
-  ]
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-${var.environment}-cluster"
-    Type = "eks-cluster"
-    CreatedBy = "terraform"
-  })
-}
-```
-
-### 4.3. Verification VPC Endpoints Integration
-
-**Verify VPC Endpoints từ Task 2 đã sẵn sàng cho EKS:**
-
-```bash
-# Verify VPC Endpoints từ Task 2 đã tồn tại và available
-aws ec2 describe-vpc-endpoints \
-  --filters "Name=vpc-id,Values=$(terraform output -raw vpc_id)" \
-  --query 'VpcEndpoints[*].{Service:ServiceName,State:State,Type:VpcEndpointType}'
-
-# Expected output (VPC Endpoints từ Task 2):
-# [
-#   {
-#     "Service": "com.amazonaws.ap-southeast-1.s3",
-#     "State": "available",
-#     "Type": "Gateway"
-#   },
-#   {
-#     "Service": "com.amazonaws.ap-southeast-1.ecr.api", 
-#     "State": "available",
-#     "Type": "Interface"
-#   },
-#   {
-#     "Service": "com.amazonaws.ap-southeast-1.ecr.dkr",
-#     "State": "available", 
-#     "Type": "Interface"
-#   },
-#   {
-#     "Service": "com.amazonaws.ap-southeast-1.logs",
-#     "State": "available", 
-#     "Type": "Interface"
-#   }
-# ]
-```
-
-**Test ECR access từ EKS pods:**
-
-```bash
-# Deploy test pod để verify ECR access qua VPC Endpoints
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Pod
-metadata:
-  name: test-ecr-access
-  namespace: default
-spec:
-  containers:
-  - name: test
-    image: public.ecr.aws/amazonlinux/amazonlinux:latest
-    command: ["/bin/bash"]
-    args: ["-c", "while true; do sleep 30; done;"]
-  restartPolicy: Always
+  user_data_script = <<-EOF
+#!/bin/bash
+/etc/eks/bootstrap.sh ${data.aws_eks_cluster.main.name}
 EOF
-
-# Check pod có thể pull image thành công qua VPC Endpoints
-kubectl get pods test-ecr-access
-kubectl describe pod test-ecr-access
-
-# Test DNS resolution cho ECR endpoints (should resolve to private IPs)
-kubectl exec -it test-ecr-access -- nslookup ${AWS_ACCOUNT_ID}.dkr.ecr.ap-southeast-1.amazonaws.com
-
-# Cleanup
-kubectl delete pod test-ecr-access
+}
 ```
 
-## 5. kubectl Configuration
+## 4. Terraform Deployment (IRSA Only)
 
-### 5.1. Install kubectl
+### 4.1. Essential Variables
 
-**Windows (PowerShell):**
-```powershell
-# Install kubectl using chocolatey
-choco install kubernetes-cli
+**File: `aws/infra/variables.tf`:**
 
-# Or download directly
-curl -LO "https://dl.k8s.io/release/v1.28.0/bin/windows/amd64/kubectl.exe"
+```hcl
+variable "project_name" {
+  description = "Name of the MLOps project"
+  type        = string
+  default     = "mlops-retail-forecast"
+}
+
+variable "environment" {
+  description = "Environment name"
+  type        = string
+  default     = "dev"
+}
+
+variable "common_tags" {
+  description = "Common tags for all resources"
+  type        = map(string)
+  default = {
+    Project     = "mlops-retail-forecast"
+    Environment = "dev"
+    ManagedBy   = "terraform"
+  }
+}
 ```
 
-**macOS:**
-```bash
-# Install using Homebrew
-brew install kubectl
+## 5. Terraform Deployment (IRSA Only)
 
-# Or using curl
-curl -LO "https://dl.k8s.io/release/v1.28.0/bin/darwin/amd64/kubectl"
-```
-
-**Linux:**
-```bash
-# Download kubectl
-curl -LO "https://dl.k8s.io/release/v1.28.0/bin/linux/amd64/kubectl"
-sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-```
-
-### 4.2. Configure kubeconfig
-
-```bash
-# Configure kubectl to connect to EKS cluster
-aws eks update-kubeconfig \
-  --region ap-southeast-1 \
-  --name mlops-retail-forecast-dev-cluster
-
-# Verify connection
-kubectl get nodes
-kubectl get namespaces
-kubectl cluster-info
-```
-
-### 4.3. Verify Cluster Access
-
-```bash
-# Check cluster status
-kubectl get componentstatuses
-
-# View cluster information
-kubectl cluster-info
-
-# List all resources in kube-system namespace
-kubectl get all -n kube-system
-
-# Check add-ons status
-kubectl get deployments -n kube-system
-```
-
-**Expected Output:**
-```
-NAME           READY   UP-TO-DATE   AVAILABLE   AGE
-coredns        2/2     2            2           10m
-```
-
-## 5. Terraform Deployment
-
-### 5.1. Step-by-Step Terraform Deployment
+### 5.1. IRSA Deployment Process
 
 {{% notice success %}}
-**🚀 Deployment Process:**
+**🚀 IRSA + Node Group Deployment Process:**
 
-**Bước 1:** Terraform tìm infrastructure từ Task 2-3  
-**Bước 2:** Tạo EKS cluster với proper integration  
-**Bước 3:** Install essential add-ons automatically  
-**Bước 4:** Configure kubectl access  
-**Bước 5:** Verify cluster và add-ons hoạt động  
+**Bước 1:** Reference EKS cluster từ Console  
+**Bước 2:** Setup IRSA với OIDC provider và roles  
+**Bước 3:** Create Node Group với t2.micro (FREE tier)
+**Bước 4:** Configure Service Accounts với proper annotations  
+**Bước 5:** Test secure pod authentication  
 
-**Time required:** ~15-20 phút
+**Time required:** ~10-15 phút
 {{% /notice %}}
 
 ```bash
 # BƯỚC 1: Navigate to infrastructure directory
 cd aws/infra
 
-# BƯỚC 2: Plan EKS cluster creation (xem Terraform sẽ làm gì)
-terraform plan -target=aws_eks_cluster.main \
-               -target=aws_eks_addon.essential \
-               -var-file="terraform.tfvars"
+# BƯỚC 2: Plan IRSA setup và Node Group (xem Terraform sẽ làm gì)
+terraform plan -target=aws_iam_openid_connect_provider.eks_oidc \
+               -target=aws_iam_role.irsa_s3_access \
+               -target=aws_iam_role.irsa_cloudwatch_access \
+               -target=aws_eks_node_group.main
 
-# BƯỚC 3: Apply EKS cluster và add-ons
-terraform apply -target=aws_eks_cluster.main \
-                -target=aws_eks_addon.essential \
-                -var-file="terraform.tfvars"
+# BƯỚC 3: Apply IRSA configuration và Node Group
+terraform apply -target=aws_iam_openid_connect_provider.eks_oidc \
+                -target=aws_iam_role.irsa_s3_access \
+                -target=aws_iam_role.irsa_cloudwatch_access \
+                -target=aws_eks_node_group.main
 ```
 
 **Expected Apply Output:**
@@ -937,30 +718,30 @@ terraform apply -target=aws_eks_cluster.main \
 Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
 
 Resources Created:
-✅ aws_eks_cluster.main
-✅ aws_eks_addon.essential["coredns"]
-✅ aws_eks_addon.essential["kube-proxy"] 
-✅ aws_eks_addon.essential["vpc-cni"]
-✅ aws_eks_addon.essential["aws-ebs-csi-driver"]
+✅ aws_iam_openid_connect_provider.eks_oidc (IRSA OIDC provider)
+✅ aws_iam_role.irsa_s3_access (S3 access role cho ML workloads)
+✅ aws_iam_role_policy.irsa_s3_policy (Least privilege S3 permissions)
+✅ aws_iam_role.irsa_cloudwatch_access (CloudWatch monitoring role)
+✅ aws_iam_role_policy_attachment.irsa_cloudwatch_policy (CloudWatch permissions)
+✅ aws_eks_node_group.main (t2.micro FREE tier nodes)
+✅ aws_launch_template.node_group (Launch template cho optimization)
+✅ aws_security_group.node_group (Security group cho nodes)
 
 Outputs:
-cluster_id = "mlops-retail-forecast-dev-cluster"
-cluster_arn = "arn:aws:eks:ap-southeast-1:123456789012:cluster/mlops-retail-forecast-dev-cluster"
-cluster_endpoint = "https://A1B2C3D4E5F6G7H8I9J0.gr7.ap-southeast-1.eks.amazonaws.com"
-cluster_version = "1.28"
+irsa_s3_access_role_arn = "arn:aws:iam::123456789012:role/mlops-retail-forecast-dev-irsa-s3-access"
+irsa_cloudwatch_role_arn = "arn:aws:iam::123456789012:role/mlops-retail-forecast-dev-irsa-cloudwatch"
+node_group_arn = "arn:aws:eks:ap-southeast-1:123456789012:nodegroup/mlops-retail-forecast-dev-cluster/mlops-retail-forecast-dev-node-group/12345678-1234-1234-1234-123456789012"
 ```
 
-### 5.2. Configure kubectl after Terraform
+### 5.2. Configure kubectl (EKS đã tạo qua Console)
 
 ```bash
-# Get cluster name from Terraform output
-CLUSTER_NAME=$(terraform output -raw cluster_id)
-
-# Update kubeconfig
-aws eks update-kubeconfig --region ap-southeast-1 --name $CLUSTER_NAME
+# Update kubeconfig với EKS cluster từ Console
+aws eks update-kubeconfig --region ap-southeast-1 --name mlops-retail-forecast-dev-cluster
 
 # Verify cluster access
 kubectl get svc
+kubectl get nodes
 ```
 
 ## 6. Cluster Verification
@@ -1005,6 +786,34 @@ kubectl api-resources
 
 # Check cluster roles
 kubectl get clusterroles | grep eks
+```
+
+### 6.4. IRSA Verification
+
+```bash
+# Deploy service accounts với IRSA annotations
+kubectl apply -f aws/k8s/service-accounts.yaml
+
+# Deploy test pod với IRSA authentication
+kubectl apply -f aws/k8s/test-pod-irsa.yaml
+
+# Verify pod có thể access S3 qua IRSA (no AWS credentials needed!)
+kubectl exec -it test-irsa-s3-access -- aws s3 ls
+
+# Check IRSA role annotations
+kubectl get serviceaccount s3-access-sa -o yaml
+
+# Verify OIDC provider
+aws iam list-open-id-connect-providers
+
+# List IRSA roles
+aws iam list-roles --query 'Roles[?contains(RoleName, `irsa`)].{RoleName:RoleName,CreateDate:CreateDate}'
+
+# Test CloudWatch access
+kubectl exec -it test-irsa-s3-access -- aws cloudwatch list-metrics --namespace "MLOps/RetailForecast"
+
+# Cleanup test pod
+kubectl delete pod test-irsa-s3-access
 ```
 
 ## 7. Monitoring và Logging
@@ -1152,46 +961,57 @@ roleRef:
 **Thêm vào `aws/infra/outputs.tf`:**
 
 ```hcl
-# EKS Cluster Outputs
+# EKS Cluster Outputs (from Console)
 output "cluster_id" {
   description = "EKS cluster ID"
-  value       = aws_eks_cluster.main.id
+  value       = data.aws_eks_cluster.main.id
 }
 
 output "cluster_arn" {
   description = "EKS cluster ARN"
-  value       = aws_eks_cluster.main.arn
+  value       = data.aws_eks_cluster.main.arn
 }
 
 output "cluster_endpoint" {
   description = "Endpoint for EKS control plane"
-  value       = aws_eks_cluster.main.endpoint
+  value       = data.aws_eks_cluster.main.endpoint
 }
 
 output "cluster_version" {
   description = "The Kubernetes version for the cluster"
-  value       = aws_eks_cluster.main.version
+  value       = data.aws_eks_cluster.main.version
 }
 
-output "cluster_platform_version" {
-  description = "Platform version for the cluster"
-  value       = aws_eks_cluster.main.platform_version
+# Node Group Outputs
+output "node_group_arn" {
+  description = "EKS node group ARN"
+  value       = aws_eks_node_group.main.arn
 }
 
-output "cluster_status" {
-  description = "Status of the EKS cluster"
-  value       = aws_eks_cluster.main.status
+output "node_group_status" {
+  description = "Status of the EKS node group"
+  value       = aws_eks_node_group.main.status
 }
 
-output "cluster_certificate_authority_data" {
-  description = "Base64 encoded certificate data required to communicate with the cluster"
-  value       = aws_eks_cluster.main.certificate_authority[0].data
+output "node_group_instance_types" {
+  description = "Instance types used by the node group"
+  value       = aws_eks_node_group.main.instance_types
 }
 
-# OIDC Issuer
-output "cluster_oidc_issuer_url" {
-  description = "The URL on the EKS cluster for the OpenID Connect identity provider"
-  value       = aws_eks_cluster.main.identity[0].oidc[0].issuer
+# IRSA Outputs
+output "irsa_s3_access_role_arn" {
+  description = "IRSA role ARN for S3 access"
+  value       = aws_iam_role.irsa_s3_access.arn
+}
+
+output "irsa_cloudwatch_role_arn" {
+  description = "IRSA role ARN for CloudWatch access"
+  value       = aws_iam_role.irsa_cloudwatch_access.arn
+}
+
+output "oidc_provider_arn" {
+  description = "OIDC provider ARN for IRSA"
+  value       = aws_iam_openid_connect_provider.eks_oidc.arn
 }
 ```
 
@@ -1202,32 +1022,41 @@ Sau Task 4, bạn sẽ có EKS Cluster production-ready, chạy hoàn toàn tron
 ### ✅ Deliverables Completed
 
 - **EKS Control Plane ACTIVE**: Managed Kubernetes cluster với multi-AZ high availability
-- **Managed Node Groups**: EC2 instances trải đều trên ≥2 AZ với auto-scaling
-- **VPC Endpoints Integration**: Sử dụng ECR, S3, CloudWatch endpoints từ Task 2
+- **IRSA Configured**: OIDC provider và Service Account authentication setup
+- **Managed Node Groups**: 2x t2.micro instances (FREE tier) trải đều trên ≥2 AZ
+- **VPC Endpoints Integration**: Sử dụng ECR, S3 endpoints từ Task 2 (70% cost savings)
 - **Core Add-ons**: VPC CNI, CoreDNS, kube-proxy, metrics-server, EBS CSI driver
+- **Secure Pod Access**: Pods có thể access S3/CloudWatch qua IRSA (no hardcoded credentials)
 - **kubectl Access**: Local development environment configured và tested
-- **Cost Optimization**: 70% giảm chi phí so với NAT Gateway approach
+- **Cost Optimization**: $117.40/month saved với FREE tier + VPC Endpoints
 
 ### Architecture Achieved
 
 ```
 ✅ EKS Cluster: mlops-retail-forecast-dev-cluster (Kubernetes 1.28)
 ✅ Control Plane: Multi-AZ managed service với full logging
-✅ Node Groups: 2-4 nodes (t3.medium/large) trong private subnets
-✅ VPC Endpoints: Sử dụng từ Task 2 - S3 (FREE) + ECR API/DKR + CloudWatch ($21.6/month)
-✅ Security: Least privilege IAM roles + Security Groups
+✅ Node Groups: 2x t2.micro nodes (FREE Tier) trong private subnets
+✅ IRSA: OIDC provider + S3/CloudWatch access roles
+✅ VPC Endpoints: Sử dụng từ Task 2 (Console) - S3 (FREE) + ECR API/DKR ($14.4/month)
+✅ Security: Least privilege IAM roles + Security Groups + IRSA authentication
 ✅ Monitoring: CloudWatch integration với Container Insights
+✅ Cost Optimization: 70% savings với VPC Endpoints + FREE tier instances
 ```
 
 ### Cost Summary
 
-| Component | Monthly Cost | Savings vs NAT GW |
-|-----------|--------------|-------------------|
-| **EKS Control Plane** | $73.00 | - |
-| **EC2 Nodes (2x t3.medium)** | ~$60.00 | - |
-| **VPC Endpoints** | $21.60 | -$49.40 (70%) |
-| **EBS Storage (100GB)** | ~$10.00 | - |
-| **Total** | **~$164.60** | **$49.40 saved** |
+| Component | Monthly Cost | Free Tier | Savings |
+|-----------|--------------|-----------|---------|
+| **EKS Control Plane** | $73.00 | ❌ | - |
+| **EC2 Nodes (2x t2.micro)** | **$0** | ✅ 12 months | **$60.00 saved** |
+| **VPC Endpoints** | $14.4 | ❌ | $49.4 vs NAT GW |
+| **EBS Storage (20GB)** | ~$2.00 | ✅ 30GB | **$8.00 saved** |
+| **Total** | **~$89.40** | | **$117.40 saved** |
+
+**Free Tier Benefits (12 months):**
+- **t2.micro instances**: 750 hours/month FREE
+- **EBS storage**: 30GB FREE
+- **Total savings**: $68/month (instances + storage)
 
 ### Verification Commands
 
@@ -1245,6 +1074,11 @@ kubectl run test-pod --image=public.ecr.aws/amazonlinux/amazonlinux:latest --rm 
 
 # Check add-ons status
 kubectl get deployments -n kube-system
+
+# Test IRSA functionality
+kubectl apply -f aws/k8s/service-accounts.yaml
+kubectl apply -f aws/k8s/test-pod-irsa.yaml
+kubectl exec -it test-irsa-s3-access -- aws s3 ls
 ```
 
 {{% notice success %}}

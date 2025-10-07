@@ -6,183 +6,150 @@ chapter: false
 pre: "<b>8. </b>"
 ---
 
-## Mục tiêu
+## 🎯 Mục tiêu
 
 Thiết lập Amazon S3 để lưu trữ dữ liệu huấn luyện và model artifacts (đầu ra sau training). Đây là kho dữ liệu trung tâm cho pipeline ML.
 
-## Nội dung chính
+{{% notice info %}}
+Console đủ để triển khai S3 cho môi trường dev/prod cơ bản. IaC (Terraform) chỉ cần khi bạn muốn automation và reproducibility.
+{{% /notice %}}
 
-### 1. Tạo S3 Buckets
+## 📥 Input
+
+- AWS Account với quyền S3/IAM/CloudTrail
+- Tên bucket duy nhất toàn cầu (data, artifacts)
+- SageMaker Execution Role (sẽ gắn policy S3)
+
+## 📌 Các bước chính
+
+1) Tạo 2 S3 buckets (data, artifacts) qua Console
+2) Bật Versioning, thiết lập Lifecycle, xác nhận Block Public Access
+3) Tạo IAM policy giới hạn theo bucket và gắn vào SageMaker role
+4) Upload training/validation data qua Console
+5) Chạy SageMaker training job, xuất artifact về bucket `artifacts`
+6) Bật CloudTrail data events và (tuỳ chọn) Server Access Logging
+7) Xác thực cấu hình và quy trình upload/download
+
+## 1. S3 Buckets via Console
 
 Chúng ta sẽ tạo 2 bucket chính:
 
 - **Data bucket**: Lưu dữ liệu huấn luyện (ví dụ train.csv)
 - **Artifact bucket**: Lưu trữ model artifact sinh ra từ SageMaker training job
 
-### 2. Cấu hình S3 Buckets
+Thao tác trên AWS Console:
 
-#### 2.1 Tạo Data Bucket
+1) Vào AWS Console → S3 → Create bucket
 
-```bash
-# Tạo bucket cho dữ liệu huấn luyện
-aws s3 mb s3://retail-forecast-data-bucket-$(date +%s) --region us-east-1
-```
+   ![Create bucket](images/s3/ui-create-bucket.png)
 
-#### 2.2 Tạo Artifact Bucket
+2) Đặt tên:
+   - Gợi ý `retail-forecast-data-<suffix>` và `retail-forecast-artifacts-<suffix>` (đảm bảo duy nhất toàn cầu)
+   - Suffix có thể là accountId, timestamp, hay tên đội (vd: `retail-forecast-data-123456789012`)
 
-```bash
-# Tạo bucket cho model artifacts
-aws s3 mb s3://retail-forecast-artifacts-bucket-$(date +%s) --region us-east-1
-```
+   ![Bucket names](images/s3/ui-bucket-names.png)
 
-### 3. Cấu hình Bucket Properties
+3) Region: chọn đúng Region bạn sẽ chạy SageMaker (vd: us-east-1) để giảm chi phí cross-region.
+
+   ![Select region](images/s3/ui-select-region.png)
+
+4) Object Ownership: để mặc định (Bucket owner enforced). Block Public Access: bật cả 4 mục.
+
+   ![Block public access](images/s3/ui-block-public-access.png)
+
+5) Encryption: có thể để SSE-S3 mặc định; nếu có KMS key nội bộ, chọn SSE-KMS và chỉ định CMK.
+
+   ![Default encryption](images/s3/ui-default-encryption.png)
+
+6) Nhấn Create bucket. Lặp lại tương tự cho bucket artifacts.
+
+   ![Bucket list](images/s3/ui-bucket-list.png)
+
+Lưu ý
+- Nên thống nhất convention: `retail-forecast-data-<env>-<suffix>` và `retail-forecast-artifacts-<env>-<suffix>` (vd: `-dev-`/`-prod-`).
+- Tránh dùng ký tự hoa hoặc khoảng trắng; tên bucket là lowercase và không có underscore.
+
+## 2. Cấu hình Bucket Properties
+
+### 3. Cấu hình Bucket Properties (UI)
 
 #### 3.1 Bật Versioning
 
-```bash
-# Bật versioning cho data bucket
-aws s3api put-bucket-versioning \
-    --bucket retail-forecast-data-bucket \
-    --versioning-configuration Status=Enabled
+Thao tác:
 
-# Bật versioning cho artifact bucket
-aws s3api put-bucket-versioning \
-    --bucket retail-forecast-artifacts-bucket \
-    --versioning-configuration Status=Enabled
-```
+1) Mở bucket `retail-forecast-data-<suffix>` → tab Properties → Object Versioning → Edit → Enable → Save
+
+   ![Enable versioning](images/s3/ui-enable-versioning.png)
+
+2) Lặp lại cho bucket `retail-forecast-artifacts-<suffix>`
+
+Gợi ý
+- Bật Versioning giúp rollback file dữ liệu và artifact khi có lỗi cập nhật.
 
 #### 3.2 Thiết lập Lifecycle Rules
 
-Tạo file `lifecycle-policy.json`:
+Thao tác:
 
-```json
-{
-    "Rules": [
-        {
-            "ID": "DataLifecycleRule",
-            "Status": "Enabled",
-            "Filter": {
-                "Prefix": "training-data/"
-            },
-            "Transitions": [
-                {
-                    "Days": 30,
-                    "StorageClass": "STANDARD_IA"
-                },
-                {
-                    "Days": 90,
-                    "StorageClass": "GLACIER"
-                }
-            ]
-        },
-        {
-            "ID": "ModelArtifactLifecycleRule",
-            "Status": "Enabled",
-            "Filter": {
-                "Prefix": "models/"
-            },
-            "Transitions": [
-                {
-                    "Days": 60,
-                    "StorageClass": "STANDARD_IA"
-                }
-            ]
-        }
-    ]
-}
-```
+1) Mở bucket → tab Management → Lifecycle rules → Create lifecycle rule
+2) Tên rule: "DataLifecycleRule" → Scope: Prefix = `training-data/`
+3) Transition: After 30 days → STANDARD_IA; After 90 days → GLACIER Flexible Retrieval (tùy nhu cầu)
+4) Save
+5) Tạo rule thứ hai cho bucket artifacts: tên "ModelArtifactLifecycleRule" → Prefix = `models/` → Transition after 60 days → STANDARD_IA → Save
 
-Áp dụng lifecycle policy:
+   ![Lifecycle rules](images/s3/ui-lifecycle-rules.png)
 
-```bash
-# Áp dụng cho data bucket
-aws s3api put-bucket-lifecycle-configuration \
-    --bucket retail-forecast-data-bucket \
-    --lifecycle-configuration file://lifecycle-policy.json
+Mẹo tối ưu chi phí
+- Với dữ liệu ít truy cập lại, cân nhắc GLACIER Deep Archive sau 180–365 ngày.
+- Không áp dụng transition cho các tiền tố cần truy cập thường xuyên.
 
-# Áp dụng cho artifact bucket
-aws s3api put-bucket-lifecycle-configuration \
-    --bucket retail-forecast-artifacts-bucket \
-    --lifecycle-configuration file://lifecycle-policy.json
-```
+#### 3.3 Xác nhận Block Public Access
 
-#### 3.3 Bật Block Public Access
+Thao tác:
 
-```bash
-# Block public access cho data bucket
-aws s3api put-public-access-block \
-    --bucket retail-forecast-data-bucket \
-    --public-access-block-configuration \
-    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+1) Vào bucket → tab Permissions → Block public access (bucket settings) → Edit
+2) Đảm bảo cả 4 tùy chọn đều bật → Save
 
-# Block public access cho artifact bucket
-aws s3api put-public-access-block \
-    --bucket retail-forecast-artifacts-bucket \
-    --public-access-block-configuration \
-    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-```
+   ![Confirm BPA](images/s3/ui-confirm-bpa.png)
 
-### 4. Cấu hình IAM Permissions
+## 3. Cấu hình IAM Permissions
 
-#### 4.1 Tạo IAM Policy cho S3 Access
+#### 4.1 Tạo IAM Policy giới hạn theo bucket
 
-Tạo file `s3-access-policy.json`:
+Thao tác:
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:GetObject",
-                "s3:PutObject",
-                "s3:DeleteObject"
-            ],
-            "Resource": [
-                "arn:aws:s3:::retail-forecast-data-bucket/*",
-                "arn:aws:s3:::retail-forecast-artifacts-bucket/*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:ListBucket"
-            ],
-            "Resource": [
-                "arn:aws:s3:::retail-forecast-data-bucket",
-                "arn:aws:s3:::retail-forecast-artifacts-bucket"
-            ]
-        }
-    ]
-}
-```
+1) AWS Console → IAM → Policies → Create policy
+2) Visual editor → Service: S3
+3) Actions: `ListBucket`, `GetObject`, `PutObject`, `DeleteObject`
+4) Resources:
+   - Bucket: chọn 2 bucket `retail-forecast-data-<suffix>`, `retail-forecast-artifacts-<suffix>`
+   - Object: chọn All objects cho cả 2 bucket
+5) Next → Đặt tên: `RetailForecastS3AccessPolicy` → Create policy
+
+   ![IAM create policy](images/iam/ui-create-s3-policy.png)
 
 #### 4.2 Gắn Policy vào SageMaker Execution Role
 
-```bash
-# Tạo policy
-aws iam create-policy \
-    --policy-name RetailForecastS3AccessPolicy \
-    --policy-document file://s3-access-policy.json
+Thao tác:
 
-# Gắn policy vào SageMaker role
-aws iam attach-role-policy \
-    --role-name SageMaker-ExecutionRole \
-    --policy-arn arn:aws:iam::YOUR_ACCOUNT_ID:policy/RetailForecastS3AccessPolicy
-```
+1) IAM → Roles → tìm role SageMaker execution (ví dụ `AmazonSageMaker-ExecutionRole-...`)
+2) Attach policies → chọn `RetailForecastS3AccessPolicy` → Add permissions
 
-### 5. Tích hợp với SageMaker
+   ![Attach policy to role](images/iam/ui-attach-policy-role.png)
 
-#### 5.1 Upload Training Data
+## 4. Tích hợp với SageMaker
 
-```bash
-# Upload dữ liệu huấn luyện
-aws s3 cp train.csv s3://retail-forecast-data-bucket/training-data/train.csv
+#### 5.1 Upload Training/Validation Data (UI)
 
-# Upload validation data
-aws s3 cp validation.csv s3://retail-forecast-data-bucket/training-data/validation.csv
-```
+Thao tác:
+
+1) Mở bucket `retail-forecast-data-<suffix>` → Create folder `training-data/`
+2) Mở folder `training-data/` → Upload → kéo thả `train.csv`, `validation.csv` → Upload
+
+   ![Upload data](images/s3/ui-upload-training-data.png)
+
+Khuyến nghị cấu trúc thư mục
+- `training-data/`, `validation-data/`, `test-data/`
+- `models/` (trên bucket artifacts) — SageMaker sẽ ghi artifact theo job name.
 
 #### 5.2 Cấu hình SageMaker Training Job
 
@@ -196,8 +163,8 @@ sagemaker_session = boto3.Session().region_name
 role = get_execution_role()
 
 # Định nghĩa S3 paths
-data_bucket = 'retail-forecast-data-bucket'
-artifact_bucket = 'retail-forecast-artifacts-bucket'
+data_bucket = '<your-data-bucket>'  # vd: retail-forecast-data-123456
+artifact_bucket = '<your-artifacts-bucket>'  # vd: retail-forecast-artifacts-123456
 
 training_data_uri = f's3://{data_bucket}/training-data/'
 model_artifacts_uri = f's3://{artifact_bucket}/models/'
@@ -215,60 +182,52 @@ sklearn_estimator = SKLearn(
 
 # Bắt đầu training job
 sklearn_estimator.fit({'train': training_data_uri})
+
+# Gợi ý: có thể thêm channel 'validation' nếu cần
+# sklearn_estimator.fit({'train': training_data_uri, 'validation': validation_data_uri})
 ```
 
-### 6. Monitoring và Logging
+## 5. Monitoring và Logging
 
 #### 6.1 Thiết lập CloudTrail cho S3 Events
 
-```bash
-# Tạo CloudTrail để theo dõi S3 events
-aws cloudtrail create-trail \
-    --name retail-forecast-s3-trail \
-    --s3-bucket-name retail-forecast-cloudtrail-logs
-```
+Thao tác:
 
-#### 6.2 Thiết lập S3 Access Logging
+1) AWS Console → CloudTrail → Trails → Create trail
+2) Tên: `retail-forecast-s3-trail` → Create new log bucket (hoặc chọn bucket logging có sẵn)
+3) Event type: Management events ON; Data events: Add data event → S3 → chọn 2 bucket → Read/Write theo nhu cầu → Create trail
 
-```bash
-# Bật access logging
-aws s3api put-bucket-logging \
-    --bucket retail-forecast-data-bucket \
-    --bucket-logging-status file://logging-config.json
-```
+   ![CloudTrail data events](images/cloudtrail/ui-data-events-s3.png)
 
-### 7. Validation và Testing
+#### 6.2 Bật S3 Server Access Logging (tùy chọn)
+
+Thao tác:
+
+1) Tạo (hoặc chọn) một bucket log riêng (khác 2 bucket trên)
+2) Mở bucket nguồn → tab Properties → Server access logging → Edit → Enable → chọn bucket log đích → Save
+
+   ![S3 access logging](images/s3/ui-server-access-logging.png)
+
+## 6. Validation và Testing
 
 #### 7.1 Kiểm tra Bucket Configuration
 
-```bash
-# Kiểm tra versioning
-aws s3api get-bucket-versioning --bucket retail-forecast-data-bucket
+- Versioning: bucket → Properties → Object Versioning = Enabled
+- Lifecycle: bucket → Management → Lifecycle rules hiển thị 2 rule tương ứng
+- Public access: bucket → Permissions → Block public access = ON (4 mục)
 
-# Kiểm tra lifecycle configuration
-aws s3api get-bucket-lifecycle-configuration --bucket retail-forecast-data-bucket
+   ![Check properties](images/s3/ui-check-properties.png)
 
-# Kiểm tra public access block
-aws s3api get-public-access-block --bucket retail-forecast-data-bucket
-```
+#### 7.2 Test Upload/Download (UI)
 
-#### 7.2 Test Data Upload/Download
+1) Upload: bucket data → Create folder `test/` → Upload file `test-file.txt`
+2) Download: chọn file → Download → mở file để xác nhận nội dung
 
-```bash
-# Test upload
-echo "test data" > test-file.txt
-aws s3 cp test-file.txt s3://retail-forecast-data-bucket/test/
-
-# Test download
-aws s3 cp s3://retail-forecast-data-bucket/test/test-file.txt downloaded-test-file.txt
-
-# Verify content
-cat downloaded-test-file.txt
-```
+   ![Download object](images/s3/ui-download-object.png)
 
 ## Kết quả kỳ vọng
 
-### ✅ Checklist Hoàn thành
+## ✅ Deliverables
 
 - [ ] **Bucket Creation**: 2 bucket được tạo thành công (data & artifacts)
 - [ ] **Versioning**: Versioning được bật cho cả 2 bucket
@@ -279,27 +238,12 @@ cat downloaded-test-file.txt
 - [ ] **SageMaker Integration**: Training job có thể đọc từ S3 và ghi model artifacts
 - [ ] **Monitoring**: CloudTrail và access logging được thiết lập
 
-### 📊 Verification Steps
+## 📊 Acceptance Criteria
 
-1. **Bucket được tạo thành công và hiển thị trong AWS Console**
-   ```bash
-   aws s3 ls | grep retail-forecast
-   ```
-
-2. **Có thể upload và kiểm tra file dữ liệu huấn luyện**
-   ```bash
-   aws s3 ls s3://retail-forecast-data-bucket/training-data/
-   ```
-
-3. **Model artifact từ SageMaker xuất hiện trong artifact bucket**
-   ```bash
-   aws s3 ls s3://retail-forecast-artifacts-bucket/models/
-   ```
-
-4. **Dữ liệu và model artifact được quản lý an toàn với versioning**
-   ```bash
-   aws s3api list-object-versions --bucket retail-forecast-data-bucket
-   ```
+1) Bucket hiển thị trong S3 Console và không public
+2) `training-data/` chứa `train.csv`, `validation.csv`
+3) Artifact xuất hiện trong `models/` sau khi training
+4) Object versions hiển thị tại tab Versions (Show versions ON)
 
 ## Troubleshooting
 
@@ -317,19 +261,27 @@ cat downloaded-test-file.txt
    - Kiểm tra execution role permissions
    - Verify S3 bucket names trong code
 
-### Useful Commands
+{{% notice warning %}}
+⚠️ Gotchas
 
-```bash
-# Kiểm tra bucket size
-aws s3 ls s3://retail-forecast-data-bucket --recursive --human-readable --summarize
+- Thiếu Versioning → khó rollback khi ghi đè dữ liệu/artifacts
+- Prefix Lifecycle sai → object không chuyển lớp lưu trữ theo kỳ vọng
+- Policy quá rộng ("*") → rủi ro bảo mật, hãy giới hạn theo bucket/object
+- Tên bucket trùng → tạo thất bại, cần suffix duy nhất
+{{% /notice %}}
 
-# Sync local folder với S3
-aws s3 sync ./local-data/ s3://retail-forecast-data-bucket/training-data/
+## 💰 Cost Optimization (Gợi ý)
 
-# Copy giữa các bucket
-aws s3 cp s3://source-bucket/file s3://destination-bucket/file
-```
+- Dữ liệu hiếm truy cập: chuyển STANDARD_IA sau 30 ngày, GLACIER sau 90–180 ngày
+- Bật CloudTrail data events chỉ cho bucket critical để giảm chi phí log
+- Sử dụng cùng Region với SageMaker để tránh chi phí cross-region
 
----
+## 🔐 Security Hardening (Gợi ý)
 
-**Next Step**: [Task 9: EKS Node Group Setup](../9-eks-nodegroup/)
+- Luôn bật Block Public Access (4 tuỳ chọn)
+- Dùng SSE-KMS với customer-managed CMK nếu có yêu cầu compliance
+- Bucket policy deny public và enforce TLS (aws:SecureTransport = true)
+
+{{% notice success %}}
+🎯 Hoàn tất: Task 8 (S3 Data Storage) đã sẵn sàng cho tích hợp ở các task kế tiếp (training, inference, monitoring).
+{{% /notice %}}

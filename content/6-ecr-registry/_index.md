@@ -18,39 +18,6 @@ Thiết lập Amazon Elastic Container Registry (ECR) để lưu trữ và quả
 
 ### Kiến trúc ECR trong MLOps Pipeline
 
-{{< mermaid >}}
-graph TB
-    subgraph "Development Environment"
-        DEV[Developer<br/>Local Docker Build]
-        CI[CI/CD Pipeline<br/>Jenkins/GitHub Actions]
-    end
-    
-    subgraph "AWS ECR"
-        ECR[ECR Repository<br/>retail-forecast]
-        SCAN[Vulnerability Scanning<br/>Scan on Push]
-        TAGS[Image Tags<br/>latest, git-sha, v1.0.0]
-    end
-    
-    subgraph "EKS Cluster"
-        NODES[Worker Nodes<br/>Pull Images]
-        PODS[Application Pods<br/>Running Containers]
-    end
-    
-    subgraph "Security & Access"
-        IAM[IAM Policies<br/>ECR Permissions]
-        IRSA[IRSA Roles<br/>Pod Identity]
-    end
-    
-    DEV --> ECR
-    CI --> ECR
-    ECR --> SCAN
-    ECR --> TAGS
-    ECR --> NODES
-    NODES --> PODS
-    IAM --> ECR
-    IRSA --> NODES
-{{< /mermaid >}}
-
 ### Thành phần chính
 
 1. **ECR Repository**: Kho lưu trữ Docker images
