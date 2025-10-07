@@ -1,5 +1,5 @@
 ---
-title: "IAM Roles & IRSA Security"
+title: "IAM Roles"
 date: 2025-08-30T12:00:00+07:00
 weight: 3
 chapter: false

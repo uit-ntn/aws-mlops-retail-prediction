@@ -26,22 +26,6 @@ pre: "<b>1. </b>"
 
 ### Flow tổng quát
 
-```mermaid
-graph LR
-    A[Terraform IaC] --> B[VPC + EKS + IAM]
-    B --> C[SageMaker Training]
-    C --> D[Model Registry]
-    D --> E[ECR + Docker]
-    E --> F[EKS Deployment]
-    F --> G[Load Balancer]
-    G --> H[CloudWatch Monitoring]
-    
-    style A fill:#ff9999
-    style C fill:#99ccff
-    style F fill:#99ff99
-    style H fill:#ffcc99
-```
-
 **Infrastructure → Training → Deployment → Monitoring → CI/CD → Cost Optimization**
 
 ## 📁 Project Structure
