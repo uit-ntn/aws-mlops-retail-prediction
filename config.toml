@@ -2,7 +2,7 @@
 baseURL = "https://docs.vinashoes.org/"
 languageCode = "en-us"
 defaultContentLanguage = "en"
-title = "AWS MLOps Retail Forecast Platform"
+title = "AWS MLOps Retail Prediction Platform"
 
 # Theme mặc định
 theme = "hugo-theme-learn"
@@ -24,7 +24,7 @@ home = [ "HTML", "RSS", "JSON"]
   # GitHub repo link (nếu có)
   editURL = "https://github.com/uit-ntn/aws-mlops-retail-forecast/edit/main/content/"
 
-  description = "AWS MLOps Retail Forecast Platform Documentation"
+  description = "AWS MLOps Retail Prediction Platform Documentation"
   author = "Nguyễn Thanh Nhân & Hà Khả Nguyên"
 
   # Custom CSS

@@ -3,10 +3,10 @@ title: "VPC / Networking"
 date: 2025-08-30T11:00:00+07:00
 weight: 2
 chapter: false
-pre: "<b>2. </b>"
+pre: "<b>5. </b>"
 ---
 
-## 🎯 Mục tiêu Task 2
+## 🎯 Mục tiêu Task 5
 
 Thiết lập **cost-optimized VPC foundation** cho MLOps platform:
 
@@ -94,7 +94,7 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 1. **Truy cập VPC Dashboard:**
    - AWS Console → VPC service → "Create VPC"
 
-![Create VPC Console](../images/02-vpc-networking/01-create-vpc-console.png)
+![Create VPC Console](../images/05-vpc-networking/01-create-vpc-console.png)
 
 2. **VPC Configuration:**
    ```
@@ -104,7 +104,7 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    Tenancy: Default
    ```
 
-![VPC Configuration](../images/02-vpc-networking/02-vpc-configuration.png)
+![VPC Configuration](../images/05-vpc-networking/02-vpc-configuration.png)
 
 ### 1.2. Tạo Subnets
 
@@ -125,8 +125,8 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    IPv4 CIDR: 10.0.2.0/24
    ```
 
-![Create Subnets 1](../images/02-vpc-networking/03.1-create-subnets.png)
-![Create Subnets 2](../images/02-vpc-networking/03.2-create-subnets.png)
+![Create Subnets 1](../images/05-vpc-networking/03.1-create-subnets.png)
+![Create Subnets 2](../images/05-vpc-networking/03.2-create-subnets.png)
 
 2. **Private Subnets:**
    
@@ -144,7 +144,7 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    IPv4 CIDR: 10.0.102.0/24
    ```
 
-![Create Subnets 3](../images/02-vpc-networking/03.3-create-subnets.png)
+![Create Subnets 3](../images/05-vpc-networking/03.3-create-subnets.png)
 
 ### 1.3. Internet Gateway Setup
 
@@ -154,15 +154,15 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    Name: mlops-retail-forecast-dev-igw
    ```
 
-![Internet Gateway 1](../images/02-vpc-networking/04.1-internet-gateway.png)
-![Internet Gateway 2](../images/02-vpc-networking/04.2-internet-gateway.png)
+![Internet Gateway 1](../images/05-vpc-networking/04.1-internet-gateway.png)
+![Internet Gateway 2](../images/05-vpc-networking/04.2-internet-gateway.png)
 
 2. **Attach to VPC:**
    - Select Internet Gateway → "Actions" → "Attach to VPC"
 
-![Internet Gateway 3](../images/02-vpc-networking/04.3-internet-gateway.png)
-![Internet Gateway 4](../images/02-vpc-networking/04.4-internet-gateway.png)
-![Internet Gateway 5](../images/02-vpc-networking/04.5-internet-gateway.png)
+![Internet Gateway 3](../images/05-vpc-networking/04.3-internet-gateway.png)
+![Internet Gateway 4](../images/05-vpc-networking/04.4-internet-gateway.png)
+![Internet Gateway 5](../images/05-vpc-networking/04.5-internet-gateway.png)
 
 ### 1.4. Route Tables Configuration
 
@@ -174,19 +174,19 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    VPC: mlops-retail-forecast-dev-vpc
    ```
 
-![Public Route Table 1](../images/02-vpc-networking/07.1-public-route-table.png)
-![Public Route Table 2](../images/02-vpc-networking/07.2-public-route-table.png)
+![Public Route Table 1](../images/05-vpc-networking/07.1-public-route-table.png)
+![Public Route Table 2](../images/05-vpc-networking/07.2-public-route-table.png)
 
 2. **Add Internet Gateway Route:**
    - Add route: `0.0.0.0/0` → Internet Gateway
 
-![Public Route Table 3](../images/02-vpc-networking/07.3-public-route-table.png)
+![Public Route Table 3](../images/05-vpc-networking/07.3-public-route-table.png)
 
 3. **Associate Public Subnets:**
    - Associate 2 public subnets
 
-![Public Route Table 4](../images/02-vpc-networking/07.4-public-route-table.png)
-![Public Route Table 5](../images/02-vpc-networking/07.5-public-route-table.png)
+![Public Route Table 4](../images/05-vpc-networking/07.4-public-route-table.png)
+![Public Route Table 5](../images/05-vpc-networking/07.5-public-route-table.png)
 
 #### 1.4.2. Private Route Table (VPC Endpoints Strategy)
 
@@ -205,7 +205,7 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 3. **Associate Both Private Subnets:**
    - Associate cả 2 private subnets
 
-![Private Route Tables](../images/02-vpc-networking/08-private-route-tables.png)
+![Private Route Tables](../images/05-vpc-networking/08-private-route-tables.png)
 
 ### 1.5. Security Groups Setup
 
@@ -218,14 +218,14 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    VPC: mlops-retail-forecast-dev-vpc
    ```
 
-![Create Security Group](../images/02-vpc-networking/09.1-create-security-group.png)
-![EKS Control Plane Basic](../images/02-vpc-networking/09.2-eks-control-plane-basic.png)
+![Create Security Group](../images/05-vpc-networking/09.1-create-security-group.png)
+![EKS Control Plane Basic](../images/05-vpc-networking/09.2-eks-control-plane-basic.png)
 
 2. **Inbound Rules:**
    - **Type**: HTTPS, **Port**: 443, **Source**: 0.0.0.0/0
 
-![EKS Control Plane Inbound](../images/02-vpc-networking/09.3-eks-control-plane-inbound.png)
-![EKS Control Plane Complete](../images/02-vpc-networking/09.4-eks-control-plane-complete.png)
+![EKS Control Plane Inbound](../images/05-vpc-networking/09.3-eks-control-plane-inbound.png)
+![EKS Control Plane Complete](../images/05-vpc-networking/09.4-eks-control-plane-complete.png)
 
 #### 1.5.2. EKS Worker Nodes Security Group
 
@@ -235,14 +235,14 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    Description: Security group for EKS worker nodes
    ```
 
-![EKS Nodes Basic](../images/02-vpc-networking/09.5-eks-nodes-basic.png)
+![EKS Nodes Basic](../images/05-vpc-networking/09.5-eks-nodes-basic.png)
 
 2. **Inbound Rules:**
    - **Rule 1**: All Traffic from EKS Control Plane SG
    - **Rule 2**: All Traffic from self (inter-node communication)
 
-![EKS Nodes Inbound](../images/02-vpc-networking/09.6-eks-nodes-inbound.png)
-![EKS Nodes Complete](../images/02-vpc-networking/09.7-eks-nodes-complete.png)
+![EKS Nodes Inbound](../images/05-vpc-networking/09.6-eks-nodes-inbound.png)
+![EKS Nodes Complete](../images/05-vpc-networking/09.7-eks-nodes-complete.png)
 
 #### 1.5.3. Application Load Balancer Security Group
 
@@ -252,14 +252,14 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    Description: Security group for Application Load Balancer
    ```
 
-![ALB Basic](../images/02-vpc-networking/09.8-alb-basic.png)
+![ALB Basic](../images/05-vpc-networking/09.8-alb-basic.png)
 
 2. **Inbound Rules:**
    - **Rule 1**: HTTP (80) from 0.0.0.0/0
    - **Rule 2**: HTTPS (443) from 0.0.0.0/0
 
-![ALB Inbound](../images/02-vpc-networking/09.9-alb-inbound.png)
-![ALB Complete](../images/02-vpc-networking/09.10-alb-complete.png)
+![ALB Inbound](../images/05-vpc-networking/09.9-alb-inbound.png)
+![ALB Complete](../images/05-vpc-networking/09.10-alb-complete.png)
 
 #### 1.5.4. VPC Endpoints Security Group
 
@@ -269,18 +269,18 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
    Description: Security group for VPC endpoints
    ```
 
-![VPC Endpoints Basic](../images/02-vpc-networking/09.11-vpc-endpoints-basic.png)
+![VPC Endpoints Basic](../images/05-vpc-networking/09.11-vpc-endpoints-basic.png)
 
 2. **Inbound Rules:**
    - **Rule**: HTTPS (443) from VPC CIDR (10.0.0.0/16)
 
-![VPC Endpoints Inbound](../images/02-vpc-networking/09.12-vpc-endpoints-inbound.png)
-![VPC Endpoints Complete](../images/02-vpc-networking/09.13-vpc-endpoints-complete.png)
+![VPC Endpoints Inbound](../images/05-vpc-networking/09.12-vpc-endpoints-inbound.png)
+![VPC Endpoints Complete](../images/05-vpc-networking/09.13-vpc-endpoints-complete.png)
 
 ### 1.6. Console Setup Complete
 
-![Security Groups Overview](../images/02-vpc-networking/10-security-groups-overview.png)
-![VPC Resource Map](../images/02-vpc-networking/11-vpc-resource-map.png)
+![Security Groups Overview](../images/05-vpc-networking/10-security-groups-overview.png)
+![VPC Resource Map](../images/05-vpc-networking/11-vpc-resource-map.png)
 
 {{% notice success %}}
 **🎯 Console Setup Complete!**
@@ -295,9 +295,9 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 2. Service: `com.amazonaws.ap-southeast-1.s3` (Type: Gateway)
 3. Route Tables: Chọn private route table
 
-![Create VPC Endpoint](../images/02-vpc-networking/10.1-create-vpc-endpoint.png)
-![Endpoint Settings](../images/02-vpc-networking/10.2-endpoint-settings.png)
-![S3 Gateway Endpoint](../images/02-vpc-networking/10.3-s3-gateway-endpoint.png)
+![Create VPC Endpoint](../images/05-vpc-networking/10.1-create-vpc-endpoint.png)
+![Endpoint Settings](../images/05-vpc-networking/10.2-endpoint-settings.png)
+![S3 Gateway Endpoint](../images/05-vpc-networking/10.3-s3-gateway-endpoint.png)
 
 **Bước 2: ECR API Interface Endpoint**
 1. Service: `com.amazonaws.ap-southeast-1.ecr.api` (Type: Interface)
@@ -305,9 +305,9 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 3. Security Groups: VPC endpoints security group
 4. Private DNS: ✅ Enabled
 
-![ECR API Endpoint 1](../images/02-vpc-networking/10.4.1-ecr-api-endpoint.png)
-![ECR API Endpoint 2](../images/02-vpc-networking/10.4.2-ecr-api-endpoint.png)
-![ECR API Endpoint 3](../images/02-vpc-networking/10.4.3-ecr-api-endpoint.png)
+![ECR API Endpoint 1](../images/05-vpc-networking/10.4.1-ecr-api-endpoint.png)
+![ECR API Endpoint 2](../images/05-vpc-networking/10.4.2-ecr-api-endpoint.png)
+![ECR API Endpoint 3](../images/05-vpc-networking/10.4.3-ecr-api-endpoint.png)
 
 **Bước 3: ECR DKR Interface Endpoint**
 1. Service: `com.amazonaws.ap-southeast-1.ecr.dkr` (Type: Interface)
@@ -315,9 +315,9 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 3. Security Groups: VPC endpoints security group
 4. Private DNS: ✅ Enabled
 
-![ECR DKR Endpoint 1](../images/02-vpc-networking/10.5.1-ecr-dkr-endpoint.png)
-![ECR DKR Endpoint 2](../images/02-vpc-networking/10.5.2-ecr-dkr-endpoint.png)
-![ECR DKR Endpoint 3](../images/02-vpc-networking/10.5.3-ecr-dkr-endpoint.png)
+![ECR DKR Endpoint 1](../images/05-vpc-networking/10.5.1-ecr-dkr-endpoint.png)
+![ECR DKR Endpoint 2](../images/05-vpc-networking/10.5.2-ecr-dkr-endpoint.png)
+![ECR DKR Endpoint 3](../images/05-vpc-networking/10.5.3-ecr-dkr-endpoint.png)
 
 **Bước 4: CloudWatch Logs Interface Endpoint**
 1. Service: `com.amazonaws.ap-southeast-1.logs` (Type: Interface)
@@ -325,12 +325,12 @@ Total: $21.6/month vs $71/month NAT Gateway (70% savings)
 3. Security Groups: VPC endpoints security group
 4. Private DNS: ✅ Enabled
 
-![CloudWatch Logs Endpoint 1](../images/02-vpc-networking/10.6.1-cloudwatch-logs-endpoint.png)
-![CloudWatch Logs Endpoint 2](../images/02-vpc-networking/10.6.2-cloudwatch-logs-endpoint.png)
-![CloudWatch Logs Endpoint 3](../images/02-vpc-networking/10.6.3-cloudwatch-logs-endpoint.png)
+![CloudWatch Logs Endpoint 1](../images/05-vpc-networking/10.6.1-cloudwatch-logs-endpoint.png)
+![CloudWatch Logs Endpoint 2](../images/05-vpc-networking/10.6.2-cloudwatch-logs-endpoint.png)
+![CloudWatch Logs Endpoint 3](../images/05-vpc-networking/10.6.3-cloudwatch-logs-endpoint.png)
 
 **Verification:**
-![VPC Endpoints Overview](../images/02-vpc-networking/10.7-vpc-endpoints-overview.png)
+![VPC Endpoints Overview](../images/05-vpc-networking/10.7-vpc-endpoints-overview.png)
 
 ## 3. Optional: Terraform Outputs cho Integration
 
@@ -547,8 +547,5 @@ aws ec2 describe-vpc-endpoints \
 - Security Group IDs cho EKS và ALB configuration
 - VPC Endpoint IDs cho cost-optimized AWS services access
 
-***Manual reference*** cho Task 4-5:
-- VPC và subnet information từ AWS Console
-- Security Group IDs từ VPC dashboard
-- VPC Endpoint IDs từ Endpoints section
+
 {{% /notice %}}
