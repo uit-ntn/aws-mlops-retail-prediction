@@ -121,8 +121,7 @@ aws-mlops-retail-price-sensitivity/
 │   ├── 12-cloudwatch/
 │   ├── 13-security-audit/
 │   ├── 14-cicd-pipeline/
-│   ├── 15-dataops/
-│   └── 16-cost-teardown/
+│   └── 15-cost-teardown/
 ├── aws/
 │   ├── infra/                    # Terraform modules
 │   ├── k8s/                      # Manifests for Deployment/Service/HPA
@@ -189,7 +188,7 @@ Code push → CI (build/test) → Data validation (GE) → Train (SageMaker)
 ## In Scope / Out of Scope
 **In scope**
 - Multi-class classification for `BASKET_PRICE_SENSITIVITY`
-- 16-task MLOps workflow (infra, training, deployment, monitoring, CI/CD)
+- 15-task MLOps workflow (infra, training, deployment, monitoring, CI/CD)
 - SageMaker Feature Store; Model Registry; EKS real-time API
 - S3 data versioning, lifecycle, and performance benchmarking
 
@@ -200,26 +199,37 @@ Code push → CI (build/test) → Data validation (GE) → Train (SageMaker)
 
 ---
 
-## Core Tasks (1–16)
+## Core Tasks (1–15)
 
-| #      | **Task**                  | **Nội dung cập nhật và ghi chú chính** |
-| ------ | ------------------------- | -------------------------------------- |
-| **1**  | **Introduction**          | - Giới thiệu bài toán: *Dự đoán độ nhạy cảm giá (BASKET_PRICE_SENSITIVITY)*<br>- Giới thiệu dataset **dunnhumby Source Files** + data dictionary (117 tuần, 22 cột)<br>- Mô tả kiến trúc tổng thể AWS MLOps (Terraform → EKS → SageMaker → CloudWatch)<br>- Đặt **KPI:** Accuracy ≥75%, F1 ≥0.7, latency <200ms<br>→ **Đáp tiêu chí:** Giới thiệu bài toán, dữ liệu, kiến trúc, KPI |
-| **2**  | **VPC / Networking**      | - Tạo **VPC**, **subnet**, **security group**, **VPC Endpoint for S3** (giảm chi phí NAT)<br>- Multi-AZ để tăng sẵn sàng<br>→ **Đáp tiêu chí:** thiết kế mạng cloud, tối ưu chi phí & bảo mật |
-| **3**  | **IAM Roles**            | - Tạo IAM Role cho:<br>① ETL job (S3 read/write)<br>② SageMaker training<br>③ EKS inference<br>- Áp dụng **IRSA** để gắn IAM role cho pod<br>→ **Đáp tiêu chí:** bảo mật & phân quyền tối thiểu |
-| **4**  | **EKS Cluster**          | - Khởi tạo control plane<br>- Kết nối IRSA với IAM<br>- Cluster phục vụ inference API và DataOps job<br>→ **Đáp tiêu chí:** triển khai môi trường ML inference |
-| **5**  | **Managed Node Group**    | - Tạo **2 nhóm node**: on-demand (API) và spot (ETL/training)<br>- Auto Scaling + multi-AZ<br>→ **Đáp tiêu chí:** tối ưu chi phí & hiệu năng |
-| **6**  | **ECR Registry**         | - Repo chứa image `train-price-sensitivity`, `api-price-sensitivity`<br>- Bật image scanning<br>→ **Đáp tiêu chí:** quản lý phiên bản & bảo mật container |
-| **7**  | **Docker Build & Push**  | - Build image chứa FastAPI (inference) và sklearn/xgboost (training)<br>- Multi-stage Dockerfile, healthcheck, tag theo git commit<br>→ **Đáp tiêu chí:** đóng gói ứng dụng ML |
-| **8**  | **S3 Data Storage**      | - Thiết kế **Data Lake dạng medallion**: `raw/`, `silver/`, `gold/`<br>- **Tiền xử lý dữ liệu**: làm sạch, chuẩn hoá, feature engineering<br>- Lưu **Parquet (snappy)**, phân vùng theo `SHOP_WEEK`, `STORE_REGION`<br>- **Cơ sở lý thuyết định dạng lưu trữ:** so sánh CSV–Parquet–JSON<br>- **Tối ưu tốc độ đọc/ghi:** S3 Transfer Acceleration, multipart upload<br>- **Lifecycle:** raw → Intelligent-Tiering, logs → Glacier<br>→ **Đáp tiêu chí:** xử lý dữ liệu, định dạng lưu trữ, tối ưu I/O, giảm chi phí |
-| **9**  | **SageMaker Training**   | - Dùng **sklearn/xgboost** cho *multi-class classification*<br>- **Tiền xử lý bổ sung & EDA**: trực quan histogram, heatmap, boxplot<br>- Huấn luyện 3 mô hình: Logistic, Decision Tree, Random Forest<br>- So sánh Accuracy, F1; biểu đồ so sánh & confusion matrix<br>- **Trực quan kết quả**: biểu đồ tham số, feature importance<br>- Lưu metric & model vào **Model Registry**<br>→ **Đáp tiêu chí:** huấn luyện, trực quan dữ liệu & mô hình |
-| **10** | **Kubernetes Deployment** | - Deploy **FastAPI** trên EKS (`/predict`), load model từ S3<br>- Viết **web client (Flask/Streamlit)** gửi request JSON đến API cloud<br>- Test bằng Postman hoặc curl<br>- Mô tả kiến trúc User → Web → ALB → EKS → Model<br>→ **Đáp tiêu chí:** triển khai và sử dụng API model |
-| **11** | **Load Balancer**        | - Cấu hình **ALB / Ingress**, route `/predict`, `/healthz`<br>- Giám sát health check, tích hợp HTTPS/TLS<br>→ **Đáp tiêu chí:** cung cấp endpoint truy cập model |
-| **12** | **CloudWatch Monitoring** | - Tạo dashboard hiển thị:<br>• API latency (P50/P95)<br>• S3 read/write throughput<br>• SageMaker training duration<br>- **So sánh hiệu năng:** laptop vs cloud<br>- Biểu đồ "trước–sau tối ưu đọc/ghi"<br>- Alert khi accuracy < threshold hoặc latency >200ms<br>→ **Đáp tiêu chí:** giám sát hiệu năng, benchmark |
-| **13** | **Security & Audit**     | - Bật **KMS encryption** (S3, EBS)<br>- **CloudTrail** để xem "ai tạo cái gì"<br>- Quản lý secret trong **AWS Secrets Manager**<br>- IAM least-privilege<br>→ **Đáp tiêu chí:** bảo mật, giám sát truy cập |
-| **14** | **CI/CD Pipeline**       | - Pipeline tự động: Build → Validate → Train → Register → Deploy<br>- Auto-approval khi model mới tốt hơn baseline<br>- Rollback nếu accuracy giảm<br>→ **Đáp tiêu chí:** tự động hóa huấn luyện–triển khai–kiểm thử |
-| **15** | **DataOps**              | - Thiết lập **ETL định kỳ (CronJob / EventBridge)**<br>- Great Expectations validation → lưu HTML report<br>- Tự động cập nhật feature vào Feature Store<br>- Quản lý SLA/SLO pipeline<br>→ **Đáp tiêu chí:** luồng xử lý dữ liệu tự động, đảm bảo chất lượng |
-| **16** | **Cost & Teardown**      | - Sử dụng **Spot Instances** cho training/batch<br>- **S3 lifecycle policies**, tắt resource ngoài giờ<br>- So sánh chi phí trước–sau tối ưu<br>- Script teardown tự động<br>→ **Đáp tiêu chí:** tối ưu chi phí & quản lý vòng đời tài nguyên |
+**1. Introduction:** Introduce the problem (predicting price sensitivity), present the dunnhumby dataset and data dictionary, describe AWS MLOps architecture, set KPIs (accuracy ≥75%, F1 ≥0.7, latency <200ms).
+
+**2. VPC / Networking:** Create VPC, subnets, security groups, VPC Endpoint for S3, enable multi-AZ for high availability.
+
+**3. IAM Roles & CloudTrail Audit:** Create IAM roles for ETL, SageMaker training, and EKS inference. Enable CloudTrail to audit and monitor user actions and API activity for all IAM roles, ensuring traceability and compliance.
+
+**4. EKS Cluster:** Initialize control plane, create and connect IRSA, deploy cluster for inference API and DataOps jobs. 
+
+**5. Managed Node Group:** Create two node groups (on-demand for API, spot for ETL/training), enable auto scaling and multi-AZ.
+
+**6. ECR Registry:** Create repositories for training and API images, enable image scanning for security.
+
+**7. Docker Build & Push:** Build images for FastAPI and sklearn/xgboost, use multi-stage Dockerfile, healthcheck, tag by git commit.
+
+**8. S3 Data Storage:** Design a medallion layout (raw/silver/gold) for the data lake. Clean and standardize data, store in Parquet format (snappy compression), and partition by `SHOP_WEEK` and `STORE_REGION`. Present the theory behind storage formats and optimization for read/write performance (S3 Transfer Acceleration, multipart upload, data compression).
+
+**9. SageMaker Training:** Train multi-class models (sklearn/xgboost), perform EDA, compare metrics, visualize results, save to Model Registry.
+
+**10. Kubernetes Deployment:** Deploy FastAPI on EKS, load model from S3, build web client, test API, describe architecture flow.
+
+**11. Load Balancer:** Configure ALB/Ingress, route endpoints, monitor health checks, integrate HTTPS/TLS.
+
+**12. CloudWatch Monitoring:** Create dashboard for API latency, S3 throughput, training duration, compare performance, set alerts.
+
+**13. Security:** Enable KMS encryption.
+
+**14. CI/CD Pipeline:** Automate build, validation, training, registration, deployment; auto-approve/rollback based on metrics.
+
+**15. Cost & Teardown:** Use Spot Instances, set S3 lifecycle policies, shut down resources off-hours, compare costs, automate teardown.
 
 ---
 
