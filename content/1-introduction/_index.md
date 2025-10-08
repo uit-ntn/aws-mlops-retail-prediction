@@ -6,13 +6,13 @@ chapter: false
 pre: "<b>1. </b>"
 ---
 
-# AWS MLOps Retail Forecast Platform
+# AWS MLOps Retail Prediction Platform
 
-**AWS MLOps Retail Forecast** là một hệ thống MLOps end-to-end hoàn chỉnh được xây dựng trên AWS Cloud, tự động hóa toàn bộ quy trình từ xây dựng hạ tầng, huấn luyện mô hình, triển khai inference API, đến giám sát và tối ưu chi phí. Dự án được thiết kế để đảm bảo tính mở rộng, độ tin cậy và bảo mật cao cho các ứng dụng Machine Learning trong thực tế.
+**AWS MLOps Retail Prediction** là một hệ thống MLOps end-to-end hoàn chỉnh được xây dựng trên AWS Cloud, tự động hóa toàn bộ quy trình từ xây dựng hạ tầng, huấn luyện mô hình, triển khai inference API, đến giám sát và tối ưu chi phí. Dự án được thiết kế để đảm bảo tính mở rộng, độ tin cậy và bảo mật cao cho các ứng dụng Machine Learning trong thực tế.
 
 ## 1. Kiến trúc MLOps trên AWS Cloud
 
-{{< bordered src="/images/01-introduction/MLOps-AWS-Architecture.png" title="Kiến trúc MLOps end-to-end cho Retail Forecasting trên AWS" >}}
+![Kiến trúc MLOps end-to-end cho Retail Prediction trên AWS](/images/01-introduction/MLOps-AWS-Architecture.png)
 
 ### 1.1 Mục tiêu dự án
 

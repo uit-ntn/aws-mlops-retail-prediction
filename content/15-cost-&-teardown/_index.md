@@ -3,7 +3,7 @@ title: "Cost Optimization & Teardown"
 date: 2024-01-01T00:00:00Z
 weight: 16
 chapter: false
-pre: "<b>16. </b>"
+pre: "<b>15. </b>"
 ---
 
 ## Mục tiêu

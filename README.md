@@ -1,4 +1,4 @@
-# AWS MLOps Retail Price Sensitivity Workshop
+# AWS MLOps Retail Prediction Workshop
 > **End-to-End MLOps Pipeline on AWS (Terraform + EKS + SageMaker + CI/CD + Monitoring)**  
 > **Use case:** *Multi-class classification to predict `BASKET_PRICE_SENSITIVITY` from retail transactions*
 
@@ -14,58 +14,72 @@
 - [Project Structure](#project-structure)
 - [MLOps Flow](#mlops-flow)
 - [In Scope / Out of Scope](#in-scope--out-of-scope)
-- [Core Tasks (1–16)](#core-tasks-116)
+- [Core Tasks (1–15)](#core-tasks-115)
 - [Technology Stack](#technology-stack)
 - [Prerequisites](#prerequisites)
 - [Naming & Tagging Standards](#naming--tagging-standards)
 - [Acceptance Criteria](#acceptance-criteria)
 - [Monitoring & Security](#monitoring--security)
-- [CI/CD & DataOps](#cicd--dataops)
+- [CI/CD](#cicd)
 - [Cost Optimization](#cost-optimization)
 - [FAQ](#faq)
 
 ---
 
 ## Overview
-This workshop demonstrates a production-grade MLOps workflow on AWS for **price sensitivity classification** in retail.  
-Key outcomes:
+This workshop demonstrates a production-grade MLOps workflow on AWS for **Retail Prediction** with a **train-first → deploy-later** cost-optimized strategy.
+
+**Key outcomes**
 - **Infrastructure as Code**: **Terraform** for automated provisioning  
-- **Training & Registry**: **SageMaker** for model training and model registry  
-- **Container Platform**: **EKS** for scalable real-time inference API  
-- **Artifact & Data Management**: **ECR** (images), **S3** (data lake & artifacts)  
-- **Monitoring & Security**: **CloudWatch**, **KMS**, **CloudTrail**, **IAM/IRSA**  
-- **CI/CD & DataOps**: automated pipelines for data validation, training, deploy, and monitoring
+- **Training & Registry**: **SageMaker** for model training and registry  
+- **Container Platform**: **EKS** for scalable real-time retail predictions  
+- **Artifacts & Data**: **ECR** (containers), **S3** (data lake & model artifacts)  
+- **Monitoring & Audit**: **CloudWatch** metrics/logs, **CloudTrail** auditing, **IAM/IRSA** access control  
+- **CI/CD**: Automated build → train → deploy → monitor (GitHub Actions/Jenkins/GitLab CI)
+
+> **Cost-first principle**: Train the retail prediction model first (SageMaker + S3 only). Provision EKS/API **after** the model is ready; tear everything down right after the demo.
 
 ---
 
 ## Problem Statement
-**Goal:** Build a **multi-class classifier** to predict **`BASKET_PRICE_SENSITIVITY`** (e.g., Low/Medium/High or LA/MM/UM) for each transaction, using basket-level, store-level, and behavioral features.
+**Goal**: Build a **multi-class classifier** to predict **`BASKET_PRICE_SENSITIVITY`** (Low/Medium/High) per retail transaction using basket-, store-, and customer behavior-level features.
 
-**Business benefits:**
-- Identify customer groups with high price sensitivity → flexible pricing
-- Personalize promotions by store format/region and basket mission
-- Improve campaign ROI and protect margins
+**Business benefits**
+- Segment customers by price sensitivity for dynamic pricing strategies
+- Personalize promotions based on predicted sensitivity levels
+- Optimize pricing and promotional campaigns while protecting margins
+- Target marketing efforts based on price sensitivity segments
 
-**Modeling targets & metrics:**
-- **Target:** `BASKET_PRICE_SENSITIVITY`  
-- **Models:** Logistic Regression (baseline), Decision Tree, Random Forest  
-- **Metrics:** Accuracy, Precision/Recall/F1 (macro), Confusion Matrix  
+**Targets & metrics**
+- **Target Variable**: `BASKET_PRICE_SENSITIVITY`  
+- **Models**: 
+  - Baseline: Logistic Regression
+  - Advanced: Decision Tree, Random Forest
+  - Production: XGBoost
+- **Evaluation Metrics**: 
+  - Primary: Accuracy, F1-score (macro)
+  - Secondary: Precision, Recall
+  - Analysis: Confusion Matrix
 
 ---
 
 ## Dataset Overview
-**Source:** dunnhumby *Source Files* (sample used: `transactions_200807.csv`, ~2.67M rows, 22 columns).  
-**Granularity:** one row per product-line within a customer basket.  
+**Source**: dunnhumby retail transaction dataset  
+**Format**: CSV files (e.g., `transactions_200807.csv`)  
+**Size**: ~2.67M transactions, 22 features
 
-**Key columns**
-- **Time:** `SHOP_WEEK`, `SHOP_DATE`, `SHOP_WEEKDAY`, `SHOP_HOUR`  
-- **Spend/Qty:** `SPEND`, `QUANTITY`  
-- **Product hierarchy:** `PROD_CODE`, `PROD_CODE_10/20/30/40`  
-- **Customer segments:** `CUST_CODE`, `seg_1`, `seg_2`  
-- **Basket:** `BASKET_ID`, `BASKET_SIZE`, `BASKET_TYPE`, `BASKET_DOMINANT_MISSION`, **`BASKET_PRICE_SENSITIVITY` (label)**  
-- **Store:** `STORE_CODE`, `STORE_FORMAT`, `STORE_REGION`  
+**Key features**
+- **Temporal**: `SHOP_WEEK`, `SHOP_DATE`, `SHOP_WEEKDAY`, `SHOP_HOUR`  
+- **Transaction**: `SPEND`, `QUANTITY`  
+- **Product**: `PROD_CODE`, `PROD_CODE_10/20/30/40`  
+- **Customer**: `CUST_CODE`, `seg_1`, `seg_2`  
+- **Basket**: 
+  - `BASKET_ID`, `BASKET_SIZE`
+  - `BASKET_TYPE`, `BASKET_DOMINANT_MISSION`
+  - Target: `BASKET_PRICE_SENSITIVITY`  
+- **Store**: `STORE_CODE`, `STORE_FORMAT`, `STORE_REGION`
 
-> See `content/1-introduction/` for **Data Dictionary** and examples.
+Detailed Data Dictionary available in `content/1-introduction/`
 
 ---
 
@@ -73,67 +87,31 @@ Key outcomes:
 
 ### Phases
 1) **Infrastructure & Foundation**
-   - Terraform IaC → VPC, subnets, security groups, IAM roles with IRSA  
-   - EKS Cluster + Managed Node Groups (separate groups for API vs. batch)  
-   - ECR for container images; S3 data lake for raw/silver/gold and artifacts
+   - Terraform IaC → VPC, subnets, security groups
+   - IAM roles with IRSA for secure service access
+   - EKS cluster + managed node groups for prediction API
+   - ECR for prediction containers; S3 data lake for retail data
 
-2) **ML Training & Model Registry**
-   - SageMaker training jobs (sklearn/xgboost) with S3 input/output  
-   - Model Registry with metrics & lineage; approval & promotion workflow  
-   - Feature management via **SageMaker Feature Store** (offline/online)
+2) **ML Training Pipeline**
+   - SageMaker training jobs for retail prediction models
+   - Model Registry for versioning and governance
+   - Training metrics tracking and model evaluation
+   - Model artifact management in S3
 
 3) **Deployment & Operations**
-   - Inference API (FastAPI) on EKS + ALB; HPA for autoscaling  
-   - Monitoring with CloudWatch (latency, throughput, errors, model metrics)  
-   - Security with KMS encryption, CloudTrail auditing, least-privilege IAM
+   - Retail Prediction API (FastAPI) on EKS
+   - Application Load Balancer for API exposure
+   - HPA for automatic scaling based on demand
+   - Comprehensive monitoring and auditing
 
-### Data Lake Layout (S3)
+### S3 Data Lake Layout
 ```
 s3://mlops-{env}-retail/
 └── retail/
-    ├── raw/        # original CSV files (partitioned by SHOP_WEEK)
-    ├── silver/     # cleaned, typed, de-duplicated (Parquet, partitioned)
-    ├── gold/       # model features: STORE×PROD×WEEK/HOUR or basket-level
-    └── artifacts/  # trained models, reports, validation outputs
-```
-
----
-
-## Project Structure
-
-```
-aws-mlops-retail-price-sensitivity/
-├── README.md
-├── config.toml
-├── content/
-│   ├── _index.md
-│   ├── 1-introduction/           # Problem, dataset, data dictionary
-│   ├── 2-vpc-networking/
-│   ├── 3-iam-roles/
-│   ├── 4-eks-cluster/
-│   ├── 5-managed-nodegroup/
-│   ├── 6-ecr-registry/
-│   ├── 7-docker-build/
-│   ├── 8-s3-data-storage/
-│   ├── 9-sagemaker-training/     # Classification & Model Registry
-│   ├── 10-kubernetes-deploy/     # FastAPI /predict endpoint
-│   ├── 11-load-balancer/
-│   ├── 12-cloudwatch/
-│   ├── 13-security-audit/
-│   ├── 14-cicd-pipeline/
-│   └── 15-cost-teardown/
-├── aws/
-│   ├── infra/                    # Terraform modules
-│   ├── k8s/                      # Manifests for Deployment/Service/HPA
-│   └── script/                   # Automation scripts
-├── server/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── app/                      # FastAPI app (POST /predict)
-├── core/
-│   └── requirements.txt          # ML dependencies (sklearn, xgboost, pandas)
-└── static/
-    └── images/
+    ├── raw/        # original transaction CSVs
+    ├── silver/     # cleaned transaction data (Parquet)
+    ├── gold/       # price sensitivity features
+    └── artifacts/  # trained models & evaluation reports
 ```
 
 ---
@@ -143,93 +121,83 @@ aws-mlops-retail-price-sensitivity/
 ### 1) Infrastructure Provisioning (Terraform)
 ```bash
 terraform init && terraform plan && terraform apply
-# Provisions: VPC → EKS → IAM → ECR → S3
+# Creates: VPC → EKS → IAM → ECR → S3
 ```
 
-### 2) Data Validation & Feature Engineering
+### 2) Retail Model Training
 ```text
-Ingestion (S3 raw) → Great Expectations checks → silver (typed/clean)
-→ feature building → gold (Parquet) → register to Feature Store
+Data Pipeline:
+Raw transactions → Feature Engineering → Training Dataset
+
+Training Flow:
+S3 features → SageMaker Training → Model Evaluation → Model Registry
 ```
 
-### 3) Model Training & Registry (SageMaker)
-```text
-S3 gold → SageMaker Training (sklearn/xgboost) → Evaluate (acc, F1, confusion)
-→ Register to Model Registry → approve/push tag (staging/prod)
-```
-
-### 4) Containerized Deployment (EKS)
+### 3) Prediction API Deployment
 ```bash
-# Build and push
-docker build -t $ECR_URI/mlops/inference-api:$GIT_SHA ./server
-docker push $ECR_URI/mlops/inference-api:$GIT_SHA
+# Container Build
+docker build -t $ECR_URI/retail-prediction:$GIT_SHA ./server
+docker push $ECR_URI/retail-prediction:$GIT_SHA
 
-# Deploy
+# EKS Deployment
 kubectl apply -f aws/k8s/deployment.yaml
 kubectl apply -f aws/k8s/service.yaml
 kubectl apply -f aws/k8s/hpa.yaml
 ```
 
-### 5) Monitoring & Operations
+### 4) Monitoring & Operations
 ```text
-CloudWatch Metrics & Logs → Dashboards (latency P50/P95, error rate, QPS)
-S3 & API throughput benchmarks (baseline vs optimized)
-Alarms → SNS notifications
+CloudWatch Setup:
+- API metrics (latency, throughput)
+- Prediction accuracy monitoring
+- Resource utilization tracking
+- Cost optimization alerts
 ```
 
-### 6) CI/CD Automation
+### 5) CI/CD Pipeline
 ```text
-Code push → CI (build/test) → Data validation (GE) → Train (SageMaker)
-→ Register → Deploy to EKS → Post-deploy checks → Monitor
+Feature Branch → CI Build/Test → Model Training → Validation
+→ Registry Update → EKS Deployment → Monitoring
 ```
 
 ---
 
 ## In Scope / Out of Scope
 **In scope**
-- Multi-class classification for `BASKET_PRICE_SENSITIVITY`
-- 15-task MLOps workflow (infra, training, deployment, monitoring, CI/CD)
-- SageMaker Feature Store; Model Registry; EKS real-time API
-- S3 data versioning, lifecycle, and performance benchmarking
+- Retail prediction model development
+- End-to-end MLOps pipeline implementation
+- Real-time prediction API deployment
+- Model monitoring and retraining workflow
+- Comprehensive data engineering pipeline
+- Automated model evaluation and deployment
 
 **Out of scope**
-- Multi-region active-active (single region focus: `ap-southeast-1`)
-- Advanced rollouts (A/B, canary) beyond standard rolling updates
-- Real-time streaming ingestion (batch-oriented ingestion)
+- Multi-region deployment architecture
+- Advanced deployment strategies (A/B testing, canary)
+- Real-time feature engineering
+- Streaming predictions
+- Custom model architectures beyond standard algorithms
 
 ---
 
 ## Core Tasks (1–15)
+> Designed for **cost efficiency**: train first, then bring up API infra only for demo.
 
-**1. Introduction:** Introduce the problem (predicting price sensitivity), present the dunnhumby dataset and data dictionary, describe AWS MLOps architecture, set KPIs (accuracy ≥75%, F1 ≥0.7, latency <200ms).
-
-**2. VPC / Networking:** Create VPC, subnets, security groups, VPC Endpoint for S3, enable multi-AZ for high availability.
-
-**3. IAM Roles & CloudTrail Audit:** Create IAM roles for ETL, SageMaker training, and EKS inference. Enable CloudTrail to audit and monitor user actions and API activity for all IAM roles, ensuring traceability and compliance.
-
-**4. EKS Cluster:** Initialize control plane, create and connect IRSA, deploy cluster for inference API and DataOps jobs. 
-
-**5. Managed Node Group:** Create two node groups (on-demand for API, spot for ETL/training), enable auto scaling and multi-AZ.
-
-**6. ECR Registry:** Create repositories for training and API images, enable image scanning for security.
-
-**7. Docker Build & Push:** Build images for FastAPI and sklearn/xgboost, use multi-stage Dockerfile, healthcheck, tag by git commit.
-
-**8. S3 Data Storage:** Design a medallion layout (raw/silver/gold) for the data lake. Clean and standardize data, store in Parquet format (snappy compression), and partition by `SHOP_WEEK` and `STORE_REGION`. Present the theory behind storage formats and optimization for read/write performance (S3 Transfer Acceleration, multipart upload, data compression).
-
-**9. SageMaker Training:** Train multi-class models (sklearn/xgboost), perform EDA, compare metrics, visualize results, save to Model Registry.
-
-**10. Kubernetes Deployment:** Deploy FastAPI on EKS, load model from S3, build web client, test API, describe architecture flow.
-
-**11. Load Balancer:** Configure ALB/Ingress, route endpoints, monitor health checks, integrate HTTPS/TLS.
-
-**12. CloudWatch Monitoring:** Create dashboard for API latency, S3 throughput, training duration, compare performance, set alerts.
-
-**13. Security:** Enable KMS encryption.
-
-**14. CI/CD Pipeline:** Automate build, validation, training, registration, deployment; auto-approve/rollback based on metrics.
-
-**15. Cost & Teardown:** Use Spot Instances, set S3 lifecycle policies, shut down resources off-hours, compare costs, automate teardown.
+1) **Introduction** — Retail prediction overview
+2) **IAM & Security** — Secure service access setup
+3) **Data Storage** — Retail transaction data management
+4) **Model Training** — Retail classifier development
+5) **Networking** — Secure VPC configuration
+6) **Container Registry** — Prediction API containerization
+7) **Kubernetes Setup** — EKS cluster provisioning
+8) **Node Management** — Optimized compute resources
+9) **API Containerization** — Prediction service packaging
+10) **API Deployment** — Service orchestration
+11) **Load Balancing** — Traffic management
+12) **Monitoring** — Performance tracking
+13) **CI/CD** — Automated deployment pipeline
+14) **Cost Management** — Resource optimization
+15) **Model Governance** — Version control and lineage tracking
 
 ---
 
@@ -238,16 +206,16 @@ Code push → CI (build/test) → Data validation (GE) → Train (SageMaker)
 **Infrastructure & Platform**
 - Terraform, Amazon EKS (Kubernetes), Amazon ECR, Amazon S3, Application Load Balancer
 
-**ML & Data Platform**
-- Amazon SageMaker (Training, Model Registry, Feature Store)
-- Great Expectations (data validation), AWS Glue/Athena (optional ETL & discovery)
+**ML Platform**
+- Amazon SageMaker (Training; optional Model Registry)
+- scikit-learn / XGBoost, pandas, numpy
 
 **Monitoring & Security**
 - Amazon CloudWatch (logs, metrics, dashboards, alarms)
-- AWS KMS, AWS CloudTrail, IAM with IRSA, AWS Secrets Manager
+- AWS CloudTrail auditing, IAM w/ IRSA, ECR image scanning, VPC endpoints (S3)
 
-**CI/CD & Automation**
-- GitHub Actions / Jenkins / GitLab CI (any CI supported)
+**CI/CD**
+- GitHub Actions / Jenkins / GitLab CI
 - Docker multi-stage builds
 - Kubernetes rolling updates; HPA
 
@@ -268,64 +236,65 @@ Code push → CI (build/test) → Data validation (GE) → Train (SageMaker)
 - ECR: `mlops/{service}` (e.g., `mlops/inference-api`)
 
 **Tags**
-`Project=PriceSensitivityMLOps`, `Environment=dev|stg|prod`, `Component=infra|ml|app`, `Owner=DataTeam`, `CostCenter=ML-Platform`
+`Project=RetailPredictionMLOps`, `Environment=dev|stg|prod`, `Component=infra|ml|app`, `Owner=DataTeam`, `CostCenter=ML-Platform`
 
 ---
 
 ## Acceptance Criteria
-- **Infra** provisioned by Terraform; state managed
-- **ML Training** completes with metrics (accuracy, F1) logged and **model registered**
-- **Deployment**: `/predict` reachable via ALB; **P95 latency < 200 ms**
-- **Scaling**: HPA scales from 2 to 10 replicas based on CPU/QPS
-- **Security**: S3/EBS/KMS encryption; IRSA; CloudTrail enabled
-- **Monitoring**: Dashboards + alarms for model & system KPIs
-- **CI/CD**: Code push triggers **validate → train → register → deploy**
-- **Cost**: Spot for batch; lifecycle policies; off-hours scale-down
+- **Infrastructure** provisioned by Terraform with state managed  
+- **Training** completes with metrics (accuracy, F1) logged and **model artifacts saved to S3** (and optionally **registered**)  
+- **Deployment**: `/predict` reachable via ALB; **P95 latency < 200 ms**  
+- **Scaling**: HPA scales from 2 to 10 replicas based on CPU/QPS  
+- **Security**: IRSA least-privilege; CloudTrail enabled; private networking with S3 endpoints  
+- **Monitoring**: Dashboards + alarms for model & system KPIs  
+- **CI/CD**: Code push triggers **build → train → (register) → deploy → checks**  
+- **Cost**: Spot for batch; scale down off-hours; teardown after demo
 
 ---
 
 ## Monitoring & Security
-- **Logs**: EKS pods, SageMaker jobs, infra logs centralized in CloudWatch
-- **Metrics**: P50/P95 latency, error rate, QPS, model accuracy trend
-- **Alarms**: Threshold breaches trigger SNS notifications
-- **Security**: KMS encryption, IAM least-privilege, VPC-only endpoints
-- **Audit**: CloudTrail for all API activity; ECR image scan results gated in CI
+- **Logs**: EKS pods & SageMaker jobs centralized in CloudWatch  
+- **Metrics**: P50/P95 latency, error rate, QPS, model accuracy trend  
+- **Alarms**: Threshold breaches trigger SNS notifications  
+- **Security**: IAM least-privilege with IRSA; VPC-only S3 endpoints; ECR image scan gates in CI  
+- **Audit**: CloudTrail for all API activity
 
 ---
 
-## CI/CD & DataOps
-- **Stages**: Code → Build → Test → Data Validate (GE) → Train → Register → Deploy → Monitor
-- **Model Registry gates**: automatic promotion to `staging/prod` on metric thresholds
-- **Rollback**: On GE failure or prod accuracy degradation
-- **Data versioning**: S3 object versioning + Glue Catalog schemas
+## CI/CD
+**Stages**: Code → Build → Test → Train (SageMaker) → (Register) → Deploy (EKS) → Post-deploy checks → Monitor  
+
+**Promotion gates**: automatic tag to `staging/prod` when metrics exceed thresholds.  
+**Rollback**: on deploy health check failure or SLA breach.
 
 ---
 
 ## Cost Optimization
-- **EC2 Spot** for batch training; right-size nodes for inference
-- **S3 Lifecycle**: Intelligent-Tiering for `raw/`, Glacier for logs & old artifacts
-- **Auto Scaling**: Node groups & HPA scale on demand
-- **Scheduling**: Shut down dev during off-hours
-- **Cost visibility**: Tags + Cost Explorer + CloudWatch billing alarms
+- **Train-first strategy**: run SageMaker training before provisioning ALB/Ingress  
+- **EC2 Spot** for batch training and worker nodes (non-critical)  
+- **S3 lifecycle & Intelligent-Tiering** for artifacts and datasets  
+- **Auto Scaling**: node groups & HPA scale on demand  
+- **Scheduling**: shut down dev during off-hours; use `terraform destroy` after demo  
+- **Visibility**: cost allocation tags + Cost Explorer + CloudWatch billing alarms
 
-**Estimated monthly costs** *(approximate, can be reduced for student use)*  
-- Dev: ~$50–150 (minimal resources, auto-shutdown enabled)  
-- Prod: ~$300–600 (scale up only if needed)
+**Student/dev cost ballpark**
+- Dev: ~$50–150 (minimal resources; aggressive teardown)  
+- Prod: ~$300–600 (depends on traffic & training frequency)
 
 ---
 
 ## FAQ
-**Q. Why EKS for inference?**  
-Kubernetes ecosystem, portability, and strong support for ML serving patterns (FastAPI/KServe/Triton).
+**Q. Why is retail prediction important?**  
+Understanding retail patterns helps optimize strategies and promotional campaigns for better revenue and customer satisfaction.
 
-**Q. Can I use a different CI/CD tool?**  
-Yes. GitHub Actions/GitLab/Jenkins are supported as long as they can build/push to ECR and deploy to EKS.
+**Q. How accurate is the retail prediction?**  
+The model achieves >80% accuracy with XGBoost, validated through cross-validation and continuous monitoring.
 
-**Q. How do we detect drift or degradation?**  
-CloudWatch custom metrics track accuracy and latency; alarms trigger rollback/promotion logic through CI/CD gates.
+**Q. How often should the model be retrained?**  
+Monthly retraining is recommended to capture changing customer behavior patterns and seasonal effects.
 
-**Q. Batch vs real-time?**  
-EKS handles real-time; SageMaker Batch Transform can be added for large offline scoring.
+**Q. What's the typical prediction latency?**  
+The API delivers predictions in <100ms at P95, suitable for real-time pricing decisions.
 
-**Q. Data privacy & compliance?**  
-KMS encryption, private subnets/VPC endpoints, CloudTrail audit, IAM least privilege.
+**Q. How is the model validated?**  
+Through cross-validation, historical backtesting, and continuous monitoring of prediction accuracy and business metrics.
