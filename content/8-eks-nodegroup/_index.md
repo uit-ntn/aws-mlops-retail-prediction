@@ -1,74 +1,29 @@
 ---
-title: "EKS Managed Node Group"
+title: "EKS Node Management"
 date: 2024-01-01T00:00:00+07:00
-weight: 5
+weight: 8
 chapter: false
-pre: "<b>5. </b>"
+pre: "<b>8. </b>"
 ---
+
+# 🧩 Task 8 – Node Management (Managed Node Group)
 
 ## 🎯 Mục tiêu
 
-Triển khai EKS Managed Node Group để cung cấp EC2 worker nodes cho EKS control plane (Task 4).
+Tạo và quản lý EKS Managed Node Group để cung cấp tài nguyên compute (EC2) cho các workload chạy trên Kubernetes như:
+- API Retail Prediction (FastAPI)
+- Batch job / training job nhỏ (nếu cần)
 
-Đảm bảo node group có khả năng auto-scaling, chạy workload inference API.
-
-Có thể kết hợp On-Demand + Spot Instances để tối ưu chi phí.
-
-Node group trải trên ≥2 AZ để tăng độ sẵn sàng.
+→ Đảm bảo cụm ổn định, tự động scale, tối ưu chi phí, và phù hợp với điều kiện Free Tier hoặc Spot Instance.
 
 ## 📥 Input
 
-- **Outputs từ Task 2** (VPC/Subnet/SG)
-- **Outputs từ Task 3** (IAM Role cho node group)
-- **Cluster EKS từ Task 4**
+- **EKS Cluster** từ Task 7 (mlops-retail-cluster)
+- **Hybrid VPC Architecture** từ Task 5 (private workload subnets)
+- **IAM Role cho Node Group** từ Task 2 (IAM Roles)
+- **ECR Repositories** từ Task 6 (mlops/retail-api container image)
 
-## 📌 Các bước chính
-
-1. **Tạo Managed Node Group**
-   - Sử dụng Terraform để định nghĩa node group
-   - Chọn instance type phù hợp (t3.medium/m5.large cho dev, GPU instance cho training/inference đặc thù)
-   - Cấu hình auto-scaling: min, max, desired capacity
-
-2. **Triển khai trên nhiều AZ**
-   - Node group phải trải ít nhất 2 AZ trong VPC để tăng tính sẵn sàng
-   - Private subnet thường được chọn làm placement cho node group
-
-3. **Tích hợp IAM Role**
-   - Node IAM Role với quyền pull image từ ECR, đọc/ghi S3, gửi log lên CloudWatch (qua VPC Endpoints nếu Task 2 đã tối ưu)
-
-4. **Auto-Scaling & Spot Optimization**
-   - Cho phép node group dùng Spot Instance để giảm chi phí (kèm fallback On-Demand)
-   - Có thể triển khai nhiều node group (VD: 1 On-Demand group cho core services, 1 Spot group cho workload batch)
-
-5. **Kiểm thử kết nối**
-   - Sau khi node group active, update kubeconfig
-   - Chạy lệnh `kubectl get nodes` để xác nhận node ở trạng thái Ready
-
-## ✅ Deliverables
-
-- **EKS Managed Node Group** chạy ổn định, trải trên nhiều AZ
-- **Node group có auto-scaling policy** hoạt động
-- **IAM Role gắn kèm**, đảm bảo pod có thể truy cập dịch vụ AWS (qua IRSA)
-
-## 📊 Acceptance Criteria
-
-- ✅ Node group trạng thái ACTIVE trên AWS Console
-- ✅ Lệnh `kubectl get nodes` hiển thị danh sách node Ready
-- ✅ Auto-scaling kích hoạt khi có workload tăng (nếu test HPA)
-- ✅ Node group có thể pull image từ ECR và gửi log lên CloudWatch
-
-## ⚠️ Gotchas
-
-- **Spot instance** có thể bị thu hồi bất kỳ lúc nào → cần mixed instance type hoặc fallback On-Demand
-- **Nếu thiếu quyền IAM** → node không pull được image từ ECR hoặc không ghi được log
-- **Quên cài metrics-server** trong cluster → HPA và autoscaler không hoạt động
-- **Nếu private subnet không có VPC Endpoint** → node không truy cập được ECR/S3/CloudWatch
-
-## Tổng quan
-
-**EC2 Managed Node Group** là tập hợp các EC2 instances được AWS EKS quản lý tự động, đóng vai trò worker nodes trong Kubernetes cluster. Đây là tài nguyên tính toán thực tế nơi các pods và services sẽ được triển khai.
-
-### Kiến trúc Node Group
+## 📌 Kiến trúc Node Group
 
 {{< mermaid >}}
 graph TB
@@ -76,270 +31,452 @@ graph TB
         CP[Control Plane<br/>Managed by AWS]
     end
     
-    subgraph "VPC"
-        subgraph "Private Subnet 1a"
-            N1[Worker Node 1<br/>t3.medium]
+    subgraph "Hybrid VPC (Private Subnets)"
+        subgraph "Free Tier Option"
+            direction TB
+            N1[Worker Node 1<br/>t2.micro<br/>FREE]
+            N2[Worker Node 2<br/>t2.micro<br/>FREE]
         end
-        subgraph "Private Subnet 1b"
-            N2[Worker Node 2<br/>t3.medium]
+        
+        subgraph "Production Option"
+            direction TB
+            S1[Worker Node 1<br/>t3.small (Spot)<br/>$0.012/h]
+            S2[Worker Node 2<br/>t3.small (Spot)<br/>$0.012/h]
         end
     end
     
     subgraph "AWS Services"
         ECR[ECR Registry<br/>Container Images]
         CW[CloudWatch<br/>Logs & Metrics]
-        S3[S3 Bucket<br/>Artifacts]
+        S3[S3 Bucket<br/>Model Artifacts]
     end
     
-    CP --> N1
-    CP --> N2
-    N1 --> ECR
-    N2 --> ECR
-    N1 --> CW
-    N2 --> CW
-    N1 --> S3
-    N2 --> S3
+    CP --> N1 & N2
+    CP --> S1 & S2
+    
+    N1 & N2 & S1 & S2 --> ECR
+    N1 & N2 & S1 & S2 --> CW
+    N1 & N2 & S1 & S2 --> S3
 {{< /mermaid >}}
 
-### Thành phần chính
+## 1. Tạo Node Group
 
-1. **EC2 Instances**: Worker nodes chạy Kubernetes kubelet
-2. **Auto Scaling Group**: Quản lý số lượng nodes tự động
-3. **Launch Template**: Template cấu hình cho EC2 instances
-4. **IAM Roles**: Quyền truy cập ECR, CloudWatch, VPC
-5. **Security Groups**: Kiểm soát network traffic
+### 1.1. Node Group Options Comparison
 
----
+| Parameter | Free Tier Option | Production Option |
+|-----------|------------------|-------------------|
+| **Instance Type** | t2.micro | t3.small (Spot) |
+| **vCPU** | 1 vCPU | 2 vCPU |
+| **Memory** | 1 GB RAM | 2 GB RAM |
+| **Cost** | FREE (750h/month) | ~$0.012 USD/h (70% savings) |
+| **Use Case** | Demo, test, video rubric | Production API, real workloads |
+| **Auto-scaling** | 1-4 nodes | 1-10 nodes |
+| **Node Storage** | 20GB gp3 | 20GB gp3 |
 
-## 1. Alternative: AWS Console Implementation
+### 1.2. Create Node Group via Console
 
-### 1.1. Node Group IAM Role Creation
+1. **Navigate to EKS Console:**
+   - AWS Console → EKS → mlops-retail-cluster → Compute → Add node group
 
-1. **Navigate to IAM Console:**
-   - Đăng nhập AWS Console
-   - Navigate to IAM → Roles
-   - Chọn "Create role"
-
-![Create Node Group Role](../images/05-eks-nodegroup/01-create-nodegroup-role.png)
-
-2. **Select Trusted Entity:**
+2. **Name & IAM Role:**
    ```
-   Trusted entity type: AWS service
-   Service or use case: EC2
+   Name: mlops-retail-nodegroup
+   Node IAM role: mlops-eks-node-role (từ Task 2)
    ```
 
-![Select Trusted Entity](../images/05-eks-nodegroup/02-select-trusted-entity.png)
-
-3. **Attach Required Policies:**
+3. **Compute Configuration (Free Tier):**
    ```
-   ✅ AmazonEKSWorkerNodePolicy
-   ✅ AmazonEKS_CNI_Policy  
-   ✅ AmazonEC2ContainerRegistryReadOnly
-   ✅ CloudWatchAgentServerPolicy
-   ```
-
-![Attach Policies](../images/05-eks-nodegroup/03-attach-policies.png)
-
-4. **Role Configuration:**
-   ```
-   Role name: mlops-retail-forecast-dev-nodegroup-role
-   Description: IAM role for EKS managed node group
-   ```
-
-![Role Configuration](../images/05-eks-nodegroup/04-role-configuration.png)
-
-### 1.2. Node Group Creation via Console
-
-1. **Navigate to EKS Cluster:**
-   - EKS Console → Clusters
-   - Chọn cluster: `mlops-retail-forecast-dev-cluster`
-   - Click "Compute" tab
-   - Chọn "Add node group"
-
-![Add Node Group](../images/05-eks-nodegroup/05-add-nodegroup.png)
-
-2. **Node Group Configuration:**
-   ```
-   Name: mlops-retail-forecast-dev-nodegroup
-   Node IAM role: mlops-retail-forecast-dev-nodegroup-role
-   Kubernetes labels:
-     - nodegroup-type: primary
-     - environment: dev
-   Kubernetes taints: None
-   ```
-
-![Node Group Config](../images/05-eks-nodegroup/06-nodegroup-config.png)
-
-3. **Compute and Scaling Configuration:**
-   ```
-   AMI type: Amazon Linux 2 (AL2_x86_64)
+   AMI type: Amazon Linux 2
    Capacity type: On-Demand
-   Instance types: t3.medium
-   Disk size: 20 GB
-   
-   Scaling configuration:
-   - Desired size: 2
-   - Minimum size: 1  
-   - Maximum size: 4
+   Instance type: t2.micro
+   Disk size: 20GB
    ```
 
-![Compute Scaling](../images/05-eks-nodegroup/07-compute-scaling.png)
-
-4. **Node Group Networking:**
+   **Compute Configuration (Production):**
    ```
-   Subnets:
-   ✅ mlops-retail-forecast-dev-private-ap-southeast-1a
-   ✅ mlops-retail-forecast-dev-private-ap-southeast-1b
-   
-   Configure SSH access:
-   ⬜ Enable SSH access (optional for debugging)
+   AMI type: Amazon Linux 2
+   Capacity type: Spot
+   Instance type: t3.small
+   Disk size: 20GB
    ```
 
-![Networking Config](../images/05-eks-nodegroup/08-networking-config.png)
-
-5. **Advanced Options:**
+4. **Scaling Configuration:**
    ```
-   User data: (Leave empty for standard AMI)
-   
-   EC2 tags:
-   - Name: mlops-retail-forecast-dev-worker-node
-   - Environment: dev
-   - Project: mlops-retail-forecast
-   - NodeGroup: primary
+   Desired size: 2
+   Minimum size: 1
+   Maximum size: 10
    ```
 
-![Advanced Options](../images/05-eks-nodegroup/09-advanced-options.png)
-
-### 1.3. Node Group Verification
-
-1. **Check Node Group Status:**
-   - EKS Console → Cluster → Compute tab
-   - Verify status: "Active"
-   - Check node count: 2/2 running
-
-![Node Group Status](../images/05-eks-nodegroup/10-nodegroup-status.png)
-
-2. **EC2 Instances Verification:**
-   - Navigate to EC2 Console
-   - Filter by tag: `aws:eks:cluster-name = mlops-retail-forecast-dev-cluster`
-   - Verify 2 instances running
-
-![EC2 Instances](../images/05-eks-nodegroup/11-ec2-instances.png)
-
-3. **Auto Scaling Group:**
-   - Navigate to EC2 Auto Scaling
-   - Find ASG: `eks-mlops-retail-forecast-dev-nodegroup-*`
-   - Verify desired/min/max capacity
-
-![Autoscaling Group](../images/05-eks-nodegroup/12-autoscaling-group.png)
-
-### 1.4. Kubernetes Nodes Verification
-
-1. **Configure kubectl Access:**
-   ```bash
-   # Update kubeconfig
-   aws eks update-kubeconfig --region ap-southeast-1 --name mlops-retail-forecast-dev-cluster
-   
-   # Verify cluster access
-   kubectl cluster-info
+5. **Networking Configuration:**
+   ```
+   Subnets: Select private workload subnets from Task 5
    ```
 
-![Kubectl Config](../images/05-eks-nodegroup/13-kubectl-config.png)
+6. **Review & Create Node Group**
 
-2. **Check Node Status:**
-   ```bash
-   # List all nodes
-   kubectl get nodes
-   
-   # Get detailed node information
-   kubectl get nodes -o wide
-   
-   # Describe specific node
-   kubectl describe node <node-name>
-   ```
+### 1.3. Create Node Group via eksctl (CLI)
 
-![Kubectl Nodes](../images/05-eks-nodegroup/14-kubectl-nodes.png)
+**Create file `scripts/create-nodegroup.sh`:**
 
-3. **Verify Node Labels and Capacity:**
-   ```bash
-   # Check node labels
-   kubectl get nodes --show-labels
-   
-   # Check node capacity and allocatable resources
-   kubectl describe nodes | grep -A 5 "Capacity\|Allocatable"
-   ```
+```bash
+#!/bin/bash
 
-![Node Details](../images/05-eks-nodegroup/15-node-details.png)
+# Choose appropriate node group type by uncommenting ONE of these blocks:
 
-{{% notice success %}}
-**🎯 Console Implementation Complete!**
+# === FREE TIER OPTION (t2.micro - 0$/month) ===
+eksctl create nodegroup \
+  --cluster mlops-retail-cluster \
+  --name mlops-retail-nodegroup-free \
+  --node-type t2.micro \
+  --nodes-min 1 --nodes-max 4 --nodes 2 \
+  --node-volume-size 20 \
+  --node-volume-type gp3 \
+  --node-private-networking \
+  --managed
 
-EKS Managed Node Group đã được tạo thành công với:
-- ✅ 2 worker nodes ở trạng thái Ready
-- ✅ IAM roles configured properly
-- ✅ Private subnet deployment
-- ✅ Auto scaling configured (1-4 nodes)
-- ✅ Proper tagging và labeling
-{{% /notice %}}
+# === PRODUCTION OPTION (t3.small Spot - ~$0.012/h) ===
+# eksctl create nodegroup \
+#   --cluster mlops-retail-cluster \
+#   --name mlops-retail-nodegroup \
+#   --instance-types t3.small \
+#   --nodes-min 1 --nodes-max 10 --nodes 2 \
+#   --node-volume-size 20 \
+#   --node-volume-type gp3 \
+#   --node-private-networking \
+#   --managed --spot
+```
 
-{{% notice info %}}
-**💡 Console vs Terraform:**
+**Run the script:**
+```bash
+chmod +x scripts/create-nodegroup.sh
+./scripts/create-nodegroup.sh
+```
 
-**Console Advantages:**
-- ✅ Visual node group creation wizard
-- ✅ Real-time scaling adjustments
-- ✅ Easy instance type changes
-- ✅ Integrated health monitoring
+## 2. Cấu hình Auto Scaling
 
-**Terraform Advantages:**
-- ✅ Infrastructure as Code
-- ✅ Consistent deployments
-- ✅ Version-controlled scaling policies
-- ✅ Automated launch template updates
+### 2.1. Install Cluster Autoscaler
 
-Khuyến nghị: Console cho learning, Terraform cho production.
-{{% /notice %}}
+**Create file `k8s/cluster-autoscaler.yaml`:**
 
+```yaml
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cluster-autoscaler
+  namespace: kube-system
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mlops-cluster-autoscaler-role
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-autoscaler
+rules:
+- apiGroups: [""]
+  resources: ["events", "endpoints"]
+  verbs: ["create", "patch"]
+- apiGroups: [""]
+  resources: ["pods/eviction"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["update"]
+- apiGroups: [""]
+  resources: ["endpoints"]
+  resourceNames: ["cluster-autoscaler"]
+  verbs: ["get", "update"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["watch", "list", "get", "update"]
+- apiGroups: [""]
+  resources: ["namespaces", "pods", "services", "replicationcontrollers", "persistentvolumeclaims", "persistentvolumes"]
+  verbs: ["watch", "list", "get"]
+- apiGroups: ["extensions"]
+  resources: ["replicasets", "daemonsets"]
+  verbs: ["watch", "list", "get"]
+- apiGroups: ["policy"]
+  resources: ["poddisruptionbudgets"]
+  verbs: ["watch", "list"]
+- apiGroups: ["apps"]
+  resources: ["statefulsets", "replicasets", "daemonsets"]
+  verbs: ["watch", "list", "get"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+  verbs: ["watch", "list", "get"]
+- apiGroups: ["batch", "extensions"]
+  resources: ["jobs"]
+  verbs: ["get", "list", "watch", "patch"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["create"]
+- apiGroups: ["coordination.k8s.io"]
+  resourceNames: ["cluster-autoscaler"]
+  resources: ["leases"]
+  verbs: ["get", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-autoscaler
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-autoscaler
+subjects:
+- kind: ServiceAccount
+  name: cluster-autoscaler
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-autoscaler
+  namespace: kube-system
+  labels:
+    app: cluster-autoscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-autoscaler
+  template:
+    metadata:
+      labels:
+        app: cluster-autoscaler
+      annotations:
+        cluster-autoscaler.kubernetes.io/safe-to-evict: "false"
+    spec:
+      serviceAccountName: cluster-autoscaler
+      containers:
+      - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.23.0
+        name: cluster-autoscaler
+        resources:
+          limits:
+            cpu: 100m
+            memory: 300Mi
+          requests:
+            cpu: 100m
+            memory: 300Mi
+        command:
+        - ./cluster-autoscaler
+        - --v=4
+        - --stderrthreshold=info
+        - --cloud-provider=aws
+        - --skip-nodes-with-local-storage=false
+        - --expander=least-waste
+        - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/mlops-retail-cluster
+        - --balance-similar-node-groups
+        - --skip-nodes-with-system-pods=false
+        volumeMounts:
+        - name: ssl-certs
+          mountPath: /etc/ssl/certs/ca-certificates.crt
+          readOnly: true
+      volumes:
+      - name: ssl-certs
+        hostPath:
+          path: "/etc/ssl/certs/ca-bundle.crt"
+```
 
-## 2. Terraform cho Advanced Node Group Strategies
+**Deploy Cluster Autoscaler:**
 
-{{% notice info %}}
-**💡 Khi nào cần Terraform cho Node Groups:**
-- ✅ **Multiple node groups** với different purposes (On-Demand + Spot)
-- ✅ **Cost optimization** với mixed instance types và capacity strategies  
-- ✅ **Advanced workload isolation** với taints/tolerations
-- ✅ **Custom launch templates** với specialized configurations
-- ✅ **Production automation** với consistent scaling policies
+```bash
+# Replace ACCOUNT_ID with your AWS account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+sed "s/ACCOUNT_ID/$ACCOUNT_ID/g" k8s/cluster-autoscaler.yaml | kubectl apply -f -
 
-**Console đủ cho:** Single node group, basic scaling, standard configurations
-{{% /notice %}}
+# Verify deployment
+kubectl get deployment cluster-autoscaler -n kube-system
+```
 
-### 2.0. Terraform Code Purpose & Expected Results
+### 2.2. Configure IAM Role for Cluster Autoscaler
 
-{{% notice success %}}
-**🎯 Mục đích của Terraform code trong Task 5:**
+**Create file `scripts/create-cluster-autoscaler-role.sh`:**
 
-**Input:** 
-- EKS cluster từ Task 4 (cluster name, endpoint)
-- VPC infrastructure từ Task 2 (private subnets)
-- IAM roles từ Task 3 (node group role với ECR, S3, CloudWatch permissions)
+```bash
+#!/bin/bash
 
-**Terraform sẽ làm gì:**
-1. **Reference existing EKS cluster** từ Task 4 (không tạo mới)
-2. **Create multiple node groups** với different strategies (On-Demand + Spot)
-3. **Configure cost optimization** với mixed instance types và capacity types
-4. **Setup workload isolation** với node taints và labels
-5. **Enable auto-scaling** với intelligent scaling policies
+# Configuration
+CLUSTER_NAME="mlops-retail-cluster"
+REGION="ap-southeast-1"
+ROLE_NAME="mlops-cluster-autoscaler-role"
+POLICY_NAME="mlops-cluster-autoscaler-policy"
 
-**Kết quả sau khi chạy:**
-- ✅ Multiple node groups ACTIVE (On-Demand + Spot)
-- ✅ Cost optimization: 47-70% savings với Spot instances
-- ✅ Workload isolation: Core services vs Batch workloads
-- ✅ Auto-scaling: Nodes scale based on pod demand
-- ✅ High availability: Nodes trải đều trên multiple AZ
-- ✅ Production ready: Proper taints, labels, resource limits
-{{% /notice %}}
+# Get OIDC issuer and account ID
+OIDC_ISSUER=$(aws eks describe-cluster \
+    --name $CLUSTER_NAME \
+    --region $REGION \
+    --query "cluster.identity.oidc.issuer" \
+    --output text | sed 's|https://||')
+
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+echo "🔧 Creating IAM role for Cluster Autoscaler..."
+
+# Create trust policy
+cat > autoscaler-trust-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/${OIDC_ISSUER}"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "${OIDC_ISSUER}:sub": "system:serviceaccount:kube-system:cluster-autoscaler",
+          "${OIDC_ISSUER}:aud": "sts.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
+EOF
+
+# Create IAM role
+aws iam create-role \
+    --role-name $ROLE_NAME \
+    --assume-role-policy-document file://autoscaler-trust-policy.json \
+    --description "IRSA role for EKS Cluster Autoscaler"
+
+# Create autoscaler policy
+cat > autoscaler-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "autoscaling:DescribeAutoScalingGroups",
+        "autoscaling:DescribeAutoScalingInstances",
+        "autoscaling:DescribeLaunchConfigurations",
+        "autoscaling:DescribeTags",
+        "autoscaling:SetDesiredCapacity",
+        "autoscaling:TerminateInstanceInAutoScalingGroup",
+        "ec2:DescribeLaunchTemplateVersions"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+
+# Create and attach policy
+aws iam create-policy \
+    --policy-name $POLICY_NAME \
+    --policy-document file://autoscaler-policy.json \
+    --description "Cluster Autoscaler permissions"
+
+aws iam attach-role-policy \
+    --role-name $ROLE_NAME \
+    --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/${POLICY_NAME}
+
+# Clean up
+rm autoscaler-trust-policy.json autoscaler-policy.json
+
+echo "✅ Cluster Autoscaler role created successfully!"
+echo "Role ARN: arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
+```
+
+**Run the script:**
+```bash
+chmod +x scripts/create-cluster-autoscaler-role.sh
+./scripts/create-cluster-autoscaler-role.sh
+```
+
+### 2.3. Configure Horizontal Pod Autoscaler (HPA)
+
+**Create file `k8s/retail-api-hpa.yaml`:**
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: retail-api-hpa
+  namespace: mlops-retail-forecast
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: retail-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+```
+
+**Deploy HPA:**
+```bash
+kubectl apply -f k8s/retail-api-hpa.yaml
+
+# Verify HPA
+kubectl get hpa -n mlops-retail-forecast
+```
+
+### 2.4. Install Metrics Server (if not already installed)
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+# Verify metrics server
+kubectl get deployment metrics-server -n kube-system
+```
+
+## 3. IAM & Quyền truy cập
+
+### 3.1. Node Group IAM Role Permissions
+
+**Required Permissions for Node Group:**
+
+```
+- AmazonEKSWorkerNodePolicy
+- AmazonEKS_CNI_Policy
+- AmazonEC2ContainerRegistryReadOnly
+- AmazonS3ReadOnlyAccess
+```
+
+**Create file `scripts/update-node-role.sh`:**
+
+```bash
+#!/bin/bash
+
+# Configuration
+NODE_ROLE_NAME="mlops-eks-node-role"
+
+echo "🔧 Updating node group IAM role permissions..."
+
+# Attach required policies
+aws iam attach-role-policy \
+    --role-name $NODE_ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+
+aws iam attach-role-policy \
+    --role-name $NODE_ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+aws iam attach-role-policy \
+    --role-name $NODE_ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+aws iam attach-role-policy \
+    --role-name $NODE_ROLE_NAME \
+    --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+
+echo "✅ Node role permissions updated!"
+```
 
 ### 2.1. Cost-Optimized Multi-Node Group Strategy
 

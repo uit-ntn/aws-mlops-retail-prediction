@@ -1,98 +1,120 @@
 ---
-title: "Docker Build & Push"
+title: "API Containerization"
 date: 2024-01-01T00:00:00+07:00
-weight: 7
+weight: 9
 chapter: false
-pre: "<b>7. </b>"
+pre: "<b>9. </b>"
 ---
 
 {{% notice info %}}
-**🎯 Mục tiêu Task 7:**
+**🎯 Mục tiêu Task 9:**
 
-Đóng gói ứng dụng inference (FastAPI) thành Docker image và đẩy lên Amazon ECR để chuẩn bị triển khai trên EKS, đảm bảo reproducibility và automation trong CI/CD pipeline.
+Đóng gói toàn bộ Retail Prediction API (FastAPI + model đã huấn luyện) vào Docker image, sẵn sàng để deploy lên EKS.
+→ Đảm bảo môi trường thống nhất, dễ tái sử dụng và tích hợp liền mạch với CI/CD & ECR.
 {{% /notice %}}
 
 ## Tổng quan
 
-**Docker Build & Push** là quy trình quan trọng trong MLOps pipeline, chuyển đổi source code thành container images sẵn sàng triển khai. Task này tập trung vào việc containerize ML inference application và tích hợp với ECR registry.
+**API Containerization** là bước quan trọng trong MLOps pipeline, đóng gói ứng dụng dự đoán (Prediction API) thành container image để triển khai trên Kubernetes. Task này tập trung vào việc containerize Retail Prediction API với model đã huấn luyện và tích hợp với ECR registry.
 
-### Kiến trúc Docker Build Pipeline
+### Kiến trúc API Container
 
 {{< mermaid >}}
 graph TB
-    subgraph "Source Code"
-        SRC[server/<br/>FastAPI Application]
-        REQ[requirements.txt<br/>Dependencies]
-        DOCKER[Dockerfile<br/>Build Instructions]
+    subgraph "API Components"
+        FASTAPI[FastAPI Application]
+        MODEL[ML Model]
+        PREPROC[Data Preprocessing]
+        CONFIG[Configuration]
     end
     
-    subgraph "Build Process"
-        BUILD[Docker Build<br/>Multi-stage]
-        TAG[Image Tagging<br/>latest + git-sha]
-        TEST[Image Testing<br/>Health Checks]
+    subgraph "Container Architecture"
+        APP[app/<br/>Application Code]
+        S3[S3 Connection<br/>Model Loading]
+        HEALTH[Health Checks<br/>Readiness/Liveness]
+        LOGGING[Structured Logging]
     end
     
-    subgraph "ECR Registry"
-        PUSH[Docker Push<br/>Multiple Tags]
-        SCAN[Vulnerability Scan<br/>On Push]
-        STORE[Image Storage<br/>Lifecycle Managed]
+    subgraph "Docker Container"
+        CODE[Application Code]
+        DEPS[Python Dependencies]
+        RUNTIME[Python Runtime]
+        NONROOT[Non-Root User]
     end
     
-    subgraph "EKS Deployment"
-        PULL[Image Pull<br/>From EKS Nodes]
-        DEPLOY[Pod Deployment<br/>Application Running]
+    subgraph "Deployment Flow"
+        BUILD[Docker Build]
+        PUSH[ECR Push]
+        DEPLOY[K8s Deployment]
+        SCALE[Auto Scaling]
     end
     
-    SRC --> BUILD
-    REQ --> BUILD
-    DOCKER --> BUILD
-    BUILD --> TAG
-    TAG --> TEST
-    TEST --> PUSH
-    PUSH --> SCAN
-    SCAN --> STORE
-    STORE --> PULL
-    PULL --> DEPLOY
+    FASTAPI --> APP
+    MODEL --> S3
+    PREPROC --> APP
+    CONFIG --> APP
+    
+    APP --> CODE
+    S3 --> CODE
+    HEALTH --> CODE
+    LOGGING --> CODE
+    
+    CODE --> BUILD
+    DEPS --> BUILD
+    BUILD --> PUSH
+    PUSH --> DEPLOY
+    DEPLOY --> SCALE
 {{< /mermaid >}}
 
 ### Thành phần chính
 
-1. **FastAPI Application**: ML inference service
-2. **Dockerfile**: Multi-stage build optimization
-3. **Requirements Management**: Python dependencies
-4. **Build Automation**: Scripts và CI/CD integration
-5. **Image Versioning**: Git-based tagging strategy
+1. **API Application**: FastAPI application với endpoint dự đoán BASKET_PRICE_SENSITIVITY
+2. **Model Integration**: Tải model artifacts từ S3 khi container khởi động
+3. **Dockerfile**: Multi-stage build để tối ưu kích thước và bảo mật
+4. **S3 Connectivity**: Kết nối với model storage thông qua IAM roles
+5. **CI/CD Integration**: Tự động build và deploy khi code thay đổi
 
 ---
 
-## 1. Alternative: Manual Build via Console/Local
+## 1. Cấu trúc API và Implementation
 
-### 1.1. FastAPI Inference Application
+### 1.1. Cấu trúc thư mục API
 
-**Tạo `server/main.py` - FastAPI Application:**
+```
+server/
+├── app/
+│   ├── main.py           # FastAPI application
+│   ├── predict.py        # Model inference logic
+│   └── utils/            # Data preprocessing
+├── Dockerfile            # Multi-stage build
+└── requirements.txt      # Python dependencies
+```
+
+### 1.2. FastAPI Application
+
+**Tạo `server/app/main.py` - FastAPI Application:**
 
 ```python
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import joblib
-import numpy as np
-import pandas as pd
-import boto3
+from pydantic import BaseModel, Field
 import logging
-from typing import List, Dict, Any
+import uuid
+from typing import Dict, Any, Optional
 import os
 from datetime import datetime
 import uvicorn
 
+from app.predict import PriceModel
+from app.utils.logging import setup_logger
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = setup_logger("retail-api")
 
 # FastAPI app initialization
 app = FastAPI(
-    title="Retail Forecast ML API",
-    description="Machine Learning inference API for retail sales forecasting",
+    title="Retail Price Sensitivity API",
+    description="ML API for predicting basket price sensitivity",
     version="1.0.0"
 )
 
@@ -106,200 +128,491 @@ app.add_middleware(
 )
 
 # Pydantic models
-class ForecastRequest(BaseModel):
-    """Request model for forecast prediction"""
-    features: Dict[str, Any]
-    horizon: int = 30  # forecast horizon in days
-    
-class ForecastResponse(BaseModel):
-    """Response model for forecast prediction"""
-    predictions: List[float]
-    confidence_intervals: List[Dict[str, float]]
-    metadata: Dict[str, Any]
+class BasketItem(BaseModel):
+    product_id: str
+    quantity: int
+    price: float
+    category: Optional[str] = None
 
-class HealthResponse(BaseModel):
-    """Health check response model"""
-    status: str
-    timestamp: str
-    version: str
-    model_loaded: bool
+class PredictionRequest(BaseModel):
+    basket_items: Dict[str, Any]
+    customer_id: Optional[str] = None
+    store_id: Optional[str] = None
+    timestamp: Optional[datetime] = None
 
-# Global variables
+class PredictionResponse(BaseModel):
+    sensitivity: str = Field(..., description="Price sensitivity level: Low, Medium, or High")
+    confidence: float = Field(..., description="Confidence score of prediction")
+    prediction_id: str = Field(..., description="Unique identifier for this prediction")
+    model_version: str = Field(..., description="Version of the model used")
+    timestamp: datetime = Field(..., description="Time when prediction was made")
+
+# Initialize model
 model = None
-model_metadata = {}
-
-# Model loading
-def load_model():
-    """Load ML model from S3 or local storage"""
-    global model, model_metadata
-    
-    try:
-        # Try loading from S3 first
-        if os.getenv("AWS_REGION"):
-            s3_client = boto3.client('s3')
-            bucket_name = os.getenv("MODEL_BUCKET", "mlops-retail-forecast-dev-models")
-            model_key = os.getenv("MODEL_KEY", "models/retail_forecast_model.pkl")
-            
-            try:
-                # Download model from S3
-                s3_client.download_file(bucket_name, model_key, "/tmp/model.pkl")
-                model = joblib.load("/tmp/model.pkl")
-                logger.info(f"Model loaded from S3: s3://{bucket_name}/{model_key}")
-            except Exception as e:
-                logger.warning(f"Failed to load from S3: {e}")
-                # Fall back to local model
-                model = joblib.load("model/retail_forecast_model.pkl")
-                logger.info("Model loaded from local storage")
-        else:
-            # Local development
-            model = joblib.load("model/retail_forecast_model.pkl")
-            logger.info("Model loaded from local storage")
-            
-        model_metadata = {
-            "model_type": "RandomForestRegressor",
-            "features": ["month", "season", "promotion", "holiday", "temperature"],
-            "target": "sales",
-            "training_date": "2024-01-01",
-            "model_version": "v1.0.0"
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        model = None
 
 @app.on_event("startup")
 async def startup_event():
-    """Application startup event"""
-    logger.info("Starting Retail Forecast API...")
-    load_model()
+    """Load model on startup"""
+    global model
+    logger.info("Starting up Retail Price Sensitivity API")
+    
+    try:
+        model = PriceModel()
+        await model.load_model()
+        logger.info(f"Model loaded successfully: version {model.version}")
+    except Exception as e:
+        logger.error(f"Failed to load model: {str(e)}")
+        model = None
 
-@app.get("/", response_model=Dict[str, str])
+@app.get("/")
 async def root():
     """Root endpoint"""
     return {
-        "message": "Retail Forecast ML API",
+        "message": "Retail Price Sensitivity Prediction API",
         "version": "1.0.0",
         "status": "running"
     }
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return HealthResponse(
-        status="healthy" if model is not None else "unhealthy",
-        timestamp=datetime.utcnow().isoformat(),
-        version="1.0.0",
-        model_loaded=model is not None
-    )
+    is_healthy = model is not None and model.is_loaded
+    
+    if not is_healthy:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+        
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": model.version if model else "unknown",
+        "model_loaded": is_healthy
+    }
 
 @app.get("/ready")
-async def readiness_check():
-    """Readiness check for Kubernetes"""
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+async def readiness():
+    """Kubernetes readiness probe"""
+    if model is None or not model.is_loaded:
+        raise HTTPException(status_code=503, detail="Model not ready")
     return {"status": "ready"}
 
-@app.post("/predict", response_model=ForecastResponse)
-async def predict(request: ForecastRequest):
-    """Main prediction endpoint"""
+@app.post("/predict", response_model=PredictionResponse)
+async def predict(request: PredictionRequest):
+    """Predict price sensitivity for a basket"""
     
-    if model is None:
+    if model is None or not model.is_loaded:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
-        # Process input features
-        features_df = pd.DataFrame([request.features])
-        
-        # Make predictions
-        predictions = model.predict(features_df).tolist()
-        
-        # Generate confidence intervals (mock implementation)
-        confidence_intervals = []
-        for pred in predictions:
-            confidence_intervals.append({
-                "lower": pred * 0.9,
-                "upper": pred * 1.1,
-                "confidence": 0.95
-            })
-        
-        return ForecastResponse(
-            predictions=predictions,
-            confidence_intervals=confidence_intervals,
-            metadata={
-                "model_version": model_metadata.get("model_version", "unknown"),
-                "prediction_timestamp": datetime.utcnow().isoformat(),
-                "horizon": request.horizon
-            }
+        # Process the basket items and make prediction
+        result = await model.predict(
+            basket_items=request.basket_items,
+            customer_id=request.customer_id,
+            store_id=request.store_id
         )
         
+        # Return formatted response
+        return PredictionResponse(
+            sensitivity=result["sensitivity"],
+            confidence=result["confidence"],
+            prediction_id=str(uuid.uuid4()),
+            model_version=model.version,
+            timestamp=datetime.utcnow()
+        )
+    except ValueError as e:
+        logger.warning(f"Invalid input: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-
-@app.get("/model/info")
-async def model_info():
-    """Get model information"""
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    
-    return model_metadata
+        logger.error(f"Prediction error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Prediction failed")
 
 @app.post("/model/reload")
 async def reload_model(background_tasks: BackgroundTasks):
     """Reload model in background"""
-    background_tasks.add_task(load_model)
+    global model
+    
+    async def _reload():
+        global model
+        try:
+            if model is None:
+                model = PriceModel()
+            await model.load_model(force_reload=True)
+            logger.info("Model reloaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to reload model: {str(e)}")
+    
+    background_tasks.add_task(_reload)
     return {"message": "Model reload initiated"}
 
+@app.get("/model/info")
+async def model_info():
+    """Get model information"""
+    if model is None or not model.is_loaded:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    return {
+        "version": model.version,
+        "features": model.features,
+        "model_type": model.model_type,
+        "loaded_at": model.loaded_at.isoformat() if model.loaded_at else None,
+        "metrics": model.metrics
+    }
+
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
+    port = int(os.environ.get("PORT", "8080"))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, log_level="info")
 ```
+
+### 1.3. Model Prediction Logic
+
+**Tạo `server/app/predict.py` - Model Integration Logic:**
+
+```python
+import os
+import boto3
+import joblib
+import tarfile
+import tempfile
+import asyncio
+import logging
+import numpy as np
+import pandas as pd
+from datetime import datetime
+from typing import Dict, Any, List, Optional, Tuple
+
+from app.utils.preprocessing import preprocess_basket
+
+logger = logging.getLogger("retail-api.predict")
+
+class PriceModel:
+    """Price sensitivity prediction model"""
+    
+    def __init__(self):
+        """Initialize the model"""
+        self.model = None
+        self.is_loaded = False
+        self.version = "unknown"
+        self.features = []
+        self.model_type = "unknown"
+        self.loaded_at = None
+        self.metrics = {}
+        
+        # Model S3 location
+        self.bucket = os.environ.get("MODEL_BUCKET", "mlops-retail-models")
+        self.model_key = os.environ.get("MODEL_KEY", "artifacts/model-v1/model.tar.gz")
+        self.region = os.environ.get("AWS_REGION", "ap-southeast-1")
+    
+    async def load_model(self, force_reload: bool = False):
+        """Load model from S3 or local storage"""
+        if self.is_loaded and not force_reload:
+            logger.info("Model already loaded")
+            return
+            
+        try:
+            # Create temp directory for model artifacts
+            temp_dir = tempfile.mkdtemp()
+            model_file = os.path.join(temp_dir, "model.tar.gz")
+            
+            # Download model from S3 if in AWS environment
+            if os.environ.get("AWS_REGION"):
+                logger.info(f"Downloading model from S3: s3://{self.bucket}/{self.model_key}")
+                
+                # Use asyncio to not block the event loop
+                await asyncio.to_thread(
+                    self._download_from_s3, 
+                    self.bucket, 
+                    self.model_key, 
+                    model_file
+                )
+            else:
+                # For local development use local file
+                model_file = os.environ.get("MODEL_PATH", "model/model.tar.gz")
+                if not os.path.exists(model_file):
+                    raise FileNotFoundError(f"Model file not found at {model_file}")
+                
+            # Extract and load the model
+            logger.info("Loading model from file")
+            await asyncio.to_thread(self._load_from_tarfile, model_file)
+            
+            self.is_loaded = True
+            self.loaded_at = datetime.utcnow()
+            logger.info(f"Model loaded successfully: {self.model_type} (version {self.version})")
+            
+        except Exception as e:
+            logger.error(f"Failed to load model: {str(e)}")
+            self.is_loaded = False
+            raise
+    
+    def _download_from_s3(self, bucket: str, key: str, local_path: str):
+        """Download model file from S3"""
+        try:
+            s3_client = boto3.client('s3', region_name=self.region)
+            s3_client.download_file(bucket, key, local_path)
+            logger.info(f"Model downloaded from S3 to {local_path}")
+        except Exception as e:
+            logger.error(f"Failed to download from S3: {str(e)}")
+            raise
+    
+    def _load_from_tarfile(self, tarfile_path: str):
+        """Extract and load model from tarfile"""
+        extract_dir = tempfile.mkdtemp()
+        
+        try:
+            # Extract tar.gz file
+            with tarfile.open(tarfile_path, "r:gz") as tar:
+                tar.extractall(path=extract_dir)
+            
+            # Load model and metadata
+            self.model = joblib.load(os.path.join(extract_dir, "model.joblib"))
+            
+            # Load metadata if available
+            metadata_path = os.path.join(extract_dir, "metadata.json")
+            if os.path.exists(metadata_path):
+                import json
+                with open(metadata_path, "r") as f:
+                    metadata = json.load(f)
+                
+                self.version = metadata.get("version", "1.0.0")
+                self.model_type = metadata.get("model_type", "RandomForestClassifier")
+                self.features = metadata.get("features", [])
+                self.metrics = metadata.get("metrics", {})
+            else:
+                # Default metadata
+                self.version = "1.0.0"
+                self.model_type = "RandomForestClassifier"
+                self.features = ["total_items", "total_value", "avg_item_value", "category_ratio"]
+        
+        except Exception as e:
+            logger.error(f"Error loading model from tarfile: {str(e)}")
+            raise
+        finally:
+            # Clean up
+            import shutil
+            shutil.rmtree(extract_dir, ignore_errors=True)
+    
+    async def predict(self, basket_items: Dict[str, Any], 
+                     customer_id: Optional[str] = None,
+                     store_id: Optional[str] = None) -> Dict[str, Any]:
+        """Make price sensitivity prediction"""
+        if not self.is_loaded:
+            raise ValueError("Model not loaded")
+        
+        try:
+            # Preprocess basket items
+            features = preprocess_basket(basket_items, customer_id, store_id)
+            
+            # Create features DataFrame
+            features_df = pd.DataFrame([features])
+            
+            # Ensure all model features are present
+            for feature in self.features:
+                if feature not in features_df:
+                    features_df[feature] = 0
+            
+            # Use only the features expected by the model
+            if self.features:
+                features_df = features_df[self.features]
+            
+            # Run prediction in a separate thread to avoid blocking
+            prediction = await asyncio.to_thread(self._run_prediction, features_df)
+            
+            # Map numerical class to sensitivity label
+            sensitivity = self._map_to_sensitivity(prediction["class"])
+            
+            return {
+                "sensitivity": sensitivity,
+                "confidence": prediction["probability"],
+                "class": prediction["class"]
+            }
+        
+        except Exception as e:
+            logger.error(f"Prediction error: {str(e)}")
+            raise
+    
+    def _run_prediction(self, features_df: pd.DataFrame) -> Dict[str, Any]:
+        """Run the actual prediction (called in a separate thread)"""
+        # Get probability predictions
+        probabilities = self.model.predict_proba(features_df)
+        
+        # Get class with highest probability
+        class_idx = np.argmax(probabilities[0])
+        probability = float(probabilities[0][class_idx])
+        
+        return {
+            "class": int(class_idx),
+            "probability": probability
+        }
+    
+    def _map_to_sensitivity(self, class_idx: int) -> str:
+        """Map numerical class to sensitivity label"""
+        sensitivity_map = {
+            0: "Low",
+            1: "Medium",
+            2: "High"
+        }
+        return sensitivity_map.get(class_idx, "Unknown")
+```
+
+### 1.4. Preprocessing Utility
+
+**Tạo `server/app/utils/preprocessing.py` - Data Preprocessing:**
+
+```python
+from typing import Dict, Any, Optional, List
+import numpy as np
+
+def preprocess_basket(basket_items: Dict[str, Any], 
+                     customer_id: Optional[str] = None,
+                     store_id: Optional[str] = None) -> Dict[str, float]:
+    """
+    Preprocess basket data for model input
+    
+    Args:
+        basket_items: Dictionary of basket items with product info
+        customer_id: Optional customer identifier
+        store_id: Optional store identifier
+        
+    Returns:
+        Dictionary of features for model input
+    """
+    # Initialize features
+    features = {}
+    
+    # Extract basic basket metrics
+    total_items = sum(item.get("quantity", 1) for item in basket_items.values())
+    total_value = sum(item.get("price", 0) * item.get("quantity", 1) 
+                      for item in basket_items.values())
+    
+    # Calculate average metrics
+    features["total_items"] = total_items
+    features["total_value"] = total_value
+    features["avg_item_value"] = total_value / total_items if total_items > 0 else 0
+    features["unique_items"] = len(basket_items)
+    
+    # Add customer/store features
+    features["has_customer_id"] = 1.0 if customer_id else 0.0
+    features["has_store_id"] = 1.0 if store_id else 0.0
+    
+    # Process category information
+    categories = {}
+    for item_id, item in basket_items.items():
+        category = item.get("category", "unknown")
+        if category not in categories:
+            categories[category] = 0
+        categories[category] += item.get("quantity", 1)
+    
+    # Add category features
+    for category, count in categories.items():
+        # Category counts
+        features[f"category_{category}_count"] = count
+        
+        # Category ratios
+        features[f"category_{category}_ratio"] = count / total_items if total_items > 0 else 0
+    
+    # Add derived features
+    features["high_value_item_ratio"] = sum(
+        1 for item in basket_items.values() if item.get("price", 0) > 50
+    ) / len(basket_items) if basket_items else 0
+    
+    return features
+```
+
+### 1.5. Logging Setup
+
+**Tạo `server/app/utils/logging.py` - Logging Configuration:**
+
+```python
+import logging
+import sys
+from logging.handlers import RotatingFileHandler
+import os
+
+def setup_logger(name: str, log_level: str = None, log_file: str = None):
+    """Setup logger with consistent configuration"""
+    
+    if log_level is None:
+        log_level = os.environ.get("LOG_LEVEL", "INFO")
+    
+    # Get numeric log level
+    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
+    
+    # Create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(numeric_level)
+    
+    # Check if logger already has handlers
+    if logger.hasHandlers():
+        logger.handlers.clear()
+    
+    # Create formatter
+    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    formatter = logging.Formatter(log_format)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # Create file handler if specified
+    if log_file:
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        
+        file_handler = RotatingFileHandler(
+            log_file, maxBytes=10485760, backupCount=5
+        )
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    # Reduce noise from other loggers
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("uvicorn").setLevel(logging.WARNING)
+    logging.getLogger("boto3").setLevel(logging.WARNING)
+    logging.getLogger("botocore").setLevel(logging.WARNING)
+    
+    return logger
+```
+
+### 1.6. Application Requirements
 
 **Tạo `server/requirements.txt` - Python Dependencies:**
 
 ```txt
+# API Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
+
+# Data Processing
 pandas==2.1.4
 numpy==1.25.2
 scikit-learn==1.3.2
 joblib==1.3.2
+
+# AWS Integration
 boto3==1.34.0
 botocore==1.34.0
+
+# Utilities
 python-multipart==0.0.6
 aiofiles==23.2.1
 httpx==0.25.2
+requests==2.31.0
+
+# Testing
 pytest==7.4.3
 pytest-asyncio==0.21.1
-requests==2.31.0
 ```
 
-{{< imgborder src="/images/07-docker-build/01-fastapi-application.png" title="FastAPI inference application structure" >}}
+## 2. Dockerfile Configuration
 
-### 1.2. Dockerfile Configuration
+### 2.1. Multi-stage Dockerfile
 
 **Tạo `server/Dockerfile` - Multi-stage Build:**
 
 ```dockerfile
-# Multi-stage build for production optimization
+# Stage 1: Build dependencies
 FROM python:3.9-slim as builder
-
-# Set build arguments
-ARG BUILD_DATE
-ARG GIT_COMMIT
-ARG GIT_BRANCH
-
-# Add metadata labels
-LABEL maintainer="MLOps Team"
-LABEL build_date=$BUILD_DATE
-LABEL git_commit=$GIT_COMMIT
-LABEL git_branch=$GIT_BRANCH
-LABEL description="Retail Forecast ML Inference API"
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -311,12 +624,36 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy and install Python dependencies
+# Copy and install requirements
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Production stage
+# Install Python dependencies to a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime image
 FROM python:3.9-slim
+
+# Set build arguments
+ARG BUILD_DATE
+ARG GIT_COMMIT
+ARG GIT_BRANCH
+
+# Add metadata labels
+LABEL maintainer="MLOps Team"
+LABEL build_date=$BUILD_DATE
+LABEL git_commit=$GIT_COMMIT
+LABEL git_branch=$GIT_BRANCH
+LABEL description="Retail Price Sensitivity API"
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
+ENV PYTHONPATH="/app"
+ENV PORT=8080
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -324,45 +661,98 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Create non-root user
+RUN groupadd -r appuser && useradd --no-log-init -r -g appuser appuser
 
 # Set working directory
 WORKDIR /app
 
-# Copy Python packages from builder stage
-COPY --from=builder /root/.local /home/appuser/.local
+# Copy virtual environment from builder stage
+COPY --from=builder /opt/venv /opt/venv
 
 # Copy application code
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser ./app /app/app
 
-# Create necessary directories
+# Create model directory and set permissions
 RUN mkdir -p /app/model /app/logs && \
     chown -R appuser:appuser /app
 
 # Switch to non-root user
 USER appuser
 
-# Set environment variables
-ENV PATH=/home/appuser/.local/bin:$PATH
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-ENV AWS_DEFAULT_REGION=ap-southeast-1
-
 # Expose port
-EXPOSE 8000
+EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Run application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
 ```
 
-{{< imgborder src="/images/07-docker-build/02-dockerfile-multistage.png" title="Multi-stage Dockerfile configuration" >}}
+### 2.2. .dockerignore Configuration
 
-### 1.3. Docker Build Process (Manual)
+**Tạo `server/.dockerignore` - Exclude Unnecessary Files:**
+
+```
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Development files
+.env
+.env.*
+*.log
+logs/
+docker-compose.yml
+docker-compose.yaml
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Test files
+tests/
+test_*
+
+# Large model files that should be downloaded at runtime
+*.joblib
+*.pkl
+*.h5
+model/
+```
+
+## 3. Build & Push Docker Image
+
+### 3.1. Manual Build Process
 
 1. **Navigate to Server Directory:**
    ```bash
@@ -381,102 +771,87 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", 
      --build-arg BUILD_DATE=$BUILD_DATE \
      --build-arg GIT_COMMIT=$GIT_COMMIT \
      --build-arg GIT_BRANCH=$GIT_BRANCH \
-     -t retail-forecast:$GIT_COMMIT \
+     -t retail-prediction-api:$GIT_COMMIT \
      .
    ```
-
-{{< imgborder src="/images/07-docker-build/03-docker-build-manual.png" title="Manual Docker build process" >}}
 
 3. **Test Image Locally:**
    ```bash
    # Run container locally
    docker run -d \
-     --name retail-forecast-test \
-     -p 8000:8000 \
-     retail-forecast:$GIT_COMMIT
+     --name retail-api-test \
+     -p 8080:8080 \
+     retail-prediction-api:$GIT_COMMIT
+   
+   # Wait for container to start
+   sleep 5
    
    # Test health endpoint
-   curl http://localhost:8000/health
+   curl http://localhost:8080/health
    
-   # Test API endpoint
-   curl -X POST http://localhost:8000/predict \
+   # Test API endpoint with sample basket
+   curl -X POST http://localhost:8080/predict \
      -H "Content-Type: application/json" \
-     -d '{"features": {"month": 1, "season": "winter", "promotion": 1, "holiday": 0, "temperature": 10}}'
+     -d '{
+       "basket_items": {
+         "P1001": {"product_id": "P1001", "quantity": 2, "price": 10.99, "category": "grocery"},
+         "P2002": {"product_id": "P2002", "quantity": 1, "price": 25.50, "category": "electronics"}
+       },
+       "customer_id": "CUST123"
+     }'
    
    # Stop test container
-   docker stop retail-forecast-test
-   docker rm retail-forecast-test
+   docker stop retail-api-test
+   docker rm retail-api-test
    ```
 
-{{< imgborder src="/images/07-docker-build/04-local-testing.png" title="Local container testing" >}}
-
-### 1.4. Manual Push to ECR
+### 3.2. Push to Amazon ECR
 
 1. **ECR Authentication:**
    ```bash
    # Get AWS account ID
    AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
    AWS_REGION="ap-southeast-1"
-   ECR_REPOSITORY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/retail-forecast"
+   ECR_REPOSITORY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/retail-prediction-api"
    
    # Login to ECR
    aws ecr get-login-password --region $AWS_REGION | \
      docker login --username AWS --password-stdin $ECR_REPOSITORY
    ```
 
-2. **Tag Images:**
+2. **Create ECR Repository (if not exists):**
    ```bash
-   # Tag for ECR
-   docker tag retail-forecast:$GIT_COMMIT $ECR_REPOSITORY:latest
-   docker tag retail-forecast:$GIT_COMMIT $ECR_REPOSITORY:$GIT_COMMIT
-   docker tag retail-forecast:$GIT_COMMIT $ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT
+   # Check if repository exists
+   if ! aws ecr describe-repositories --repository-names retail-prediction-api --region $AWS_REGION &> /dev/null; then
+     echo "Creating ECR repository retail-prediction-api"
+     aws ecr create-repository \
+       --repository-name retail-prediction-api \
+       --image-scanning-configuration scanOnPush=true \
+       --region $AWS_REGION
+   fi
    ```
 
-3. **Push to ECR:**
+3. **Tag Images:**
+   ```bash
+   # Tag for ECR with different tag strategies
+   docker tag retail-prediction-api:$GIT_COMMIT $ECR_REPOSITORY:latest
+   docker tag retail-prediction-api:$GIT_COMMIT $ECR_REPOSITORY:$GIT_COMMIT
+   docker tag retail-prediction-api:$GIT_COMMIT $ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT
+   ```
+
+4. **Push to ECR:**
    ```bash
    # Push all tags
    docker push $ECR_REPOSITORY:latest
    docker push $ECR_REPOSITORY:$GIT_COMMIT
    docker push $ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT
+   
+   echo "Images pushed to ECR successfully"
    ```
 
-{{< imgborder src="/images/07-docker-build/05-manual-ecr-push.png" title="Manual push to ECR" >}}
+### 3.3. Create Build & Push Script
 
-### 1.5. Verify in ECR Console
-
-1. **Check ECR Repository:**
-   - Navigate to ECR Console
-   - Select `retail-forecast` repository
-   - Verify images với multiple tags
-
-{{< imgborder src="/images/07-docker-build/06-verify-ecr-images.png" title="Verify images in ECR Console" >}}
-
-2. **Review Image Details:**
-   - Check image sizes
-   - Verify vulnerability scan results
-   - Review push timestamps
-
-{{< imgborder src="/images/07-docker-build/07-image-details.png" title="Review ECR image details" >}}
-
-{{% notice success %}}
-**🎯 Manual Build Complete!**
-
-Docker image đã được build và push thành công với:
-- ✅ Multi-stage optimized Dockerfile
-- ✅ FastAPI inference application
-- ✅ Multiple image tags (latest, git-sha, branch-sha)
-- ✅ Security best practices (non-root user)
-- ✅ Health checks configured
-- ✅ Images verified in ECR
-{{% /notice %}}
-
----
-
-## 2. Automated Build Scripts
-
-### 2.1. Linux/macOS Build Script
-
-**Tạo `scripts/build-and-push.sh`:**
+**Tạo `scripts/build-push-api.sh` - Automated Build Script:**
 
 ```bash
 #!/bin/bash
@@ -487,565 +862,331 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 SERVER_DIR="$PROJECT_ROOT/server"
-
-# Default values
-PROJECT_NAME="mlops-retail-forecast"
-ENVIRONMENT="dev"
 AWS_REGION="ap-southeast-1"
-ECR_REPO_NAME="retail-forecast"
+ECR_REPO_NAME="retail-prediction-api"
 
 # Colors for output
-RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Functions
-log_info() {
-    echo -e "${BLUE}ℹ️  $1${NC}"
-}
+# Print colored messages
+info() { echo -e "${BLUE}INFO: $1${NC}"; }
+success() { echo -e "${GREEN}SUCCESS: $1${NC}"; }
+warn() { echo -e "${YELLOW}WARNING: $1${NC}"; }
+error() { echo -e "${RED}ERROR: $1${NC}"; exit 1; }
 
-log_success() {
-    echo -e "${GREEN}✅ $1${NC}"
-}
+# Validate requirements
+command -v docker >/dev/null 2>&1 || error "Docker is required but not installed"
+command -v aws >/dev/null 2>&1 || error "AWS CLI is required but not installed"
 
-log_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
-}
-
-log_error() {
-    echo -e "${RED}❌ $1${NC}"
-}
-
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -e|--environment)
-            ENVIRONMENT="$2"
-            shift 2
-            ;;
-        -r|--region)
-            AWS_REGION="$2"
-            shift 2
-            ;;
-        --no-push)
-            NO_PUSH=true
-            shift
-            ;;
-        --no-cache)
-            NO_CACHE="--no-cache"
-            shift
-            ;;
-        -h|--help)
-            echo "Usage: $0 [OPTIONS]"
-            echo "Options:"
-            echo "  -e, --environment ENV    Environment (default: dev)"
-            echo "  -r, --region REGION      AWS Region (default: ap-southeast-1)"
-            echo "  --no-push                Build only, don't push to ECR"
-            echo "  --no-cache               Build without Docker cache"
-            echo "  -h, --help               Show this help"
-            exit 0
-            ;;
-        *)
-            log_error "Unknown option: $1"
-            exit 1
-            ;;
-    esac
-done
-
-# Validate AWS CLI
-if ! command -v aws &> /dev/null; then
-    log_error "AWS CLI not found. Please install AWS CLI."
-    exit 1
-fi
-
-# Validate Docker
-if ! command -v docker &> /dev/null; then
-    log_error "Docker not found. Please install Docker."
-    exit 1
-fi
-
-# Check if we're in a git repository
-if ! git rev-parse --git-dir > /dev/null 2>&1; then
-    log_error "Not in a git repository"
-    exit 1
-fi
-
-# Get AWS Account ID
-log_info "Getting AWS account information..."
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-if [ -z "$AWS_ACCOUNT_ID" ]; then
-    log_error "Failed to get AWS account ID. Check your AWS credentials."
-    exit 1
-fi
-
-# ECR repository URL
-ECR_REPOSITORY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO_NAME"
-
-# Get Git information
-GIT_COMMIT=$(git rev-parse --short HEAD)
-GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-GIT_DIRTY=""
-if [[ -n $(git status --porcelain) ]]; then
-    GIT_DIRTY="-dirty"
-    log_warning "Working directory has uncommitted changes"
-fi
-
-# Build timestamp
+# Get git information
+GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
-# Image tags
-IMAGE_TAG_LATEST="latest"
-IMAGE_TAG_COMMIT="${GIT_COMMIT}${GIT_DIRTY}"
-IMAGE_TAG_BRANCH="${GIT_BRANCH}-${GIT_COMMIT}${GIT_DIRTY}"
-IMAGE_TAG_ENV="${ENVIRONMENT}-${GIT_COMMIT}${GIT_DIRTY}"
+info "Building API container image"
+info "Git commit: $GIT_COMMIT"
+info "Git branch: $GIT_BRANCH"
 
-log_info "Build Configuration:"
-echo "  Project: $PROJECT_NAME"
-echo "  Environment: $ENVIRONMENT"
-echo "  AWS Region: $AWS_REGION"
-echo "  AWS Account: $AWS_ACCOUNT_ID"
-echo "  ECR Repository: $ECR_REPOSITORY"
-echo "  Git Commit: $GIT_COMMIT$GIT_DIRTY"
-echo "  Git Branch: $GIT_BRANCH"
-echo "  Build Date: $BUILD_DATE"
-echo ""
+# Validate server directory
+[ -d "$SERVER_DIR" ] || error "Server directory not found: $SERVER_DIR"
 
-# Check if server directory exists
-if [ ! -d "$SERVER_DIR" ]; then
-    log_error "Server directory not found: $SERVER_DIR"
-    exit 1
-fi
-
-# Check required files
-REQUIRED_FILES=("$SERVER_DIR/Dockerfile" "$SERVER_DIR/main.py" "$SERVER_DIR/requirements.txt")
-for file in "${REQUIRED_FILES[@]}"; do
-    if [ ! -f "$file" ]; then
-        log_error "Required file not found: $file"
-        exit 1
-    fi
-done
-
-# Change to server directory
+# Navigate to server directory
 cd "$SERVER_DIR"
 
 # Build Docker image
-log_info "Building Docker image..."
+info "Building Docker image..."
 docker build \
-    $NO_CACHE \
-    --build-arg BUILD_DATE="$BUILD_DATE" \
-    --build-arg GIT_COMMIT="$GIT_COMMIT" \
-    --build-arg GIT_BRANCH="$GIT_BRANCH" \
-    --build-arg ENVIRONMENT="$ENVIRONMENT" \
-    -t "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT" \
-    .
+  --build-arg BUILD_DATE="$BUILD_DATE" \
+  --build-arg GIT_COMMIT="$GIT_COMMIT" \
+  --build-arg GIT_BRANCH="$GIT_BRANCH" \
+  -t "$ECR_REPO_NAME:$GIT_COMMIT" \
+  .
 
-if [ $? -eq 0 ]; then
-    log_success "Docker image built successfully"
+success "Docker image built successfully"
+
+# Test the image
+info "Running container for testing..."
+CONTAINER_ID=$(docker run -d -p 8080:8080 "$ECR_REPO_NAME:$GIT_COMMIT")
+
+info "Waiting for container to start..."
+sleep 10
+
+# Test health endpoint
+if curl -s -f http://localhost:8080/health > /dev/null; then
+  success "Health check passed"
 else
-    log_error "Docker build failed"
-    exit 1
+  warn "Health check failed, but continuing with push"
 fi
 
-# Tag images
-log_info "Tagging images..."
-docker tag "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT" "$ECR_REPOSITORY:$IMAGE_TAG_LATEST"
-docker tag "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT" "$ECR_REPOSITORY:$IMAGE_TAG_COMMIT"
-docker tag "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT" "$ECR_REPOSITORY:$IMAGE_TAG_BRANCH"
-docker tag "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT" "$ECR_REPOSITORY:$IMAGE_TAG_ENV"
-
-# Test image locally (optional)
-log_info "Testing image locally..."
-CONTAINER_ID=$(docker run -d -p 8001:8000 "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT")
-sleep 5
-
-if curl -f http://localhost:8001/health &> /dev/null; then
-    log_success "Local health check passed"
-else
-    log_warning "Local health check failed, but continuing..."
-fi
-
+# Stop and remove the test container
 docker stop "$CONTAINER_ID" > /dev/null
 docker rm "$CONTAINER_ID" > /dev/null
 
-# Push to ECR (unless --no-push specified)
-if [ "$NO_PUSH" != "true" ]; then
-    log_info "Logging into ECR..."
-    aws ecr get-login-password --region "$AWS_REGION" | \
-        docker login --username AWS --password-stdin "$ECR_REPOSITORY"
-    
-    if [ $? -eq 0 ]; then
-        log_success "ECR login successful"
-    else
-        log_error "ECR login failed"
-        exit 1
-    fi
-    
-    log_info "Pushing images to ECR..."
-    
-    # Push all tags
-    TAGS=("$IMAGE_TAG_LATEST" "$IMAGE_TAG_COMMIT" "$IMAGE_TAG_BRANCH" "$IMAGE_TAG_ENV")
-    for tag in "${TAGS[@]}"; do
-        log_info "Pushing $ECR_REPOSITORY:$tag"
-        docker push "$ECR_REPOSITORY:$tag"
-        if [ $? -eq 0 ]; then
-            log_success "Pushed $tag"
-        else
-            log_error "Failed to push $tag"
-            exit 1
-        fi
-    done
-else
-    log_warning "Skipping ECR push (--no-push specified)"
+# Get AWS account ID
+info "Getting AWS account ID..."
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+[ -z "$AWS_ACCOUNT_ID" ] && error "Failed to get AWS account ID"
+
+ECR_REPOSITORY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO_NAME"
+
+# Create ECR repository if it doesn't exist
+info "Checking ECR repository..."
+if ! aws ecr describe-repositories --repository-names "$ECR_REPO_NAME" --region "$AWS_REGION" &> /dev/null; then
+  info "Creating ECR repository: $ECR_REPO_NAME"
+  aws ecr create-repository \
+    --repository-name "$ECR_REPO_NAME" \
+    --image-scanning-configuration scanOnPush=true \
+    --region "$AWS_REGION"
 fi
 
-# Clean up local images
-log_info "Cleaning up local images..."
-docker rmi "$ECR_REPO_NAME:$IMAGE_TAG_COMMIT" > /dev/null 2>&1 || true
-for tag in "${TAGS[@]}"; do
-    docker rmi "$ECR_REPOSITORY:$tag" > /dev/null 2>&1 || true
-done
-
-log_success "Build and push completed successfully!"
-echo ""
-log_info "Image URLs:"
-for tag in "${TAGS[@]}"; do
-    echo "  📍 $ECR_REPOSITORY:$tag"
-done
-
-echo ""
-log_info "To deploy this image:"
-echo "  kubectl set image deployment/retail-forecast-api api=$ECR_REPOSITORY:$IMAGE_TAG_COMMIT"
-echo ""
-```
-
-### 2.2. Windows PowerShell Script
-
-**Tạo `scripts/build-and-push.ps1`:**
-
-```powershell
-[CmdletBinding()]
-param(
-    [string]$Environment = "dev",
-    [string]$Region = "ap-southeast-1",
-    [switch]$NoPush,
-    [switch]$NoCache,
-    [switch]$Help
-)
-
-# Show help
-if ($Help) {
-    Write-Host @"
-Usage: .\build-and-push.ps1 [OPTIONS]
-
-Options:
-  -Environment ENV     Environment (default: dev)
-  -Region REGION       AWS Region (default: ap-southeast-1)
-  -NoPush              Build only, don't push to ECR
-  -NoCache             Build without Docker cache
-  -Help                Show this help
-
-Examples:
-  .\build-and-push.ps1
-  .\build-and-push.ps1 -Environment prod -Region us-west-2
-  .\build-and-push.ps1 -NoPush
-"@
-    exit 0
-}
-
-# Script configuration
-$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$ProjectRoot = Split-Path -Parent $ScriptDir
-$ServerDir = Join-Path $ProjectRoot "server"
-
-$ProjectName = "mlops-retail-forecast"
-$EcrRepoName = "retail-forecast"
-
-# Helper functions
-function Write-ColoredOutput {
-    param([string]$Message, [string]$Color = "White")
-    
-    $colors = @{
-        "Red" = [ConsoleColor]::Red
-        "Green" = [ConsoleColor]::Green
-        "Yellow" = [ConsoleColor]::Yellow
-        "Blue" = [ConsoleColor]::Blue
-        "White" = [ConsoleColor]::White
-    }
-    
-    Write-Host $Message -ForegroundColor $colors[$Color]
-}
-
-function Log-Info { param([string]$Message) Write-ColoredOutput "ℹ️  $Message" "Blue" }
-function Log-Success { param([string]$Message) Write-ColoredOutput "✅ $Message" "Green" }
-function Log-Warning { param([string]$Message) Write-ColoredOutput "⚠️  $Message" "Yellow" }
-function Log-Error { param([string]$Message) Write-ColoredOutput "❌ $Message" "Red" }
-
-# Validate dependencies
-Log-Info "Validating dependencies..."
-
-if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
-    Log-Error "AWS CLI not found. Please install AWS CLI."
-    exit 1
-}
-
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Log-Error "Docker not found. Please install Docker."
-    exit 1
-}
-
-if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Log-Error "Git not found. Please install Git."
-    exit 1
-}
-
-# Check if we're in a git repository
-try {
-    git rev-parse --git-dir | Out-Null
-} catch {
-    Log-Error "Not in a git repository"
-    exit 1
-}
-
-# Get AWS Account ID
-Log-Info "Getting AWS account information..."
-try {
-    $AwsAccountId = aws sts get-caller-identity --query Account --output text
-    if (-not $AwsAccountId) {
-        throw "Failed to get account ID"
-    }
-} catch {
-    Log-Error "Failed to get AWS account ID. Check your AWS credentials."
-    exit 1
-}
-
-# ECR repository URL
-$EcrRepository = "$AwsAccountId.dkr.ecr.$Region.amazonaws.com/$EcrRepoName"
-
-# Get Git information
-$GitCommit = git rev-parse --short HEAD
-$GitBranch = git rev-parse --abbrev-ref HEAD
-$GitDirty = ""
-
-# Check for uncommitted changes
-$GitStatus = git status --porcelain
-if ($GitStatus) {
-    $GitDirty = "-dirty"
-    Log-Warning "Working directory has uncommitted changes"
-}
-
-# Build timestamp
-$BuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-
-# Image tags
-$ImageTagLatest = "latest"
-$ImageTagCommit = "$GitCommit$GitDirty"
-$ImageTagBranch = "$GitBranch-$GitCommit$GitDirty"
-$ImageTagEnv = "$Environment-$GitCommit$GitDirty"
-
-Log-Info "Build Configuration:"
-Write-Host "  Project: $ProjectName"
-Write-Host "  Environment: $Environment"
-Write-Host "  AWS Region: $Region"
-Write-Host "  AWS Account: $AwsAccountId"
-Write-Host "  ECR Repository: $EcrRepository"
-Write-Host "  Git Commit: $GitCommit$GitDirty"
-Write-Host "  Git Branch: $GitBranch"
-Write-Host "  Build Date: $BuildDate"
-Write-Host ""
-
-# Check server directory
-if (-not (Test-Path $ServerDir)) {
-    Log-Error "Server directory not found: $ServerDir"
-    exit 1
-}
-
-# Check required files
-$RequiredFiles = @(
-    (Join-Path $ServerDir "Dockerfile"),
-    (Join-Path $ServerDir "main.py"),
-    (Join-Path $ServerDir "requirements.txt")
-)
-
-foreach ($file in $RequiredFiles) {
-    if (-not (Test-Path $file)) {
-        Log-Error "Required file not found: $file"
-        exit 1
-    }
-}
-
-# Change to server directory
-Set-Location $ServerDir
-
-# Build Docker image
-Log-Info "Building Docker image..."
-
-$BuildArgs = @(
-    "build"
-    "--build-arg", "BUILD_DATE=$BuildDate"
-    "--build-arg", "GIT_COMMIT=$GitCommit"
-    "--build-arg", "GIT_BRANCH=$GitBranch"
-    "--build-arg", "ENVIRONMENT=$Environment"
-    "-t", "$EcrRepoName`:$ImageTagCommit"
-)
-
-if ($NoCache) {
-    $BuildArgs += "--no-cache"
-}
-
-$BuildArgs += "."
-
-try {
-    & docker @BuildArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker build failed"
-    }
-    Log-Success "Docker image built successfully"
-} catch {
-    Log-Error "Docker build failed: $_"
-    exit 1
-}
+# Login to ECR
+info "Logging in to ECR..."
+aws ecr get-login-password --region "$AWS_REGION" | \
+  docker login --username AWS --password-stdin "$ECR_REPOSITORY"
 
 # Tag images
-Log-Info "Tagging images..."
-$Tags = @($ImageTagLatest, $ImageTagCommit, $ImageTagBranch, $ImageTagEnv)
+info "Tagging images..."
+docker tag "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:latest"
+docker tag "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:$GIT_COMMIT"
+docker tag "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT"
 
-foreach ($tag in $Tags) {
-    docker tag "$EcrRepoName`:$ImageTagCommit" "$EcrRepository`:$tag"
-    if ($LASTEXITCODE -ne 0) {
-        Log-Error "Failed to tag image with $tag"
-        exit 1
-    }
-}
+# Push images to ECR
+info "Pushing images to ECR..."
+docker push "$ECR_REPOSITORY:latest"
+docker push "$ECR_REPOSITORY:$GIT_COMMIT"
+docker push "$ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT"
 
-# Test image locally
-Log-Info "Testing image locally..."
-try {
-    $ContainerId = docker run -d -p 8001:8000 "$EcrRepoName`:$ImageTagCommit"
-    Start-Sleep -Seconds 5
-    
-    try {
-        $response = Invoke-WebRequest -Uri "http://localhost:8001/health" -TimeoutSec 10
-        if ($response.StatusCode -eq 200) {
-            Log-Success "Local health check passed"
-        } else {
-            Log-Warning "Local health check failed, but continuing..."
-        }
-    } catch {
-        Log-Warning "Local health check failed, but continuing..."
-    } finally {
-        docker stop $ContainerId | Out-Null
-        docker rm $ContainerId | Out-Null
-    }
-} catch {
-    Log-Warning "Failed to test image locally, but continuing..."
-}
-
-# Push to ECR (unless -NoPush specified)
-if (-not $NoPush) {
-    Log-Info "Logging into ECR..."
-    
-    try {
-        $loginPassword = aws ecr get-login-password --region $Region
-        $loginPassword | docker login --username AWS --password-stdin $EcrRepository
-        
-        if ($LASTEXITCODE -ne 0) {
-            throw "ECR login failed"
-        }
-        Log-Success "ECR login successful"
-    } catch {
-        Log-Error "ECR login failed: $_"
-        exit 1
-    }
-    
-    Log-Info "Pushing images to ECR..."
-    
-    foreach ($tag in $Tags) {
-        Log-Info "Pushing $EcrRepository`:$tag"
-        docker push "$EcrRepository`:$tag"
-        
-        if ($LASTEXITCODE -eq 0) {
-            Log-Success "Pushed $tag"
-        } else {
-            Log-Error "Failed to push $tag"
-            exit 1
-        }
-    }
-} else {
-    Log-Warning "Skipping ECR push (-NoPush specified)"
-}
+success "Images successfully pushed to ECR"
+echo "📦 Image URLs:"
+echo "  - $ECR_REPOSITORY:latest"
+echo "  - $ECR_REPOSITORY:$GIT_COMMIT"
+echo "  - $ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT"
 
 # Clean up local images
-Log-Info "Cleaning up local images..."
-docker rmi "$EcrRepoName`:$ImageTagCommit" 2>$null | Out-Null
-foreach ($tag in $Tags) {
-    docker rmi "$EcrRepository`:$tag" 2>$null | Out-Null
-}
+info "Cleaning up local images..."
+docker rmi "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:latest" "$ECR_REPOSITORY:$GIT_COMMIT" "$ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT" > /dev/null 2>&1 || true
 
-Log-Success "Build and push completed successfully!"
-Write-Host ""
-Log-Info "Image URLs:"
-foreach ($tag in $Tags) {
-    Write-Host "  📍 $EcrRepository`:$tag"
-}
-
-Write-Host ""
-Log-Info "To deploy this image:"
-Write-Host "  kubectl set image deployment/retail-forecast-api api=$EcrRepository`:$ImageTagCommit"
-Write-Host ""
+success "Build and push completed successfully!"
 ```
 
-### 2.3. Docker Compose for Local Development
+### 3.4. Verify in ECR Console
 
-**Tạo `docker-compose.yml`:**
+After pushing the image to ECR, you can verify it in the AWS Management Console:
+
+1. **Navigate to the Amazon ECR service**
+2. **Select the `retail-prediction-api` repository**
+3. **Verify the pushed images with multiple tags**
+4. **Check the vulnerability scanning results**
+
+{{% notice tip %}}
+Automated vulnerability scanning is enabled with `scanOnPush=true` when creating the ECR repository. This helps identify security issues in your container image.
+{{% /notice %}}
+
+## 4. Model Integration with S3
+
+### 4.1. Model Storage Strategy
+
+When containerizing an ML API, you need a strategy for including the trained model. The most common approaches are:
+
+1. **Embedding the model in the container image:**
+   - **Pros:** Self-contained, no external dependencies
+   - **Cons:** Large image size, difficult to update models independently
+
+2. **Downloading the model at runtime (recommended):**
+   - **Pros:** Smaller container images, models can be updated independently
+   - **Cons:** Adds startup latency, requires S3 access
+
+3. **Mounting from a persistent volume:**
+   - **Pros:** Good for very large models, rapid container startup
+   - **Cons:** More complex Kubernetes setup
+
+For our API, we're using the second approach (download at runtime) as it provides the best balance of flexibility and simplicity.
+
+### 4.2. Model S3 Integration
+
+**Setup for storing and accessing model artifacts from S3:**
+
+1. **Create an S3 bucket for model artifacts:**
+
+```bash
+# Create S3 bucket for models
+aws s3 mb s3://mlops-retail-models --region ap-southeast-1
+```
+
+2. **Upload model artifacts to S3:**
+
+```bash
+# Assume we have a trained model in a tar.gz archive
+aws s3 cp model.tar.gz s3://mlops-retail-models/artifacts/model-v1/model.tar.gz
+```
+
+3. **Configure IAM policy for S3 access:**
+
+Create an IAM policy that allows the API container to access the S3 bucket where models are stored:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::mlops-retail-models",
+        "arn:aws:s3:::mlops-retail-models/*"
+      ]
+    }
+  ]
+}
+```
+
+### 4.3. IAM Roles for Service Accounts (IRSA)
+
+For Kubernetes deployments, use IRSA to grant the API container access to S3 without storing AWS credentials:
+
+1. **Create an IAM policy:**
+
+```bash
+# Create IAM policy
+aws iam create-policy \
+  --policy-name RetailAPIModelAccess \
+  --policy-document file://model-access-policy.json
+```
+
+2. **Associate the policy with a Kubernetes service account:**
+
+```bash
+# Create service account with IAM role
+eksctl create iamserviceaccount \
+  --cluster=mlops-eks-cluster \
+  --namespace=retail-prediction \
+  --name=retail-api \
+  --attach-policy-arn=arn:aws:iam::<AWS_ACCOUNT_ID>:policy/RetailAPIModelAccess \
+  --approve
+```
+
+3. **Reference the service account in your Kubernetes deployment:**
 
 ```yaml
-version: '3.8'
-
-services:
-  retail-forecast-api:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-      args:
-        BUILD_DATE: ${BUILD_DATE:-2024-01-01T00:00:00Z}
-        GIT_COMMIT: ${GIT_COMMIT:-local}
-        GIT_BRANCH: ${GIT_BRANCH:-local}
-    ports:
-      - "8000:8000"
-    environment:
-      - AWS_DEFAULT_REGION=ap-southeast-1
-      - AWS_REGION=ap-southeast-1
-      - MODEL_BUCKET=mlops-retail-forecast-dev-models
-      - MODEL_KEY=models/retail_forecast_model.pkl
-    volumes:
-      - ./server/model:/app/model:ro
-      - ./server/logs:/app/logs
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
-    
-  # Optional: Redis for caching
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: unless-stopped
-
-volumes:
-  redis_data:
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retail-prediction-api
+  namespace: retail-prediction
+spec:
+  selector:
+    matchLabels:
+      app: retail-prediction-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: retail-prediction-api
+    spec:
+      serviceAccountName: retail-api  # Reference to IRSA-enabled service account
+      containers:
+      - name: api
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/retail-prediction-api:latest
+        env:
+        - name: MODEL_BUCKET
+          value: "mlops-retail-models"
+        - name: MODEL_KEY
+          value: "artifacts/model-v1/model.tar.gz"
 ```
 
----
+## 6. Best Practices & Considerations
 
-## 3. CI/CD Integration
+### 6.1. Security Best Practices
+
+When containerizing ML APIs, implement these security best practices:
+
+1. **Use non-root users:**
+   - Always run container processes as a non-root user
+   - Create dedicated user/group with minimal permissions
+   
+2. **Multi-stage builds for smaller attack surface:**
+   - Include only necessary dependencies in the final image
+   - Avoid exposing build tools in runtime image
+
+3. **Image vulnerability scanning:**
+   - Integrate scanning in CI/CD pipelines
+   - Enable automatic scanning in ECR
+
+4. **Secrets management:**
+   - Never hardcode credentials in Dockerfiles or images
+   - Use AWS Secrets Manager or SSM Parameter Store
+   - Leverage IAM roles for secure access
+
+5. **Update dependencies:**
+   - Regularly update base images and dependencies
+   - Use dependabot or similar tools to track vulnerabilities
+
+### 6.2. Performance Optimization
+
+For optimal API container performance:
+
+1. **Profiling:**
+   - Monitor container resource usage during load testing
+   - Identify memory/CPU bottlenecks
+
+2. **Asynchronous processing:**
+   - Use async functions for I/O operations
+   - Implement background tasks for model loading
+
+3. **Caching strategies:**
+   - Cache model predictions where appropriate
+   - Use in-memory caching or Redis for high-traffic scenarios
+
+4. **Resource limits:**
+   - Set appropriate memory and CPU limits
+   - Configure JVM settings if using frameworks like SparkML
+
+### 6.3. Scaling Considerations
+
+When deploying the containerized API to EKS:
+
+1. **Horizontal vs. vertical scaling:**
+   - Prefer horizontal scaling for stateless APIs
+   - Consider vertical scaling for memory-intensive ML models
+
+2. **Autoscaling:**
+   - Implement Horizontal Pod Autoscaler (HPA)
+   - Configure custom metrics based on prediction load
+
+3. **Startup optimization:**
+   - Optimize container startup time for faster scaling
+   - Consider model loading strategies (preload vs. lazy load)
+
+4. **Load testing:**
+   - Simulate production traffic patterns
+   - Measure latency under various load conditions
+
+## 7. Summary
+
+In this task, we've successfully containerized the Retail Prediction API, making it ready for deployment on Amazon EKS. We've covered:
+
+1. **API Implementation:** Created a FastAPI application with model prediction endpoints, health checks, and proper error handling.
+
+2. **Docker Containerization:** Implemented a multi-stage Dockerfile optimized for size, security, and performance.
+
+3. **Model Integration:** Set up a flexible strategy for loading ML models from S3 at runtime.
+
+4. **IAM Configuration:** Established secure access to AWS resources using IAM Roles for Service Accounts.
+
+5. **CI/CD Integration:** Prepared pipelines for automated building, testing, and deployment.
+
+This containerization approach ensures consistent environments across development and production, simplifies deployment, and integrates well with Kubernetes for scalable, resilient operation.
+
+The containerized API is now ready to be deployed to Amazon EKS, which will be covered in the next task.
+
+---
 
 ### 3.1. GitHub Actions Workflow
 
@@ -1579,42 +1720,224 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 ---
 
-## 5. Monitoring & Troubleshooting
+## 5. Deployment Preparation
 
-### 5.1. Build Monitoring
+## 5.1. CI/CD Integration
 
-**Script để monitor build performance:**
+When integrating the containerized API with CI/CD pipelines, consider these best practices:
 
-```bash
-#!/bin/bash
-# monitor-build.sh
+### 5.1.1. Jenkins Pipeline Integration
 
-# Function to measure build time
-measure_build_time() {
-    local start_time=$(date +%s)
+Create a `Jenkinsfile` in your repository:
+
+```groovy
+pipeline {
+    agent any
     
-    # Run build
-    ./scripts/build-and-push.sh "$@"
-    local exit_code=$?
+    environment {
+        ECR_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/retail-prediction-api"
+        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+    }
     
-    local end_time=$(date +%s)
-    local duration=$((end_time - start_time))
+    stages {
+        stage('Build') {
+            steps {
+                sh '''
+                cd server
+                docker build -t ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} .
+                docker tag ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} ${ECR_REPOSITORY}:latest
+                '''
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh '''
+                # Start container
+                CONTAINER_ID=$(docker run -d -p 8001:8000 ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT})
+                
+                # Wait for API to start
+                sleep 5
+                
+                # Test health endpoint
+                curl -f http://localhost:8001/health
+                
+                # Run API tests
+                python -m pytest tests/api
+                
+                # Cleanup
+                docker stop $CONTAINER_ID
+                docker rm $CONTAINER_ID
+                '''
+            }
+        }
+        
+        stage('Push') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh '''
+                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPOSITORY}
+                docker push ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT}
+                docker push ${ECR_REPOSITORY}:latest
+                '''
+            }
+        }
+        
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh '''
+                # Update the Kubernetes deployment
+                kubectl set image deployment/retail-prediction-api api=${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} -n retail-prediction
+                
+                # Wait for rollout to complete
+                kubectl rollout status deployment/retail-prediction-api -n retail-prediction
+                '''
+            }
+        }
+    }
     
-    echo "Build completed in ${duration} seconds (exit code: $exit_code)"
-    
-    # Log to file
-    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ),${duration},${exit_code}" >> build-metrics.csv
-    
-    return $exit_code
+    post {
+        always {
+            // Clean up local Docker images
+            sh 'docker rmi ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} ${ECR_REPOSITORY}:latest || true'
+        }
+    }
 }
-
-# Run build with timing
-measure_build_time "$@"
 ```
 
-### 5.2. Common Issues & Solutions
+### 5.1.2. GitHub Actions Workflow
 
-**Issue 1: Build fails due to dependency conflicts**
+Create a `.github/workflows/build-deploy.yml` file:
+
+```yaml
+name: Build and Deploy API
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'server/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'server/**'
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY: retail-prediction-api
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      run: |
+        cd server
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
+    
+    - name: Fill in the new image ID in the Amazon EKS deployment
+      if: github.ref == 'refs/heads/main'
+      run: |
+        aws eks update-kubeconfig --name mlops-eks-cluster --region $AWS_REGION
+        kubectl set image deployment/retail-prediction-api api=${{ steps.build-image.outputs.image }} -n retail-prediction
+        kubectl rollout status deployment/retail-prediction-api -n retail-prediction
+```
+
+## 5.2. EKS Deployment
+
+Create a basic Kubernetes deployment manifest for the prediction API:
+
+```yaml
+# deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retail-prediction-api
+  namespace: retail-prediction
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: retail-prediction-api
+  template:
+    metadata:
+      labels:
+        app: retail-prediction-api
+    spec:
+      serviceAccountName: retail-api  # IRSA-enabled service account
+      containers:
+      - name: api
+        image: ${AWS_ACCOUNT_ID}.dkr.ecr.ap-southeast-1.amazonaws.com/retail-prediction-api:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "0.5"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        env:
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: MODEL_BUCKET
+          value: "mlops-retail-models"
+        - name: MODEL_KEY
+          value: "artifacts/model-v1/model.tar.gz"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: retail-prediction-api
+  namespace: retail-prediction
+spec:
+  selector:
+    app: retail-prediction-api
+  ports:
+  - port: 80
+    targetPort: 8000
+  type: ClusterIP
+```
 ```bash
 # Solution: Use pip-tools for dependency management
 pip install pip-tools

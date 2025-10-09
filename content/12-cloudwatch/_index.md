@@ -1,35 +1,136 @@
 ---
-title: "CloudWatch Monitoring & Alerting"
+title: "CloudWatch Monitoring & Log Insights"
 date: 2024-01-01T00:00:00Z
 weight: 12
 chapter: false
 pre: "<b>12. </b>"
 ---
 
-## Mục tiêu
+{{% notice info %}}
+**🎯 Mục tiêu Task 12:**
 
-Thiết lập hệ thống giám sát và cảnh báo cho ứng dụng inference chạy trên EKS, đảm bảo theo dõi được hiệu năng, lỗi và tài nguyên sử dụng.
+Thiết lập hệ thống giám sát toàn diện cho pipeline MLOps Retail Prediction gồm:  
+- Theo dõi hiệu năng API (latency, error rate, throughput)  
+- Giám sát tài nguyên (CPU, RAM, network) của EKS  
+- Lưu log model inference và training vào CloudWatch  
+→ Giúp phát hiện sớm lỗi, đảm bảo SLA, và đánh giá hiệu quả mô hình sau triển khai.
+{{% /notice %}}
+
+## Kiến trúc tổng quan
+
+Dưới đây là kiến trúc tổng thể của hệ thống monitoring cho MLOps Retail Prediction:
+
+{{< mermaid >}}
+flowchart TD
+    subgraph "AWS Cloud"
+        subgraph "EKS Cluster"
+            CWA[CloudWatch Agent]
+            POD1[Retail API Pod]
+            POD2[Retail API Pod]
+            POD3[Retail API Pod]
+            CWA --- POD1
+            CWA --- POD2
+            CWA --- POD3
+        end
+        
+        subgraph "SageMaker"
+            TRAIN[Training Job]
+        end
+        
+        subgraph "CloudWatch"
+            LOGS[(CloudWatch Logs)]
+            METRICS[(CloudWatch Metrics)]
+            ALARMS[CloudWatch Alarms]
+            DASH[CloudWatch Dashboard]
+        end
+        
+        subgraph "Auto Remediation"
+            SNS[SNS Topic]
+            LAMBDA[Lambda Function]
+            ASG[Auto Scaling Group]
+        end
+    end
+    
+    subgraph "Alerts"
+        EMAIL[Email]
+        SLACK[Slack]
+    end
+    
+    subgraph "User Access"
+        CONSOLE[AWS Console]
+        CLI[AWS CLI]
+    end
+    
+    POD1 --> |Logs| LOGS
+    POD2 --> |Logs| LOGS
+    POD3 --> |Logs| LOGS
+    TRAIN --> |Logs| LOGS
+    
+    CWA --> |System Metrics| METRICS
+    LOGS --> |Log Metrics| METRICS
+    
+    METRICS --> DASH
+    METRICS --> ALARMS
+    
+    ALARMS --> SNS
+    SNS --> LAMBDA
+    LAMBDA --> ASG
+    SNS --> EMAIL
+    SNS --> SLACK
+    
+    DASH --> CONSOLE
+    LOGS --> CLI
+    
+    style CWA fill:#f9f,stroke:#333,stroke-width:2px
+    style METRICS fill:#bbf,stroke:#333,stroke-width:2px
+    style DASH fill:#bfb,stroke:#333,stroke-width:2px
+    style ALARMS fill:#fbb,stroke:#333,stroke-width:2px
+    style LAMBDA fill:#fbf,stroke:#333,stroke-width:2px
+{{< /mermaid >}}
+
+Kiến trúc này bao gồm 3 thành phần chính:
+1. **Data Collection**: CloudWatch Agent thu thập metrics từ EKS cluster, trong khi application logs được gửi đến CloudWatch Logs
+2. **Processing & Storage**: CloudWatch xử lý và lưu trữ logs và metrics
+3. **Monitoring & Alerting**: Dashboard cho visualization và Alarms cho alerting
 
 ## Nội dung chính
 
-### 1. CloudWatch Logs Setup
+## 1. Tích hợp CloudWatch với EKS
 
-#### 1.1 Enable CloudWatch Logs for EKS
+### 1.1 Cài đặt CloudWatch Agent bằng Helm
+
+CloudWatch Agent là thành phần quan trọng giúp thu thập metrics và logs từ EKS cluster và gửi về CloudWatch:
 
 ```bash
-# Create CloudWatch Log Group for EKS cluster
+# Tạo namespace cho CloudWatch Agent
+kubectl create namespace amazon-cloudwatch
+
+# Cài đặt CloudWatch Agent bằng Helm
+helm install cloudwatch-agent \
+  --namespace amazon-cloudwatch \
+  --set clusterName=retail-prediction-cluster \
+  --set serviceAccount.create=true \
+  --set serviceAccount.name=cloudwatch-agent \
+  --set cloudWatchLogs.enabled=true \
+  oci://public.ecr.aws/cloudwatch-agent/chart
+```
+
+### 1.2 Tạo CloudWatch Log Groups
+
+```bash
+# Tạo Log Group cho EKS cluster logs
 aws logs create-log-group \
-  --log-group-name /aws/eks/retail-forecast-cluster/cluster \
+  --log-group-name /aws/eks/retail-prediction-cluster/cluster \
   --retention-in-days 30
 
-# Create Log Group for application logs
+# Tạo Log Group cho API application logs
 aws logs create-log-group \
-  --log-group-name /aws/eks/retail-forecast/application \
+  --log-group-name /aws/container/retail-api \
   --retention-in-days 30
 
-# Create Log Group for load balancer logs
+# Tạo Log Group cho load balancer logs
 aws logs create-log-group \
-  --log-group-name /aws/applicationloadbalancer/retail-forecast \
+  --log-group-name /aws/applicationloadbalancer/retail-prediction \
   --retention-in-days 30
 ```
 
@@ -237,25 +338,73 @@ spec:
 ---
 ```
 
-### 2. Container Insights Setup
+## 2. Container Insights Setup
 
-#### 2.1 Enable Container Insights
+Container Insights cung cấp visibility vào hiệu năng của các ứng dụng containerized và toàn bộ EKS cluster.
+
+### 2.1 Kích hoạt Container Insights
 
 ```bash
-# Install CloudWatch Insights using eksctl
-eksctl utils install-vpc-controllers \
-  --cluster retail-forecast-cluster \
-  --approve
-
-# Enable Container Insights
+# Kích hoạt Container Insights cho EKS cluster
 aws eks update-cluster-config \
   --region us-east-1 \
-  --name retail-forecast-cluster \
+  --name retail-prediction-cluster \
   --logging '{"enable":["api","audit","authenticator","controllerManager","scheduler"]}'
 
-# Deploy CloudWatch Agent
-curl https://raw.githubusercontent.com/aws-samples/amazon-cloudwatch-container-insights/latest/k8s-deployment-manifest-templates/deployment-mode/daemonset/container-insights-monitoring/quickstart/cwagent-fluentd-quickstart.yaml | kubectl apply -f -
+# Kiểm tra trạng thái của Container Insights
+aws eks describe-cluster \
+  --name retail-prediction-cluster \
+  --query "cluster.logging" \
+  --output json
 ```
+
+### 2.2 Metrics thu thập từ Container Insights
+
+CloudWatch Agent tự động thu thập các metrics sau từ EKS cluster:
+
+{{< mermaid >}}
+graph TD
+    subgraph "System Metrics"
+        CPU[CPUUtilization]
+        MEM[MemoryUtilization]
+        DISK[DiskUsage]
+        NET[NetworkIn/Out]
+    end
+    
+    subgraph "Pod Metrics"
+        PCPU[pod_cpu_utilization]
+        PMEM[pod_memory_utilization]
+        PNET[pod_network_rx/tx_bytes]
+        PRESTART[pod_restart_count]
+    end
+    
+    subgraph "Node Metrics"
+        NCPU[node_cpu_utilization]
+        NMEM[node_memory_utilization]
+        NDISK[node_filesystem_utilization]
+    end
+    
+    subgraph "Cluster Metrics"
+        CLUSTER[cluster_node_count]
+        FAILED[cluster_failed_node_count]
+    end
+    
+    CloudWatch[CloudWatch Metrics]
+    
+    CPU --> CloudWatch
+    MEM --> CloudWatch
+    DISK --> CloudWatch
+    NET --> CloudWatch
+    PCPU --> CloudWatch
+    PMEM --> CloudWatch
+    PNET --> CloudWatch
+    PRESTART --> CloudWatch
+    NCPU --> CloudWatch
+    NMEM --> CloudWatch
+    NDISK --> CloudWatch
+    CLUSTER --> CloudWatch
+    FAILED --> CloudWatch
+{{< /mermaid >}}
 
 #### 2.2 Custom CloudWatch Agent Configuration
 
@@ -337,61 +486,118 @@ data:
 ---
 ```
 
-### 3. Custom Metrics từ Application
+## 3. Giám sát API Metrics
 
-#### 3.1 Application Metrics với Prometheus
+### 3.1 Cấu hình API Logger
+
+Hãy tích hợp logging vào FastAPI application để ghi lại thông tin về requests và model inference:
 
 ```python
-# metrics.py - Add to your application
-from prometheus_client import Counter, Histogram, Gauge, start_http_server
+# logging_config.py
+import logging
+import json
 import time
-import functools
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
-# Define metrics
-REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
-REQUEST_LATENCY = Histogram('http_request_duration_seconds', 'HTTP request latency', ['method', 'endpoint'])
-ACTIVE_CONNECTIONS = Gauge('active_connections', 'Active connections')
-MODEL_PREDICTION_TIME = Histogram('model_prediction_duration_seconds', 'Model prediction time')
-MODEL_PREDICTIONS_TOTAL = Counter('model_predictions_total', 'Total model predictions', ['status'])
-ERROR_RATE = Counter('application_errors_total', 'Total application errors', ['error_type'])
+# Cấu hình logger
+logging.basicConfig(
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger("retail-api")
 
-class MetricsMiddleware:
-    def __init__(self, app):
-        self.app = app
-    
-    def __call__(self, environ, start_response):
+class APILoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
         start_time = time.time()
-        method = environ['REQUEST_METHOD']
-        path = environ['PATH_INFO']
         
-        def custom_start_response(status, headers):
-            status_code = int(status.split()[0])
-            REQUEST_COUNT.labels(method=method, endpoint=path, status=status_code).inc()
-            REQUEST_LATENCY.labels(method=method, endpoint=path).observe(time.time() - start_time)
-            return start_response(status, headers)
-        
-        return self.app(environ, custom_start_response)
+        # Xử lý request
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            
+            # Tính thời gian xử lý
+            process_time = time.time() - start_time
+            
+            # Log thông tin
+            log_dict = {
+                "endpoint": request.url.path,
+                "method": request.method,
+                "status_code": status_code,
+                "latency_ms": round(process_time * 1000, 2)
+            }
+            
+            if status_code >= 500:
+                logger.error(f"API Error: {json.dumps(log_dict)}")
+            else:
+                logger.info(f"API Request: {json.dumps(log_dict)}")
+                
+            return response
+        except Exception as e:
+            process_time = time.time() - start_time
+            logger.error(f"Unhandled exception: {str(e)}, latency={round(process_time * 1000, 2)}ms")
+            return JSONResponse(content={"error": "Internal server error"}, status_code=500)
 
-def track_prediction_metrics(func):
-    @functools.wraps(func)
+# Wrapper cho model inference
+def log_inference(func):
     def wrapper(*args, **kwargs):
         start_time = time.time()
         try:
             result = func(*args, **kwargs)
-            MODEL_PREDICTIONS_TOTAL.labels(status='success').inc()
+            inference_time = time.time() - start_time
+            logger.info(f"Inference completed: latency={round(inference_time * 1000, 2)}ms, prediction={result}")
             return result
         except Exception as e:
-            MODEL_PREDICTIONS_TOTAL.labels(status='error').inc()
-            ERROR_RATE.labels(error_type=type(e).__name__).inc()
+            inference_time = time.time() - start_time
+            logger.error(f"Inference failed: latency={round(inference_time * 1000, 2)}ms, error={str(e)}")
             raise
-        finally:
-            MODEL_PREDICTION_TIME.observe(time.time() - start_time)
     return wrapper
 
-# Start metrics server
-def start_metrics_server(port=8000):
-    start_http_server(port)
-    print(f"Metrics server started on port {port}")
+# Áp dụng vào FastAPI app
+app = FastAPI(title="Retail Prediction API")
+app.add_middleware(APILoggingMiddleware)
+
+# Áp dụng logger vào prediction endpoint
+@app.post("/predict")
+async def predict(data: dict):
+    @log_inference
+    def run_inference(input_data):
+        # Giả lập inference
+        time.sleep(0.05)  # 50ms latency
+        return "High" if input_data["value"] > 50 else "Low"
+    
+    return {"prediction": run_inference(data)}
+```
+
+### 3.2 CloudWatch Metric Filters
+
+Tạo metric filters để trích xuất thông tin từ logs:
+
+```bash
+# Tạo metric filter cho inference latency
+aws logs put-metric-filter \
+  --log-group-name "/aws/container/retail-api" \
+  --filter-name "InferenceLatency" \
+  --filter-pattern "\"Inference completed: latency=\"" \
+  --metric-transformations \
+      metricName=InferenceLatency,metricNamespace=RetailMLOps,metricValue="$.latency",unit=Milliseconds
+
+# Tạo metric filter cho error rate
+aws logs put-metric-filter \
+  --log-group-name "/aws/container/retail-api" \
+  --filter-name "ErrorRate" \
+  --filter-pattern "\"API Error\"" \
+  --metric-transformations \
+      metricName=APIErrorCount,metricNamespace=RetailMLOps,metricValue=1,unit=Count
+
+# Tạo metric filter cho API request count
+aws logs put-metric-filter \
+  --log-group-name "/aws/container/retail-api" \
+  --filter-name "RequestCount" \
+  --filter-pattern "\"API Request\"" \
+  --metric-transformations \
+      metricName=APIRequestCount,metricNamespace=RetailMLOps,metricValue=1,unit=Count
 ```
 
 #### 3.2 Prometheus ServiceMonitor
@@ -435,204 +641,366 @@ spec:
 ---
 ```
 
-### 4. CloudWatch Alarms Configuration
+## 5. Cảnh báo (Alarms & SNS)
 
-#### 4.1 Application Performance Alarms
+### 5.1 Tạo SNS Topic cho Cảnh báo
 
 ```bash
-# High Error Rate Alarm (5xx errors)
-aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-HighErrorRate" \
-  --alarm-description "High 5xx error rate for Retail Forecast API" \
-  --metric-name "HTTPCode_Target_5XX_Count" \
-  --namespace "AWS/ApplicationELB" \
-  --statistic "Sum" \
-  --period 300 \
-  --threshold 10 \
-  --comparison-operator "GreaterThanThreshold" \
-  --evaluation-periods 2 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts" \
-  --dimensions Name=LoadBalancer,Value=app/retail-forecast-alb/1234567890123456
+# Tạo SNS topic
+aws sns create-topic \
+  --name retail-prediction-alerts \
+  --attributes DisplayName="Retail Prediction Alerts"
 
-# High Response Time Alarm
-aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-HighLatency" \
-  --alarm-description "High response time for Retail Forecast API" \
-  --metric-name "TargetResponseTime" \
-  --namespace "AWS/ApplicationELB" \
-  --statistic "Average" \
-  --period 300 \
-  --threshold 2.0 \
-  --comparison-operator "GreaterThanThreshold" \
-  --evaluation-periods 3 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts" \
-  --dimensions Name=LoadBalancer,Value=app/retail-forecast-alb/1234567890123456
-
-# Low Request Rate (potential downtime)
-aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-LowTraffic" \
-  --alarm-description "Unusually low traffic to Retail Forecast API" \
-  --metric-name "RequestCount" \
-  --namespace "AWS/ApplicationELB" \
-  --statistic "Sum" \
-  --period 600 \
-  --threshold 5 \
-  --comparison-operator "LessThanThreshold" \
-  --evaluation-periods 2 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts" \
-  --dimensions Name=LoadBalancer,Value=app/retail-forecast-alb/1234567890123456
+# Lưu ARN của topic cho việc sử dụng sau này
+TOPIC_ARN=$(aws sns create-topic \
+  --name retail-prediction-alerts \
+  --query 'TopicArn' \
+  --output text)
+  
+# Đăng ký email nhận cảnh báo
+aws sns subscribe \
+  --topic-arn $TOPIC_ARN \
+  --protocol email \
+  --notification-endpoint your-email@example.com
 ```
 
-#### 4.2 Infrastructure Resource Alarms
+### 5.2 Thiết lập CloudWatch Alarms
+
+Theo yêu cầu của dự án, chúng ta cần thiết lập 3 cảnh báo chính:
 
 ```bash
-# High CPU Usage Alarm
+# 1. API Latency Alarm - Cảnh báo khi độ trễ API P95 > 200ms
 aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-HighCPU" \
-  --alarm-description "High CPU usage in EKS cluster" \
-  --metric-name "node_cpu_utilization" \
-  --namespace "ContainerInsights" \
-  --statistic "Average" \
-  --period 300 \
-  --threshold 80 \
+  --alarm-name "RetailPrediction-HighLatency" \
+  --alarm-description "API Latency P95 exceeds 200ms" \
+  --metric-name "InferenceLatency" \
+  --namespace "RetailMLOps" \
+  --extended-statistic "p95" \
+  --period 60 \
+  --threshold 200 \
   --comparison-operator "GreaterThanThreshold" \
   --evaluation-periods 3 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts" \
-  --dimensions Name=ClusterName,Value=retail-forecast-cluster
+  --alarm-actions $TOPIC_ARN \
+  --treat-missing-data "notBreaching"
 
-# High Memory Usage Alarm
+# 2. Error Rate Alarm - Cảnh báo và kích hoạt rollback khi tỉ lệ lỗi > 5%
 aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-HighMemory" \
-  --alarm-description "High memory usage in EKS cluster" \
-  --metric-name "node_memory_utilization" \
+  --alarm-name "RetailPrediction-HighErrorRate" \
+  --alarm-description "API Error Rate exceeds 5%" \
+  --metric-name "ErrorRate" \
+  --namespace "RetailMLOps" \
+  --statistic "Average" \
+  --period 60 \
+  --threshold 5 \
+  --comparison-operator "GreaterThanThreshold" \
+  --evaluation-periods 2 \
+  --alarm-actions $TOPIC_ARN \
+  --ok-actions $TOPIC_ARN \
+  --treat-missing-data "notBreaching"
+
+# 3. High CPU Utilization - Cảnh báo khi CPU > 85% để scale nodegroup
+aws cloudwatch put-metric-alarm \
+  --alarm-name "RetailPrediction-HighCPU" \
+  --alarm-description "EKS Node CPU Utilization exceeds 85%" \
+  --metric-name "node_cpu_utilization" \
   --namespace "ContainerInsights" \
   --statistic "Average" \
   --period 300 \
   --threshold 85 \
   --comparison-operator "GreaterThanThreshold" \
   --evaluation-periods 2 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts" \
-  --dimensions Name=ClusterName,Value=retail-forecast-cluster
-
-# Pod Restart Rate Alarm
-aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-PodRestarts" \
-  --alarm-description "High pod restart rate" \
-  --metric-name "pod_restart_count" \
-  --namespace "ContainerInsights" \
-  --statistic "Sum" \
-  --period 600 \
-  --threshold 5 \
-  --comparison-operator "GreaterThanThreshold" \
-  --evaluation-periods 1 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts" \
-  --dimensions Name=ClusterName,Value=retail-forecast-cluster Name=Namespace,Value=mlops
+  --dimensions Name=ClusterName,Value=retail-prediction-cluster \
+  --alarm-actions $TOPIC_ARN \
+  --ok-actions $TOPIC_ARN
 ```
 
-#### 4.3 Custom Metrics Alarms
+### 5.3 Kích hoạt Auto-Scaling từ CloudWatch Alarm
 
 ```bash
-# Model Prediction Error Rate
-aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-ModelErrorRate" \
-  --alarm-description "High model prediction error rate" \
-  --metric-name "model_predictions_total" \
-  --namespace "CustomMetrics/RetailForecast" \
-  --statistic "Average" \
-  --period 300 \
-  --threshold 0.1 \
-  --comparison-operator "GreaterThanThreshold" \
-  --evaluation-periods 2 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts"
-
-# Model Prediction Latency
-aws cloudwatch put-metric-alarm \
-  --alarm-name "RetailForecast-ModelLatency" \
-  --alarm-description "High model prediction latency" \
-  --metric-name "model_prediction_duration_seconds" \
-  --namespace "CustomMetrics/RetailForecast" \
-  --statistic "Average" \
-  --period 300 \
-  --threshold 5.0 \
-  --comparison-operator "GreaterThanThreshold" \
-  --evaluation-periods 3 \
-  --alarm-actions "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts"
-```
-
-### 5. SNS Notification Setup
-
-#### 5.1 Create SNS Topic và Subscriptions
-
-```bash
-# Create SNS topic
-aws sns create-topic \
-  --name retail-forecast-alerts \
-  --attributes DisplayName="Retail Forecast Alerts"
-
-# Get topic ARN
-TOPIC_ARN=$(aws sns get-topic-attributes \
-  --topic-arn arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts \
-  --query 'Attributes.TopicArn' \
-  --output text)
-
-# Subscribe email addresses
-aws sns subscribe \
-  --topic-arn $TOPIC_ARN \
-  --protocol email \
-  --notification-endpoint devops-team@company.com
-
-aws sns subscribe \
-  --topic-arn $TOPIC_ARN \
-  --protocol email \
-  --notification-endpoint ml-team@company.com
-
-# Subscribe Slack webhook (optional)
-aws sns subscribe \
-  --topic-arn $TOPIC_ARN \
-  --protocol https \
-  --notification-endpoint https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
-```
-
-#### 5.2 SNS Topic Policy
-
-```json
+# Tạo IAM role cho Lambda function
+cat > trust-policy.json << EOF
 {
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "AllowCloudWatchAlarmsToPublish",
       "Effect": "Allow",
       "Principal": {
-        "Service": "cloudwatch.amazonaws.com"
+        "Service": "lambda.amazonaws.com"
       },
-      "Action": "SNS:Publish",
-      "Resource": "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts"
-    },
-    {
-      "Sid": "AllowAccountAccess",
-      "Effect": "Allow",
-      "Principal": {
-        "AWS": "arn:aws:iam::123456789012:root"
-      },
-      "Action": [
-        "SNS:GetTopicAttributes",
-        "SNS:SetTopicAttributes",
-        "SNS:AddPermission",
-        "SNS:RemovePermission",
-        "SNS:DeleteTopic",
-        "SNS:Subscribe",
-        "SNS:ListSubscriptionsByTopic",
-        "SNS:Publish"
-      ],
-      "Resource": "arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts"
+      "Action": "sts:AssumeRole"
     }
   ]
 }
+EOF
+
+aws iam create-role \
+  --role-name RetailPredictionAutoScaleRole \
+  --assume-role-policy-document file://trust-policy.json
+
+# Tạo policy cho phép Lambda thao tác với EKS
+cat > autoscale-policy.json << EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "eks:DescribeCluster",
+        "autoscaling:SetDesiredCapacity",
+        "autoscaling:DescribeAutoScalingGroups"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "arn:aws:logs:*:*:*"
+    }
+  ]
+}
+EOF
+
+aws iam put-role-policy \
+  --role-name RetailPredictionAutoScaleRole \
+  --policy-name RetailPredictionAutoScalePolicy \
+  --policy-document file://autoscale-policy.json
+
+# Tạo Lambda function
+cat > auto-scale-function.py << EOF
+import json
+import boto3
+import os
+
+def lambda_handler(event, context):
+    print("Received event:", json.dumps(event))
+    
+    # Phân tích SNS message
+    message = json.loads(event['Records'][0]['Sns']['Message'])
+    alarm_name = message['AlarmName']
+    new_state = message['NewStateValue']
+    
+    cluster_name = os.environ['CLUSTER_NAME']
+    asg_name = os.environ['ASG_NAME']
+    
+    autoscaling = boto3.client('autoscaling')
+    
+    # Chỉ xử lý nếu alarm là HighCPU và trạng thái là ALARM
+    if alarm_name == 'RetailPrediction-HighCPU' and new_state == 'ALARM':
+        print(f"Scaling up ASG {asg_name} due to high CPU utilization")
+        
+        # Lấy thông tin hiện tại của ASG
+        response = autoscaling.describe_auto_scaling_groups(
+            AutoScalingGroupNames=[asg_name]
+        )
+        
+        if not response['AutoScalingGroups']:
+            print(f"ASG {asg_name} not found")
+            return {'statusCode': 404, 'body': 'ASG not found'}
+        
+        current_capacity = response['AutoScalingGroups'][0]['DesiredCapacity']
+        max_capacity = response['AutoScalingGroups'][0]['MaxSize']
+        
+        # Tăng desired capacity lên 1 nếu chưa đạt max
+        if current_capacity < max_capacity:
+            new_capacity = current_capacity + 1
+            autoscaling.set_desired_capacity(
+                AutoScalingGroupName=asg_name,
+                DesiredCapacity=new_capacity,
+                HonorCooldown=True
+            )
+            print(f"Increased desired capacity from {current_capacity} to {new_capacity}")
+            return {'statusCode': 200, 'body': f'Scaled up to {new_capacity} nodes'}
+        else:
+            print(f"Already at maximum capacity: {max_capacity}")
+            return {'statusCode': 200, 'body': 'Already at maximum capacity'}
+    
+    return {'statusCode': 200, 'body': 'No scaling action needed'}
+EOF
+
+# Zip file để upload lên Lambda
+zip auto-scale-function.zip auto-scale-function.py
+
+# Tạo Lambda function
+aws lambda create-function \
+  --function-name RetailPredictionAutoScale \
+  --zip-file fileb://auto-scale-function.zip \
+  --handler auto-scale-function.lambda_handler \
+  --runtime python3.9 \
+  --role arn:aws:iam::$(aws sts get-caller-identity --query "Account" --output text):role/RetailPredictionAutoScaleRole \
+  --environment "Variables={CLUSTER_NAME=retail-prediction-cluster,ASG_NAME=retail-prediction-nodegroup-asg}"
+
+# Cho phép SNS gọi Lambda function
+aws lambda add-permission \
+  --function-name RetailPredictionAutoScale \
+  --statement-id sns-invoke \
+  --action lambda:InvokeFunction \
+  --principal sns.amazonaws.com \
+  --source-arn $TOPIC_ARN
+
+# Subscribe Lambda function vào SNS topic
+aws sns subscribe \
+  --topic-arn $TOPIC_ARN \
+  --protocol lambda \
+  --notification-endpoint $(aws lambda get-function --function-name RetailPredictionAutoScale --query "Configuration.FunctionArn" --output text)
 ```
 
-### 6. CloudWatch Dashboard
+{{< mermaid >}}
+sequenceDiagram
+    participant CloudWatch
+    participant SNS as SNS Topic
+    participant Lambda as AutoScale Lambda
+    participant ASG as EKS NodeGroup ASG
+    participant EKS as EKS Cluster
+    
+    CloudWatch->>SNS: Trigger ALARM (CPU > 85%)
+    SNS->>Lambda: Notify about alarm
+    Lambda->>ASG: Get current capacity
+    ASG->>Lambda: Return current=2, max=5
+    Lambda->>ASG: Set desired capacity to 3
+    ASG->>EKS: Launch new node
+    EKS->>CloudWatch: Report metrics
+    CloudWatch->>SNS: Trigger OK (CPU < 85%)
+    Note over Lambda,ASG: Scale down happens via HPA, not Lambda
+{{< /mermaid >}}
 
-#### 6.1 Create Comprehensive Dashboard
+## 6. Log Training (SageMaker Integration)
+
+### 6.1 CloudWatch Integration với SageMaker
+
+Amazon SageMaker tự động gửi logs và metrics của các training jobs tới CloudWatch. Thiết lập này đảm bảo quá trình huấn luyện mô hình được theo dõi và lưu trữ:
+
+```bash
+# Tạo SageMaker Training Job với logging configuration
+aws sagemaker create-training-job \
+  --training-job-name retail-prediction-training \
+  --algorithm-specification TrainingImage=<your-ecr-image> \
+  --role-arn arn:aws:iam::<account-id>:role/SageMakerExecutionRole \
+  --input-data-config file://training-data-config.json \
+  --output-data-config S3OutputPath=s3://retail-prediction-bucket/model-artifacts/ \
+  --resource-config file://resource-config.json \
+  --stopping-condition MaxRuntimeInSeconds=3600 \
+  --hyper-parameters file://hyperparameters.json \
+  --tags Key=Project,Value=RetailPrediction
+```
+
+Mẫu file `resource-config.json`:
+
+```json
+{
+  "InstanceType": "ml.m5.xlarge",
+  "InstanceCount": 1,
+  "VolumeSizeInGB": 50
+}
+```
+
+Logs từ SageMaker training job sẽ được gửi đến CloudWatch Log Group:
+
+```
+/aws/sagemaker/TrainingJobs/retail-prediction-training
+```
+
+### 6.2 Log Analysis với CloudWatch Insights
+
+```bash
+# Trích xuất loss values từ training logs
+aws logs start-query \
+  --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
+  --start-time $(date -d '24 hour ago' +%s) \
+  --end-time $(date +%s) \
+  --query-string '
+    filter @message like "loss" 
+    | parse @message "loss: *," as loss_value 
+    | parse @message "epoch * " as epoch_num 
+    | stats avg(loss_value) as avg_loss by bin(1h)'
+
+# Trích xuất accuracy values từ evaluation logs  
+aws logs start-query \
+  --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
+  --start-time $(date -d '24 hour ago' +%s) \
+  --end-time $(date +%s) \
+  --query-string '
+    filter @message like "accuracy" 
+    | parse @message "accuracy: *," as accuracy_value 
+    | parse @message "epoch * " as epoch_num 
+    | stats avg(accuracy_value) as avg_accuracy by bin(1h)'
+```
+
+### 6.3 Metric Filters cho Training Metrics
+
+```bash
+# Tạo metric filter cho training loss
+aws logs put-metric-filter \
+  --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
+  --filter-name "TrainingLoss" \
+  --filter-pattern "\"loss: \"" \
+  --metric-transformations \
+      metricName=TrainingLoss,metricNamespace=RetailMLOps,metricValue="$loss_value",unit=None
+
+# Tạo metric filter cho validation accuracy
+aws logs put-metric-filter \
+  --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
+  --filter-name "ValidationAccuracy" \
+  --filter-pattern "\"validation accuracy: \"" \
+  --metric-transformations \
+      metricName=ValidationAccuracy,metricNamespace=RetailMLOps,metricValue="$accuracy_value",unit=Percent
+
+# Tạo metric filter cho F1 score
+aws logs put-metric-filter \
+  --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
+  --filter-name "F1Score" \
+  --filter-pattern "\"f1 score: \"" \
+  --metric-transformations \
+      metricName=F1Score,metricNamespace=RetailMLOps,metricValue="$f1_score",unit=None
+```
+
+### 6.4 Biểu đồ Training Metrics
+
+{{< mermaid >}}
+graph TB
+    subgraph "SageMaker Training"
+        TRAIN[Train Model Script]
+        LOG[Write Logs]
+    end
+    
+    subgraph "CloudWatch"
+        CWLOGS[CloudWatch Logs]
+        METRIC[CloudWatch Metrics]
+        ALARM[CloudWatch Alarms]
+        DASH[CloudWatch Dashboard]
+    end
+    
+    subgraph "Notification"
+        SNS[SNS Topic]
+        EMAIL[Email Notification]
+        SLACK[Slack Notification]
+    end
+    
+    TRAIN --> LOG
+    LOG --> CWLOGS
+    CWLOGS --> METRIC
+    METRIC --> DASH
+    METRIC --> ALARM
+    ALARM --> SNS
+    SNS --> EMAIL
+    SNS --> SLACK
+    
+    class ALARM,SNS highlight
+{{< /mermaid >}}
+
+### 6.5 SageMaker Training Dashboard
+
+```bash
+# Tạo training metrics dashboard
+aws cloudwatch put-dashboard \
+  --dashboard-name "Retail-Prediction-Training" \
+  --dashboard-body file://training-dashboard.json
+```
+
+Nội dung file `training-dashboard.json`:
 
 ```json
 {
@@ -645,17 +1013,14 @@ aws sns subscribe \
       "height": 6,
       "properties": {
         "metrics": [
-          ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", "app/retail-forecast-alb/1234567890123456"],
-          [".", "TargetResponseTime", ".", "."],
-          [".", "HTTPCode_Target_2XX_Count", ".", "."],
-          [".", "HTTPCode_Target_4XX_Count", ".", "."],
-          [".", "HTTPCode_Target_5XX_Count", ".", "."]
+          [ "RetailMLOps", "TrainingLoss" ]
         ],
         "view": "timeSeries",
         "stacked": false,
         "region": "us-east-1",
-        "title": "Application Load Balancer Metrics",
-        "period": 300
+        "title": "Training Loss",
+        "period": 300,
+        "stat": "Average"
       }
     },
     {
@@ -666,15 +1031,20 @@ aws sns subscribe \
       "height": 6,
       "properties": {
         "metrics": [
-          ["ContainerInsights", "node_cpu_utilization", "ClusterName", "retail-forecast-cluster"],
-          [".", "node_memory_utilization", ".", "."],
-          [".", "node_network_total_bytes", ".", "."]
+          [ "RetailMLOps", "ValidationAccuracy" ]
         ],
         "view": "timeSeries",
         "stacked": false,
         "region": "us-east-1",
-        "title": "EKS Cluster Resource Utilization",
-        "period": 300
+        "title": "Validation Accuracy",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
       }
     },
     {
@@ -685,16 +1055,20 @@ aws sns subscribe \
       "height": 6,
       "properties": {
         "metrics": [
-          ["ContainerInsights", "pod_cpu_utilization", "ClusterName", "retail-forecast-cluster", "Namespace", "mlops"],
-          [".", "pod_memory_utilization", ".", ".", ".", "."],
-          [".", "pod_network_rx_bytes", ".", ".", ".", "."],
-          [".", "pod_network_tx_bytes", ".", ".", ".", "."]
+          [ "RetailMLOps", "F1Score" ]
         ],
         "view": "timeSeries",
         "stacked": false,
         "region": "us-east-1",
-        "title": "Pod Metrics",
-        "period": 300
+        "title": "F1 Score",
+        "period": 300,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 1
+          }
+        }
       }
     },
     {
@@ -705,33 +1079,261 @@ aws sns subscribe \
       "height": 6,
       "properties": {
         "metrics": [
-          ["CustomMetrics/RetailForecast", "model_predictions_total"],
-          [".", "model_prediction_duration_seconds"],
-          [".", "application_errors_total"]
+          [ "AWS/SageMaker", "CPUUtilization", "TrainingJobName", "retail-prediction-training" ],
+          [ ".", "MemoryUtilization", ".", "." ]
         ],
         "view": "timeSeries",
         "stacked": false,
         "region": "us-east-1",
-        "title": "Custom Application Metrics",
-        "period": 300
-      }
-    },
-    {
-      "type": "log",
-      "x": 0,
-      "y": 12,
-      "width": 24,
-      "height": 6,
-      "properties": {
-        "query": "SOURCE '/aws/eks/retail-forecast/application'\n| fields @timestamp, log\n| filter log like /ERROR/\n| sort @timestamp desc\n| limit 100",
-        "region": "us-east-1",
-        "title": "Recent Error Logs",
-        "view": "table"
+        "title": "Training Resource Utilization",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "min": 0,
+            "max": 100
+          }
+        }
       }
     }
   ]
 }
 ```
+
+## 4. Dashboard Trực Quan
+
+### 4.1 Tạo CloudWatch Dashboard "Retail Prediction KPI"
+
+Dashboard này sẽ hiển thị 6 chỉ số KPI quan trọng theo yêu cầu của dự án:
+
+```bash
+# Tạo CloudWatch Dashboard
+aws cloudwatch put-dashboard \
+  --dashboard-name "Retail-Prediction-KPI" \
+  --dashboard-body file://retail-prediction-dashboard.json
+```
+
+Nội dung file `retail-prediction-dashboard.json`:
+
+```json
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ { "expression": "PERCENTILE(m1, 50)", "label": "P50", "id": "p50", "region": "us-east-1" } ],
+          [ { "expression": "PERCENTILE(m1, 95)", "label": "P95", "id": "p95", "region": "us-east-1" } ],
+          [ "RetailMLOps", "InferenceLatency", { "id": "m1", "visible": false } ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "API Latency (P50/P95)",
+        "period": 60,
+        "stat": "Average",
+        "yAxis": {
+          "left": {
+            "label": "Milliseconds",
+            "showUnits": false
+          }
+        },
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "SLA Threshold",
+              "value": 200,
+              "fill": "above"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ { "expression": "100 * m2 / (m1 + m2)", "label": "Error Rate (%)", "id": "e1" } ],
+          [ "RetailMLOps", "APIErrorCount", { "id": "m2", "visible": false } ],
+          [ "RetailMLOps", "APIRequestCount", { "id": "m1", "visible": false } ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Error Rate (%)",
+        "period": 300,
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "Critical",
+              "value": 5,
+              "fill": "above"
+            }
+          ]
+        },
+        "yAxis": {
+          "left": {
+            "label": "Percent",
+            "showUnits": false,
+            "min": 0,
+            "max": 10
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 0,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "ContainerInsights", "node_cpu_utilization", "ClusterName", "retail-prediction-cluster" ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "CPU Utilization",
+        "period": 60,
+        "annotations": {
+          "horizontal": [
+            {
+              "label": "Scale Up",
+              "value": 85,
+              "fill": "above"
+            }
+          ]
+        },
+        "yAxis": {
+          "left": {
+            "label": "Percent",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "ContainerInsights", "node_memory_utilization", "ClusterName", "retail-prediction-cluster" ],
+          [ "ContainerInsights", "pod_memory_utilization", "ClusterName", "retail-prediction-cluster", "Namespace", "retail-prediction" ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Memory Usage",
+        "period": 60,
+        "yAxis": {
+          "left": {
+            "label": "Percent",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 8,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "app/retail-prediction-alb/1234567890123456" ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Request per Second (QPS)",
+        "period": 60,
+        "stat": "Sum",
+        "yAxis": {
+          "left": {
+            "label": "Count/Minute",
+            "showUnits": false
+          }
+        }
+      }
+    },
+    {
+      "type": "metric",
+      "x": 16,
+      "y": 6,
+      "width": 8,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "AWS/SageMaker", "TrainingElapsedTimeSeconds", "TrainingJobName", "retail-prediction-training" ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "title": "Training Duration (min)",
+        "period": 60,
+        "stat": "Maximum",
+        "yAxis": {
+          "left": {
+            "label": "Minutes",
+            "showUnits": false
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+### 4.2 Dashboard Visualization
+
+{{< mermaid >}}
+graph TB
+    subgraph "CloudWatch Dashboard"
+        subgraph "Row 1"
+            P1["API Latency (P50/P95)"]
+            P2["Error Rate (%)"]
+            P3["CPU Utilization"]
+        end
+        subgraph "Row 2"
+            P4["Memory Usage"]
+            P5["Request per Second (QPS)"]
+            P6["Training Duration (min)"]
+        end
+    end
+    
+    subgraph "Data Sources"
+        DS1["API Logs"]
+        DS2["Container Insights"]
+        DS3["ALB Metrics"]
+        DS4["SageMaker Metrics"]
+    end
+    
+    DS1 --> P1
+    DS1 --> P2
+    DS2 --> P3
+    DS2 --> P4
+    DS3 --> P5
+    DS4 --> P6
+    
+    style P1 fill:#f9f,stroke:#333,stroke-width:1px
+    style P2 fill:#f9f,stroke:#333,stroke-width:1px
+    style P3 fill:#bbf,stroke:#333,stroke-width:1px
+    style P4 fill:#bbf,stroke:#333,stroke-width:1px
+    style P5 fill:#bfb,stroke:#333,stroke-width:1px
+    style P6 fill:#bfb,stroke:#333,stroke-width:1px
+{{< /mermaid >}}
 
 #### 6.2 Deploy Dashboard
 
@@ -897,100 +1499,293 @@ data:
 ---
 ```
 
-## Kết quả kỳ vọng
+## 7. Chi phí ước tính
+
+Ước tính chi phí hàng tháng cho hệ thống monitoring:
+
+| Thành phần | Ước tính | Ghi chú |
+|------------|----------|---------|
+| CloudWatch Logs | ~0.10 USD/tháng | Vài GB log dữ liệu |
+| Dashboard & Alarms | 0 USD | Miễn phí trong giới hạn cơ bản |
+| SNS Notification | 0 USD | Miễn phí nếu <100 email/tháng |
+| Container Insights | ~0.30 USD/tháng | 5 node, metrics mỗi phút |
+| **Tổng** | **~0.40 USD/tháng** | Chi phí thấp, chủ yếu do log lưu trữ |
+
+{{% notice info %}}
+CloudWatch có chi phí rất thấp so với giá trị mà nó mang lại cho việc monitoring và alert trong MLOps pipeline. Lưu ý rằng chi phí có thể tăng nếu số lượng log và số lượng metrics tăng đáng kể.
+{{% /notice %}}
+
+## 8. Kết quả kỳ vọng
 
 ### ✅ Checklist Hoàn thành
 
-- [ ] **CloudWatch Logs**: Logs từ pods được thu thập và hiển thị
-- [ ] **Container Insights**: CPU, memory, network metrics được thu thập
-- [ ] **Custom Metrics**: Application metrics được gửi đến CloudWatch
-- [ ] **Alarms**: CloudWatch alarms được cấu hình cho các scenarios quan trọng
-- [ ] **SNS Notifications**: Email/Slack notifications được thiết lập
-- [ ] **Dashboard**: Comprehensive dashboard được tạo
-- [ ] **Log Queries**: CloudWatch Insights queries hoạt động
-- [ ] **Automated Testing**: Load testing để trigger alarms
-- [ ] **Automated Remediation**: Lambda functions cho auto-scaling
+- [ ] **CloudWatch Agent**: Cài đặt thành công CloudWatch Agent trên EKS cluster
+- [ ] **Container Insights**: Thu thập metrics về CPU, memory, và network từ node và pod
+- [ ] **API Metrics**: Log và metrics từ API được ghi nhận và hiển thị trong CloudWatch
+- [ ] **Dashboard KPI**: Dashboard "Retail Prediction KPI" hiển thị 6 metrics chính
+- [ ] **Alarms & Alerts**: Cảnh báo được thiết lập cho high latency, error rate, và CPU usage
+- [ ] **Auto Scaling**: Lambda function được cấu hình để tự động scale nodegroup
+- [ ] **Training Logs**: SageMaker logs được tích hợp vào CloudWatch
+- [ ] **Cost Optimization**: Chi phí monitoring ước tính dưới 0.5 USD/tháng
 
 ### 📊 Verification Steps
 
-1. **Log từ các pod inference hiển thị trong CloudWatch**
+1. **Xác nhận CloudWatch Agent đang hoạt động**
    ```bash
-   aws logs describe-log-groups --log-group-name-prefix "/aws/eks/retail-forecast"
-   # Expected: Log groups are created and receiving data
+   # Kiểm tra CloudWatch Agent pods
+   kubectl get pods -n amazon-cloudwatch
+   # Expected: cloudwatch-agent pods should be running
    
+   # Kiểm tra logs từ CloudWatch Agent
+   kubectl logs -l k8s-app=cloudwatch-agent -n amazon-cloudwatch
+   # Expected: No error messages, agent is collecting metrics
+   ```
+
+2. **Xác nhận logs từ API container được gửi đến CloudWatch**
+   ```bash
+   # Kiểm tra log groups
+   aws logs describe-log-groups --log-group-name-prefix "/aws/container/retail-api"
+   # Expected: Log group exists
+   
+   # Truy vấn log mẫu
    aws logs start-query \
-     --log-group-name "/aws/eks/retail-forecast/application" \
+     --log-group-name "/aws/container/retail-api" \
      --start-time $(date -d '1 hour ago' +%s) \
      --end-time $(date +%s) \
      --query-string 'fields @timestamp, @message | sort @timestamp desc | limit 10'
+   # Expected: Should see API request logs with latency metrics
    ```
 
-2. **Khi tạo tải thử nghiệm, alarm chuyển trạng thái (OK → ALARM)**
+3. **Kiểm tra dashboard và metric filters**
    ```bash
-   # Generate load
-   siege -c 20 -t 2m http://your-load-balancer/healthz
+   # Kiểm tra dashboard
+   aws cloudwatch get-dashboard \
+     --dashboard-name "Retail-Prediction-KPI"
+   # Expected: Dashboard configuration should be returned
    
-   # Check alarm states
+   # Kiểm tra metric filters
+   aws logs describe-metric-filters \
+     --log-group-name "/aws/container/retail-api"
+   # Expected: Should see InferenceLatency, ErrorRate, and other filters
+   ```
+
+4. **Kiểm tra Alarms và SNS notifications**
+   ```bash
+   # Tạo tải thử nghiệm để kích hoạt alarm
+   kubectl run load-generator --image=busybox -- /bin/sh -c "while true; do wget -q -O- http://retail-api-service.retail-prediction.svc.cluster.local:8080/predict; done"
+   
+   # Kiểm tra trạng thái alarms
    aws cloudwatch describe-alarms \
-     --alarm-names "RetailForecast-HighLatency" "RetailForecast-HighErrorRate" \
-     --query 'MetricAlarms[*].[AlarmName,StateValue,StateChangeTime]' \
+     --alarm-names "RetailPrediction-HighLatency" "RetailPrediction-HighErrorRate" "RetailPrediction-HighCPU" \
+     --query 'MetricAlarms[*].[AlarmName,StateValue,StateReason]' \
      --output table
-   # Expected: Alarms should transition from OK to ALARM
+   # Expected: Alarms should change state in response to load
+   
+   # Xóa pod tạo tải sau khi hoàn thành kiểm tra
+   kubectl delete pod load-generator
    ```
 
-3. **Có thể giám sát toàn bộ hệ thống từ CloudWatch console**
+5. **Kiểm tra logs từ SageMaker training**
    ```bash
-   # Access dashboard
-   echo "Dashboard: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#dashboards:name=RetailForecast-MLOps-Dashboard"
+   # Liệt kê log streams cho training job
+   aws logs describe-log-streams \
+     --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training"
+   # Expected: Should see log streams for training job
    
-   # Check Container Insights
-   echo "Container Insights: https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#container-insights:performance/EKS:Cluster/retail-forecast-cluster"
+   # Kiểm tra training metrics từ CloudWatch
+   aws cloudwatch get-metric-statistics \
+     --namespace "RetailMLOps" \
+     --metric-name "TrainingLoss" \
+     --statistics Average \
+     --period 3600 \
+     --start-time $(date -d '24 hours ago' +%s) \
+     --end-time $(date +%s)
+   # Expected: Should see training loss metrics
    ```
 
 ### 🔍 Monitoring Commands
 
 ```bash
-# Check all alarms status
+# Kiểm tra tất cả alarms
 aws cloudwatch describe-alarms \
-  --query 'MetricAlarms[?starts_with(AlarmName, `RetailForecast`)].[AlarmName,StateValue,StateReason]' \
+  --query 'MetricAlarms[?starts_with(AlarmName, `RetailPrediction`)].[AlarmName,StateValue,StateReason]' \
   --output table
 
-# Monitor log ingestion
-aws logs describe-metric-filters \
-  --log-group-name "/aws/eks/retail-forecast/application"
+# Theo dõi API hiệu năng real-time
+watch -n 5 "aws cloudwatch get-metric-statistics \
+  --namespace RetailMLOps \
+  --metric-name InferenceLatency \
+  --statistics Average p50 p95 p99 \
+  --period 60 \
+  --start-time \$(date -d '30 minutes ago' +%s) \
+  --end-time \$(date +%s) \
+  --output table"
 
-# Check SNS subscriptions
-aws sns list-subscriptions-by-topic \
-  --topic-arn arn:aws:sns:us-east-1:123456789012:retail-forecast-alerts
+# Kiểm tra CPU/Memory của EKS nodes
+aws cloudwatch get-metric-statistics \
+  --namespace ContainerInsights \
+  --metric-name node_cpu_utilization \
+  --statistics Average \
+  --period 300 \
+  --dimensions Name=ClusterName,Value=retail-prediction-cluster \
+  --start-time $(date -d '1 hour ago' +%s) \
+  --end-time $(date +%s)
 
-# Monitor custom metrics
-aws cloudwatch list-metrics \
-  --namespace "CustomMetrics/RetailForecast"
+# Kiểm tra logs mới nhất từ API
+aws logs get-log-events \
+  --log-group-name "/aws/container/retail-api" \
+  --log-stream-name $(aws logs describe-log-streams --log-group-name "/aws/container/retail-api" --order-by LastEventTime --descending --limit 1 --query 'logStreams[0].logStreamName' --output text) \
+  --limit 10
 
-# Check dashboard
-aws cloudwatch list-dashboards \
-  --dashboard-name-prefix "RetailForecast"
+# Dashboard và metrics
+aws cloudwatch list-dashboards --dashboard-name-prefix "Retail-Prediction"
+aws cloudwatch list-metrics --namespace "RetailMLOps"
 ```
 
-## Troubleshooting
+## 9. Log Analysis và Troubleshooting
 
-### Common Issues
+### 9.1 CloudWatch Logs Insights Queries
 
-1. **Logs not appearing in CloudWatch**
-   - Check Fluent Bit pod status: `kubectl get pods -n amazon-cloudwatch`
-   - Verify IAM permissions for CloudWatch Logs
-   - Check Fluent Bit configuration
+CloudWatch Logs Insights cho phép truy vấn logs một cách hiệu quả để phân tích và giải quyết vấn đề:
 
-2. **Alarms not triggering**
-   - Verify metric data exists: `aws cloudwatch get-metric-statistics`
-   - Check alarm threshold and evaluation periods
-   - Ensure sufficient data points
+```sql
+-- Phân tích latency theo percentile
+fields @timestamp, @message
+| filter @message like "API Request" 
+| parse @message '"latency_ms": *,' as latency
+| stats count() as requests, 
+        min(latency) as min_latency,
+        avg(latency) as avg_latency, 
+        pct(latency, 50) as p50, 
+        pct(latency, 95) as p95, 
+        pct(latency, 99) as p99,
+        max(latency) as max_latency by bin(5m)
 
-3. **SNS notifications not received**
-   - Check email subscription confirmation
-   - Verify SNS topic permissions
-   - Check spam folder for notifications
+-- Tìm các request có latency cao
+fields @timestamp, @message
+| filter @message like "API Request"
+| parse @message '"latency_ms": *,' as latency
+| filter latency > 200
+| sort by latency desc
+| limit 20
+
+-- Phân tích error rate theo endpoint
+fields @timestamp, @message
+| filter @message like "API Error"
+| parse @message '"endpoint": "*",' as endpoint
+| parse @message '"status_code": *,' as status_code
+| stats count(*) as error_count by endpoint, status_code
+| sort by error_count desc
+
+-- Theo dõi training metrics
+fields @timestamp, @message
+| filter @message like "loss" or @message like "accuracy"
+| parse @message "loss: *," as loss
+| parse @message "accuracy: *," as accuracy
+| parse @message "epoch * " as epoch
+| sort by @timestamp asc
+| display @timestamp, epoch, loss, accuracy
+```
+
+### 9.2 Common Issues & Solutions
+
+#### 1. CloudWatch Agent không thu thập metrics
+
+**Vấn đề**: Metrics từ container không xuất hiện trong CloudWatch.
+
+**Giải pháp**:
+```bash
+# Kiểm tra status của CloudWatch Agent
+kubectl get pods -n amazon-cloudwatch
+kubectl describe pod -n amazon-cloudwatch -l k8s-app=cloudwatch-agent
+
+# Kiểm tra logs của CloudWatch Agent
+kubectl logs -n amazon-cloudwatch -l k8s-app=cloudwatch-agent
+
+# Kiểm tra IAM permissions
+aws iam get-role --role-name EKS-CloudWatchAgentRole
+```
+
+#### 2. Alarm kích hoạt sai
+
+**Vấn đề**: CloudWatch Alarm kích hoạt không mong muốn hoặc không kích hoạt khi cần.
+
+**Giải pháp**:
+```bash
+# Kiểm tra metric data
+aws cloudwatch get-metric-statistics \
+  --namespace "RetailMLOps" \
+  --metric-name "InferenceLatency" \
+  --statistics Average \
+  --period 60 \
+  --start-time $(date -d '1 hour ago' +%s) \
+  --end-time $(date +%s)
+
+# Kiểm tra và cập nhật alarm configuration
+aws cloudwatch describe-alarms --alarm-names "RetailPrediction-HighLatency"
+```
+
+#### 3. SageMaker logs không xuất hiện
+
+**Vấn đề**: Training logs từ SageMaker không được ghi nhận vào CloudWatch.
+
+**Giải pháp**:
+```bash
+# Kiểm tra SageMaker training job
+aws sagemaker describe-training-job --training-job-name retail-prediction-training
+
+# Kiểm tra IAM role của SageMaker
+aws iam get-role --role-name SageMakerExecutionRole
+
+# Đảm bảo role có quyền CloudWatchLogsFullAccess
+aws iam attach-role-policy \
+  --role-name SageMakerExecutionRole \
+  --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+```
+
+### 9.3 Best Practices
+
+1. **Thiết lập log retention**: Giữ logs trong khoảng thời gian phù hợp để tiết kiệm chi phí
+   ```bash
+   aws logs put-retention-policy --log-group-name "/aws/container/retail-api" --retention-in-days 30
+   ```
+
+2. **Sử dụng metric filters hiệu quả**: Chỉ trích xuất các metrics thực sự cần thiết
+
+3. **Sử dụng composite alarms**: Kết hợp nhiều điều kiện để giảm false positives
+   ```bash
+   aws cloudwatch put-composite-alarm \
+     --alarm-name "RetailPrediction-CriticalIssue" \
+     --alarm-rule "(ALARM(RetailPrediction-HighLatency) AND ALARM(RetailPrediction-HighErrorRate))"
+   ```
+
+4. **Log rotation**: Đảm bảo logs không chiếm quá nhiều disk space trên pods
+   ```yaml
+   # Trong Deployment
+   volumeMounts:
+     - name: varlog
+       mountPath: /var/log
+   volumes:
+     - name: varlog
+       emptyDir: {}
+   ```
+
+## 10. Kết luận
+
+Hệ thống monitoring và logging được xây dựng cho MLOps Retail Prediction mang lại những lợi ích quan trọng:
+
+✔️ **Giám sát toàn diện**: Theo dõi từ infrastructure (EKS), application (API) đến ML model (inference, training).
+
+✔️ **Phát hiện sớm lỗi**: Cảnh báo kịp thời khi latency cao, error rate tăng hoặc resource bị cạn kiệt.
+
+✔️ **Tối ưu hiệu năng**: Dữ liệu metrics giúp phân tích bottleneck và cải thiện API performance.
+
+✔️ **Tự động hóa**: Auto-scaling dựa trên metrics giúp đáp ứng tải tự động và tiết kiệm chi phí.
+
+✔️ **MLOps observability**: Theo dõi quá trình huấn luyện và hiệu suất model giúp cải thiện liên tục.
+
+Hệ thống giám sát này là thành phần quan trọng của MLOps pipeline, giúp đảm bảo tính ổn định, độ tin cậy và hiệu suất của dịch vụ dự đoán trong môi trường production.
 
 ---
 
-**Next Step**: [Task 13: Security & Compliance](../13-security-compliance/)
+**Next Step**: [Task 13: CI/CD Pipeline Automation](../13-cicd-pipeline/)
