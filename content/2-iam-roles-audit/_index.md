@@ -6,7 +6,7 @@ chapter: false
 pre: "<b>2. </b>"
 ---
 
-## 🎯 Mục tiêu Task 2
+## 🎯 Mục tiêu MLOps Retail Prediction - Task 2
 
 Thiết lập **phân quyền truy cập (IAM)** cho toàn bộ dịch vụ AWS trong pipeline và **bật CloudTrail** để giám sát, ghi lại mọi hoạt động trên tài khoản AWS.
 
@@ -67,14 +67,19 @@ Server-side encryption: ✅ SSE-S3
 ```
 
 **Cấu hình Lifecycle Policy:**
-1. S3 Console → chọn bucket `mlops-cloudtrail-logs-ap-southeast-1` → Management → Create lifecycle rule.  
-2. Đặt tên (ví dụ `CloudTrailLogLifecycle`), Apply to all objects hoặc dùng Prefix `mlops-logs/`.  
-3. Chọn actions (Current versions):
+
+**Bước 1**. S3 Console → chọn bucket `mlops-cloudtrail-logs-ap-southeast-1` → Management → Create lifecycle rule.  
+
+**Bước 2**. Đặt tên (ví dụ `CloudTrailLogLifecycle`), Apply to all objects hoặc dùng Prefix `mlops-logs/`.  
+
+**Bước 3**. Chọn actions (Current versions):
    - After 30 days → STANDARD_IA
    - After 90 days → GLACIER / GLACIER_IR (tùy chọn)
    - After 365 days → DEEP_ARCHIVE
-4. (Tùy chọn) Thiết lập Transition cho noncurrent versions tương tự; hoặc Expire current versions theo retention (ví dụ 7 năm) nếu cần compliance.  
-5. Review → Create rule → kiểm tra rule đã Active trong tab Management.  
+
+**Bước 4**. (Tùy chọn) Thiết lập Transition cho noncurrent versions tương tự; hoặc Expire current versions theo retention (ví dụ 7 năm) nếu cần compliance.  
+
+**Bước 5**. Review → Create rule → kiểm tra rule đã Active trong tab Management.  
 ![CloudTrail and S3 lifecycle diagram](/images/2-iam-roles-audit/01-cloudtrail-s3-lifecycle-01.png "CloudTrail multi-region trail -> S3 bucket -> Lifecycle transitions")
 Lưu ý ngắn: bật Versioning nếu chuyển noncurrent versions; giữ encryption và block public access cho bucket.
 
