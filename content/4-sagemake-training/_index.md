@@ -11,40 +11,25 @@ Huấn luyện mô hình dự báo **BASKET_PRICE_SENSITIVITY** (Low/Medium/High
 
 → **Đây là trái tim của pipeline MLOps** — nơi thực hiện quy trình xử lý dữ liệu tự động (ETL) và huấn luyện mô hình học máy.
 
-📊 **Nội dung chính**
-
-**1. Luồng xử lý dữ liệu tự động (ETL)**
-- Pipeline đọc dữ liệu từ S3 `raw/`, tự động làm sạch, chuẩn hóa, mã hóa, và tạo feature
-- Output lưu vào S3 `gold/` dưới dạng Parquet, sẵn sàng cho huấn luyện
-- Toàn bộ ETL được thực thi tự động qua SageMaker Processing Job hoặc script Python trong CI/CD pipeline
-
-**2. Huấn luyện mô hình**
-- Dùng Amazon SageMaker Training Job chạy trên instance `ml.m5.large` hoặc Spot để giảm chi phí
-- Input: `s3://mlops-retail/gold/features.parquet`
-- Models huấn luyện: Logistic Regression (baseline), Decision Tree/Random Forest, XGBoost (production)
-- Output: model artifact `.tar.gz` lưu trong `s3://mlops-retail/artifacts/model-v1/`
-
-**3. Đánh giá mô hình (Model Evaluation)**
-- Tính Accuracy, Precision, Recall, F1-score (macro)
-- Sinh Confusion Matrix để phân tích sai lệch theo nhóm nhãn (Low/Medium/High)
-- Tự động lưu kết quả đánh giá dưới dạng `.json` hoặc `.csv` trong `artifacts/evaluation/`
-
-**4. Đăng ký mô hình (Model Registry – optional)**
-- Đăng ký version mô hình trong SageMaker Model Registry
-- Ghi metadata: training dataset, hyperparameters, metrics, timestamp
-- Đặt tag approved/staging/production để CI/CD pipeline tự động deploy phiên bản tốt nhất
-
-**5. Tối ưu chi phí và hiệu năng**
-- Sử dụng Spot Instance cho training
-- Tự động stop job sau khi training xong
-- Training log stream trực tiếp vào CloudWatch để dễ theo dõi
-
-💰 **Chi phí ước tính**: ~**$0.3-0.5/job** (instance ml.m5.large, thời gian ~10-15 phút). Nếu bật Spot → giảm 70-80%.
+📥 **Input**
+- AWS Account với quyền SageMaker/S3/CloudWatch
+- Retail transaction data trong S3 `raw/`
+- Project naming: `mlops-retail-prediction-dev`
 
 ✅ **Kết quả mong đợi**
 - Luồng ETL → Train → Evaluate → Save → (Register) chạy tự động end-to-end
 - Model đạt accuracy ≥ 80%, F1 ≥ 0.7
 - Artifact và kết quả huấn luyện được lưu đầy đủ trong S3
+
+💰 **Chi phí ước tính**: ~**$0.3-0.5/job** (instance ml.m5.large, thời gian ~10-15 phút). Nếu bật Spot → giảm 70-80%.
+
+
+📌 **Các bước**
+1. **ETL Pipeline** - Automated data processing  
+2. **Multi-Model Training** - LR, RF, XGBoost comparison
+3. **Model Evaluation** - Comprehensive metrics + confusion matrix
+4. **Model Registry** - Version control và approval workflow
+5. **CI/CD Integration** - Export model info for deployment
 
 {{% notice info %}}
 **💡 Task 4 Focus - MLOps Core Pipeline:**
@@ -57,25 +42,6 @@ Huấn luyện mô hình dự báo **BASKET_PRICE_SENSITIVITY** (Low/Medium/High
 **Trái tim của MLOps** - tự động hóa hoàn toàn từ data đến model
 {{% /notice %}}
 
-📥 **Input**
-- AWS Account với quyền SageMaker/S3/CloudWatch
-- Retail transaction data trong S3 `raw/`
-- Project naming: `mlops-retail-prediction-dev`
-
-📌 **Các bước**
-1. **ETL Pipeline** - Automated data processing  
-2. **Multi-Model Training** - LR, RF, XGBoost comparison
-3. **Model Evaluation** - Comprehensive metrics + confusion matrix
-4. **Model Registry** - Version control và approval workflow
-5. **CI/CD Integration** - Export model info for deployment
-
-✅ **Deliverables**
-- Automated ETL pipeline từ raw → gold
-- Multi-model training với comparison metrics
-- Model evaluation reports và confusion matrix
-- Model Registry với versioning và approval
-- CI/CD ready artifacts trong S3
-
 📊 **Success Criteria**
 - ✅ **ETL Success** - Raw data → clean features pipeline hoạt động
 - ✅ **Model Performance** - Accuracy ≥ 80%, F1 ≥ 0.7
@@ -87,7 +53,294 @@ Huấn luyện mô hình dự báo **BASKET_PRICE_SENSITIVITY** (Low/Medium/High
 - **Model Training** sử dụng Spot để giảm chi phí 
 - **Evaluation Metrics** phải consistent với business requirements
 
-## 1. ETL Pipeline - Automated Data Processing
+## Thực hiện bằng AWS Console - Hướng dẫn chi tiết từng bước
+
+### Bước 1: Kiểm tra dữ liệu trong S3 (từ Task 3)
+
+#### 1.1. Xác minh bucket và dữ liệu
+1. **AWS Console** → **S3** 
+2. **Tìm bucket**: `mlops-retail-prediction-dev-[account-id]` (đã tạo ở Task 3)
+3. **Kiểm tra cấu trúc**:
+   ```
+   ✅ raw/        # có file dunnhumby_The-Complete-Journey.csv
+   ✅ silver/     # sẽ chứa dữ liệu đã xử lý
+   ✅ gold/       # sẽ chứa features training
+   ✅ artifacts/  # sẽ chứa model outputs
+   ```
+
+#### 1.2. Xác minh IAM Role (từ Task 2)
+1. **AWS Console** → **IAM** → **Roles**
+2. **Tìm role**: `mlops-retail-prediction-dev-sagemaker-execution` (đã tạo ở Task 2)
+3. **Kiểm tra permissions**:
+   - ✅ `AmazonSageMakerFullAccess`
+   - ✅ `AmazonS3FullAccess`
+   - ✅ `CloudWatchLogsFullAccess`
+
+### Bước 2: Training Model với SageMaker Studio
+
+#### 2.1. Mở SageMaker Studio
+1. **AWS Console** → Tìm "SageMaker" → Click **Amazon SageMaker**
+2. **Sidebar trái** → Click **"Studio"**
+3. **Click "Create a SageMaker domain"** (nếu chưa có)
+4. **Domain name**: `mlops-retail-domain`
+5. **Default execution role**: Chọn `mlops-retail-prediction-dev-sagemaker-execution` (từ Task 2)
+6. Click **"Submit"** → Đợi 5-10 phút
+7. **Domain created** → Click **"Launch"** → **"Studio"**
+
+#### 2.2. Tạo Training Job
+1. **SageMaker Studio mở** → **Sidebar trái** → Click **"Training"** → **"Training jobs"**
+2. Click **"Create training job"**
+
+#### 2.3. Cấu hình Job Details
+1. **Job name**: `retail-prediction-training-20241011`
+2. **IAM role**: Chọn `mlops-retail-prediction-dev-sagemaker-execution` (từ Task 2)
+3. Click **"Next"**
+
+#### 2.4. Algorithm Options
+1. **Algorithm source**: Chọn **"Your own algorithm container in ECR"**
+2. **Container path**: 
+   ```
+   382416733822.dkr.ecr.ap-southeast-1.amazonaws.com/scikit-learn:1.0-1-cpu-py3
+   ```
+3. **Input mode**: `File`
+4. Click **"Next"**
+
+#### 2.5. Configure Resource
+1. **Instance type**: `ml.m5.large`
+2. **Instance count**: `1`
+3. **Additional storage per instance (GB)**: `30`
+4. **Use Spot training**: ✅ **Check** (tiết kiệm 70% chi phí)
+5. **Max wait time**: `7200` seconds (2 hours)
+6. **Max training time**: `3600` seconds (1 hour)
+7. Click **"Next"**
+
+#### 2.6. Configure Input Data
+1. **Channel name**: `training`
+2. **Input mode**: `File`
+3. **Data source**: `S3`
+4. **S3 location**: `s3://mlops-retail-prediction-dev-[account-id]/raw/`
+5. **Content type**: `text/csv`
+6. **Compression**: `None`
+7. **Record wrapper**: `None`
+8. Click **"Add channel"**
+9. Click **"Next"**
+
+#### 2.7. Configure Output Data
+1. **S3 output path**: `s3://mlops-retail-prediction-dev-[account-id]/artifacts/` (bucket từ Task 3)
+2. **Encryption**: `None`
+3. Click **"Next"**
+
+#### 2.8. Configure Hyperparameters
+1. Click **"Add hyperparameter"** cho từng tham số:
+
+| Key | Value |
+|-----|-------|
+| `model_type` | `all` |
+| `random_state` | `42` |
+| `cv_folds` | `5` |
+| `test_size` | `0.2` |
+
+2. Click **"Next"**
+
+#### 2.9. Review và Create
+1. **Review** tất cả cài đặt
+2. Click **"Create training job"**
+
+### Bước 3: Upload Training Script
+
+#### 3.1. Tạo Training Script
+1. **SageMaker Studio** → Click **"+"** → **"Python 3"** notebook
+2. **Tạo cell mới** và paste code sau:
+
+```python
+%%writefile train.py
+
+import pandas as pd
+import numpy as np
+import joblib
+import os
+import json
+import argparse
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, f1_score, classification_report
+import xgboost as xgb
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model-dir', type=str, default=os.environ.get('SM_MODEL_DIR'))
+    parser.add_argument('--train', type=str, default=os.environ.get('SM_CHANNEL_TRAINING'))
+    parser.add_argument('--model_type', type=str, default='all')
+    args = parser.parse_args()
+    
+    # Load data
+    input_files = [os.path.join(args.train, file) for file in os.listdir(args.train)]
+    raw_data = pd.concat([pd.read_csv(file) for file in input_files])
+    
+    # Basic preprocessing
+    clean_data = raw_data.dropna(subset=['BASKET_ID', 'SPEND', 'BASKET_PRICE_SENSITIVITY'])
+    
+    # Create features
+    features = clean_data.groupby('BASKET_ID').agg({
+        'SPEND': ['sum', 'mean', 'std', 'count'],
+        'QUANTITY': ['sum', 'mean'],
+        'PROD_CODE': 'nunique',
+        'BASKET_PRICE_SENSITIVITY': lambda x: x.iloc[0]
+    }).reset_index()
+    
+    # Flatten columns
+    features.columns = ['basket_id', 'total_spend', 'avg_spend', 'spend_std', 
+                       'basket_size', 'total_qty', 'avg_qty', 'unique_products', 'target']
+    features['spend_std'] = features['spend_std'].fillna(0)
+    
+    # Prepare for ML
+    X = features[['total_spend', 'avg_spend', 'spend_std', 'basket_size', 
+                  'total_qty', 'avg_qty', 'unique_products']]
+    y = features['target']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Train models
+    models = {
+        'random_forest': RandomForestClassifier(n_estimators=100, random_state=42),
+        'logistic': LogisticRegression(random_state=42, max_iter=1000),
+        'decision_tree': DecisionTreeClassifier(random_state=42, max_depth=10)
+    }
+    
+    best_model = None
+    best_score = 0
+    results = {}
+    
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        pred = model.predict(X_test)
+        f1 = f1_score(y_test, pred, average='macro')
+        acc = accuracy_score(y_test, pred)
+        
+        results[name] = {'accuracy': acc, 'f1_score': f1}
+        
+        if f1 > best_score:
+            best_score = f1
+            best_model = model
+            best_name = name
+    
+    # Save best model
+    joblib.dump(best_model, os.path.join(args.model_dir, 'model.joblib'))
+    
+    # Save results
+    with open(os.path.join(args.model_dir, 'results.json'), 'w') as f:
+        json.dump({
+            'best_model': best_name,
+            'best_f1_score': best_score,
+            'all_results': results
+        }, f)
+    
+    print(f"Best model: {best_name} with F1-score: {best_score:.4f}")
+
+if __name__ == '__main__':
+    main()
+```
+
+3. **Run cell** → File `train.py` được tạo
+
+#### 3.2. Upload script lên S3 (sử dụng bucket từ Task 3)
+1. **Tạo cell mới**:
+
+```python
+import boto3
+
+s3 = boto3.client('s3')
+bucket_name = 'mlops-retail-prediction-dev-[account-id]'  # Thay [account-id]
+
+# Upload training script
+s3.upload_file('train.py', bucket_name, 'code/train.py')
+print("✅ Training script uploaded to S3")
+```
+
+2. **Run cell**
+
+### Bước 4: Chạy Training Job
+
+#### 4.1. Theo dõi Training Job
+1. **SageMaker Console** → **Training jobs**
+2. **Tìm job**: `retail-prediction-training-20241011`
+3. **Status**: `InProgress` → `Completed` (5-10 phút)
+4. **Click vào job name** để xem details
+
+#### 4.2. Xem kết quả
+1. **Scroll xuống** → **Monitor** section
+2. **CloudWatch logs** → Click **"View logs"**
+3. **Tìm dòng**: `Best model: random_forest with F1-score: 0.8234`
+
+### Bước 5: Model Registry
+
+#### 5.1. Tạo Model Package Group
+1. **SageMaker Console** → **Sidebar** → **"Inference"** → **"Model registry"**
+2. Click **"Create model package group"**
+3. **Name**: `retail-price-sensitivity-models`
+4. **Description**: `Models for retail customer price sensitivity prediction`
+5. Click **"Create model package group"**
+
+#### 5.2. Register Model
+1. **Training jobs** → Click job `retail-prediction-training-20241011`
+2. **Scroll xuống** → **Model artifacts** section
+3. Click **"Create model package"**
+4. **Model package group**: `retail-price-sensitivity-models`
+5. **Model package version description**: `First retail prediction model v1.0`
+6. **Approval status**: `PendingManualApproval`
+7. Click **"Create model package"**
+
+#### 5.3. Approve Model (nếu F1-score ≥ 0.7)
+1. **Model registry** → **Model package groups** → Click `retail-price-sensitivity-models`
+2. **Versions** tab → Click **version 1**
+3. **Update status** → **"Approved"**
+4. **Description**: `Auto-approved: F1-score ≥ 0.7`
+5. Click **"Update status"**
+
+### Bước 6: Kiểm tra kết quả
+
+#### 6.1. Download Model Artifacts
+1. **Training job details** → **Output** section
+2. **S3 model artifacts**: Click **S3 URI**
+3. **S3 Console mở** → Click **"Download"** file `model.tar.gz`
+4. **Extract** → Kiểm tra file `model.joblib` và `results.json`
+
+#### 6.2. Verification
+```json
+{
+  "best_model": "random_forest",
+  "best_f1_score": 0.8234,
+  "all_results": {
+    "random_forest": {"accuracy": 0.8456, "f1_score": 0.8234},
+    "logistic": {"accuracy": 0.8123, "f1_score": 0.7891},
+    "decision_tree": {"accuracy": 0.7765, "f1_score": 0.7456}
+  }
+}
+```
+
+### ✅ Hoàn thành!
+
+**Bạn đã thành công:**
+- ✅ **Tạo S3 bucket** và upload dữ liệu
+- ✅ **Cấu hình IAM role** cho SageMaker  
+- ✅ **Train model** với Random Forest, Logistic Regression, Decision Tree
+- ✅ **Chọn best model** dựa trên F1-score
+- ✅ **Register model** trong Model Registry
+- ✅ **Approve model** cho production
+
+**Kết quả:**
+- 🎯 **Best Model**: Random Forest
+- 📊 **F1-Score**: 0.8234 (> 0.7 ✅)
+- 📊 **Accuracy**: 0.8456 (> 0.8 ✅)
+- 💰 **Chi phí**: ~$0.3 (với Spot instances)
+
+**Next Steps:** Model đã sẵn sàng cho deployment trong Task 10!
+
+## Thực hiện bằng Code
+
+### 1. ETL Pipeline - Automated Data Processing
 
 ### 1.1. ETL Processing Script
 
