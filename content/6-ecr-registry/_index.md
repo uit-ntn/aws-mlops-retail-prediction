@@ -67,7 +67,7 @@ Security & Lifecycle:
    - Region: ap-southeast-1
    - Chọn "Create repository"
 
-{{< imgborder src="/images/06-ecr-registry/01-create-repository.png" title="Navigate to ECR Console" >}}
+![Navigate to ECR Console](/images/06-ecr-registry/01-create-repository.png)
 
 2. **API Repository Configuration:**
    ```
@@ -78,7 +78,7 @@ Security & Lifecycle:
    Encryption settings: AES-256 (Default)
    ```
 
-{{< imgborder src="/images/06-ecr-registry/02-api-repository-config.png" title="Configure API repository" >}}
+![Configure API repository](/images/06-ecr-registry/02-api-repository-config.png)
 
 3. **Training Repository Configuration (Optional):**
    ```
@@ -89,7 +89,7 @@ Security & Lifecycle:
    Encryption settings: AES-256
    ```
 
-{{< imgborder src="/images/06-ecr-registry/03-training-repository-config.png" title="Configure training repository" >}}
+![Configure training repository](/images/06-ecr-registry/03-training-repository-config.png)
 
 4. **Repository Creation Complete:**
    ```
@@ -97,7 +97,7 @@ Security & Lifecycle:
    Training Repository URI: 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/train-model
    ```
 
-{{< imgborder src="/images/06-ecr-registry/04-repositories-created.png" title="ECR repositories created successfully" >}}
+![ECR repositories created successfully](/images/06-ecr-registry/04-repositories-created.png)
 
 ### 1.2. Repository Policies Configuration
 
@@ -105,7 +105,7 @@ Security & Lifecycle:
    - Chọn repository `mlops/retail-api`
    - Click "Permissions" tab → "Edit policy JSON"
 
-{{< imgborder src="/images/06-ecr-registry/05-api-repository-permissions.png" title="Configure API repository permissions" >}}
+![Configure API repository permissions](/images/06-ecr-registry/05-api-repository-permissions.png)
 
 2. **Configure API Repository Policy:**
    ```json
@@ -125,14 +125,14 @@ Security & Lifecycle:
          ]
        },
        {
-         "Sid": "AllowCICDPushAccess", 
+         "Sid": "AllowCICDPushAccess",
          "Effect": "Allow",
          "Principal": {
            "AWS": "arn:aws:iam::123456789012:role/mlops-cicd-role"
          },
          "Action": [
            "ecr:BatchCheckLayerAvailability",
-           "ecr:GetDownloadUrlForLayer", 
+           "ecr:GetDownloadUrlForLayer",
            "ecr:BatchGetImage",
            "ecr:PutImage",
            "ecr:InitiateLayerUpload",
@@ -144,7 +144,7 @@ Security & Lifecycle:
    }
    ```
 
-{{< imgborder src="/images/06-ecr-registry/06-api-repository-policy.png" title="API repository access policy" >}}
+!![API repository access policy](/images/06-ecr-registry/06-api-repository-policy.png)
 
 3. **Training Repository Access Policy:**
    ```json
@@ -164,14 +164,14 @@ Security & Lifecycle:
          ]
        },
        {
-         "Sid": "AllowCICDPushAccess", 
+         "Sid": "AllowCICDPushAccess",
          "Effect": "Allow",
          "Principal": {
            "AWS": "arn:aws:iam::123456789012:role/mlops-cicd-role"
          },
          "Action": [
            "ecr:BatchCheckLayerAvailability",
-           "ecr:GetDownloadUrlForLayer", 
+           "ecr:GetDownloadUrlForLayer",
            "ecr:BatchGetImage",
            "ecr:PutImage",
            "ecr:InitiateLayerUpload",
@@ -188,53 +188,56 @@ Security & Lifecycle:
 1. **API Repository Lifecycle Policy:**
    - Repository → "Lifecycle policy" tab → "Create rule"
 
-{{< imgborder src="/images/06-ecr-registry/07-api-lifecycle-policy.png" title="Create API lifecycle policy" >}}
+![Create API lifecycle policy](/images/06-ecr-registry/07-api-lifecycle-policy.png)
 
 2. **Configure API Lifecycle Rules:**
-   
+
    **Rule 1 - Keep Latest Production Images:**
+
    ```
    Rule priority: 1
    Description: Keep latest 10 production images
    Image status: Tagged
    Tag status: Starts with "v" (production versions)
-   
+
    Match criteria:
    - Count type: imageCountMoreThan
    - Count number: 10
-   
+
    Action: expire
    ```
 
    **Rule 2 - Keep Latest Development Images:**
+
    ```
    Rule priority: 2
    Description: Keep latest 5 development images
    Image status: Tagged
    Tag status: Starts with "dev", "feature", "main"
-   
+
    Match criteria:
    - Count type: imageCountMoreThan
    - Count number: 5
-   
+
    Action: expire
    ```
 
    **Rule 3 - Remove Old Untagged Images:**
+
    ```
-   Rule priority: 3  
+   Rule priority: 3
    Description: Delete untagged images after 1 day
    Image status: Untagged
-   
+
    Match criteria:
    - Count type: sinceImagePushed
    - Count number: 1
    - Count unit: days
-   
+
    Action: expire
    ```
 
-{{< imgborder src="/images/06-ecr-registry/08-api-lifecycle-rules.png" title="API lifecycle policy rules" >}}
+![API lifecycle policy rules](/images/06-ecr-registry/08-api-lifecycle-rules.png)
 
 3. **Training Repository Lifecycle Policy:**
    ```
@@ -250,7 +253,7 @@ Security & Lifecycle:
    - Verify "Scan on push" is enabled
    - Review enhanced scanning options
 
-{{< imgborder src="/images/06-ecr-registry/09-scan-settings.png" title="Verify image scanning configuration" >}}
+![Verify image scanning configuration](/images/06-ecr-registry/09-scan-settings.png)
 
 2. **Enhanced Scanning (Optional):**
    ```
@@ -262,19 +265,21 @@ Security & Lifecycle:
 **🎯 ECR Repositories Setup Complete!**
 
 **Created Repositories:**
+
 - ✅ `mlops/retail-api`: FastAPI prediction service container
 - ✅ `mlops/train-model`: Custom training container (optional)
 - ✅ Image scanning enabled on push
 - ✅ Tag immutability enabled for reproducibility
 - ✅ Lifecycle policies configured for cost optimization
 - ✅ IAM access policies for EKS and CI/CD
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 2. Container Images Development
 
 ### 2.1. FastAPI Prediction Service Container
 
 **Create directory structure:**
+
 ```
 server/
 ├── Dockerfile
@@ -286,6 +291,7 @@ server/
 ```
 
 **File: `server/Dockerfile`**
+
 ```dockerfile
 # Multi-stage build for FastAPI retail prediction API
 FROM python:3.9-slim as builder
@@ -347,6 +353,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", 
 ```
 
 **File: `server/requirements.txt`**
+
 ```txt
 # FastAPI and web framework
 fastapi==0.104.1
@@ -383,6 +390,7 @@ prometheus-client==0.19.0
 ### 2.2. Training Container (Optional)
 
 **Create directory structure:**
+
 ```
 training/
 ├── Dockerfile
@@ -393,6 +401,7 @@ training/
 ```
 
 **File: `training/Dockerfile`**
+
 ```dockerfile
 # Training container for retail price sensitivity model
 FROM python:3.9
@@ -421,6 +430,7 @@ CMD ["python", "train.py"]
 ```
 
 **File: `training/requirements.txt`**
+
 ```txt
 # ML libraries
 scikit-learn==1.3.2
@@ -442,6 +452,7 @@ joblib==1.3.2
 **🎯 Container Images Ready!**
 
 **FastAPI Prediction Service:**
+
 - ✅ Multi-stage Docker build for size optimization
 - ✅ Model loader từ S3 with automatic refresh
 - ✅ Health checks for ALB and Kubernetes
@@ -449,10 +460,11 @@ joblib==1.3.2
 - ✅ Non-root user for security
 
 **Training Container (Optional):**
+
 - ✅ Custom training environment
 - ✅ MLflow integration
 - ✅ Model export to S3
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 3. Build & Push Automation
 
@@ -589,6 +601,7 @@ fi
 ```
 
 **Make script executable:**
+
 ```bash
 chmod +x scripts/build-and-push.sh
 ```
@@ -736,6 +749,7 @@ if (Test-Path "training/Dockerfile") {
 ### 3.3. Test Local Build
 
 **Run build script:**
+
 ```bash
 # Linux/Mac
 ./scripts/build-and-push.sh
@@ -745,13 +759,14 @@ if (Test-Path "training/Dockerfile") {
 ```
 
 **Verify images in ECR:**
+
 ```bash
 # List API images
 aws ecr list-images \
     --repository-name mlops/retail-api \
     --region ap-southeast-1
 
-# List training images  
+# List training images
 aws ecr list-images \
     --repository-name mlops/train-model \
     --region ap-southeast-1
@@ -761,12 +776,13 @@ aws ecr list-images \
 **🎯 Local Build & Push Complete!**
 
 **Results:**
+
 - ✅ FastAPI prediction service image built and pushed
 - ✅ Training container image built and pushed (if training/Dockerfile exists)
 - ✅ Images tagged with Git commit and branch information
 - ✅ Latest tags created for main/develop branches
 - ✅ Local cleanup completed
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 4. CI/CD Integration
 
@@ -779,16 +795,16 @@ name: Build and Deploy to ECR
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
-      - 'server/**'
-      - 'training/**'
-      - '.github/workflows/**'
+      - "server/**"
+      - "training/**"
+      - ".github/workflows/**"
   pull_request:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - 'server/**'
-      - 'training/**'
+      - "server/**"
+      - "training/**"
 
 env:
   AWS_REGION: ap-southeast-1
@@ -800,133 +816,134 @@ jobs:
   build-and-push:
     name: Build and Push to ECR
     runs-on: ubuntu-latest
-    
+
     permissions:
       id-token: write
       contents: read
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Get Git information
-      id: git-info
-      run: |
-        echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-        echo "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-        
-        # Determine image tag based on branch
-        if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "image-tag=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "latest-tag=latest" >> $GITHUB_OUTPUT
-        elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-          echo "image-tag=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "latest-tag=dev-latest" >> $GITHUB_OUTPUT
-        else
-          echo "image-tag=feature-${{ github.head_ref }}-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-          echo "latest-tag=" >> $GITHUB_OUTPUT
-        fi
+      - name: Get Git information
+        id: git-info
+        run: |
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          echo "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
-    - name: Build and push API image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./server
-        file: ./server/Dockerfile
-        push: true
-        tags: |
-          ${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}
-          ${{ steps.git-info.outputs.latest-tag && format('{0}/{1}:{2}', env.ECR_REGISTRY, env.API_REPOSITORY, steps.git-info.outputs.latest-tag) || '' }}
-        build-args: |
-          BUILD_DATE=${{ steps.git-info.outputs.build-date }}
-          GIT_COMMIT=${{ steps.git-info.outputs.commit }}
-          GIT_BRANCH=${{ steps.git-info.outputs.branch }}
-          VERSION=${{ steps.git-info.outputs.image-tag }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+          # Determine image tag based on branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "image-tag=v$(date +%Y%m%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "latest-tag=latest" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "image-tag=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "latest-tag=dev-latest" >> $GITHUB_OUTPUT
+          else
+            echo "image-tag=feature-${{ github.head_ref }}-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+            echo "latest-tag=" >> $GITHUB_OUTPUT
+          fi
 
-    - name: Build and push training image
-      if: hashFiles('training/Dockerfile') != ''
-      uses: docker/build-push-action@v5
-      with:
-        context: ./training
-        file: ./training/Dockerfile
-        push: true
-        tags: |
-          ${{ env.ECR_REGISTRY }}/${{ env.TRAINING_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}
-          ${{ steps.git-info.outputs.latest-tag && format('{0}/{1}:{2}', env.ECR_REGISTRY, env.TRAINING_REPOSITORY, steps.git-info.outputs.latest-tag) || '' }}
-        build-args: |
-          BUILD_DATE=${{ steps.git-info.outputs.build-date }}
-          GIT_COMMIT=${{ steps.git-info.outputs.commit }}
-          GIT_BRANCH=${{ steps.git-info.outputs.branch }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./server
+          file: ./server/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}
+            ${{ steps.git-info.outputs.latest-tag && format('{0}/{1}:{2}', env.ECR_REGISTRY, env.API_REPOSITORY, steps.git-info.outputs.latest-tag) || '' }}
+          build-args: |
+            BUILD_DATE=${{ steps.git-info.outputs.build-date }}
+            GIT_COMMIT=${{ steps.git-info.outputs.commit }}
+            GIT_BRANCH=${{ steps.git-info.outputs.branch }}
+            VERSION=${{ steps.git-info.outputs.image-tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-    - name: Scan images for vulnerabilities
-      run: |
-        # Trigger ECR scan for API image
-        aws ecr start-image-scan \
-          --repository-name ${{ env.API_REPOSITORY }} \
-          --image-id imageTag=${{ steps.git-info.outputs.image-tag }} \
-          --region ${{ env.AWS_REGION }} || true
-          
-        # Trigger ECR scan for training image (if exists)
-        if [[ -f "training/Dockerfile" ]]; then
+      - name: Build and push training image
+        if: hashFiles('training/Dockerfile') != ''
+        uses: docker/build-push-action@v5
+        with:
+          context: ./training
+          file: ./training/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.TRAINING_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}
+            ${{ steps.git-info.outputs.latest-tag && format('{0}/{1}:{2}', env.ECR_REGISTRY, env.TRAINING_REPOSITORY, steps.git-info.outputs.latest-tag) || '' }}
+          build-args: |
+            BUILD_DATE=${{ steps.git-info.outputs.build-date }}
+            GIT_COMMIT=${{ steps.git-info.outputs.commit }}
+            GIT_BRANCH=${{ steps.git-info.outputs.branch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan images for vulnerabilities
+        run: |
+          # Trigger ECR scan for API image
           aws ecr start-image-scan \
-            --repository-name ${{ env.TRAINING_REPOSITORY }} \
+            --repository-name ${{ env.API_REPOSITORY }} \
             --image-id imageTag=${{ steps.git-info.outputs.image-tag }} \
             --region ${{ env.AWS_REGION }} || true
-        fi
-
-    - name: Update EKS deployment (main branch only)
-      if: github.ref == 'refs/heads/main'
-      run: |
-        # Update Kubernetes deployment with new image
-        # This would typically involve updating deployment YAML or using tools like ArgoCD
-        echo "Would update EKS deployment with image: ${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}"
-
-    - name: Output image information
-      run: |
-        echo "### 🚀 Build Complete!" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**API Image:**" >> $GITHUB_STEP_SUMMARY
-        echo "- \`${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
-        if [[ -n "${{ steps.git-info.outputs.latest-tag }}" ]]; then
-          echo "- \`${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.latest-tag }}\`" >> $GITHUB_STEP_SUMMARY
-        fi
-        echo "" >> $GITHUB_STEP_SUMMARY
-        if [[ -f "training/Dockerfile" ]]; then
-          echo "**Training Image:**" >> $GITHUB_STEP_SUMMARY
-          echo "- \`${{ env.ECR_REGISTRY }}/${{ env.TRAINING_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
-          if [[ -n "${{ steps.git-info.outputs.latest-tag }}" ]]; then
-            echo "- \`${{ env.ECR_REGISTRY }}/${{ env.TRAINING_REPOSITORY }}:${{ steps.git-info.outputs.latest-tag }}\`" >> $GITHUB_STEP_SUMMARY
+            
+          # Trigger ECR scan for training image (if exists)
+          if [[ -f "training/Dockerfile" ]]; then
+            aws ecr start-image-scan \
+              --repository-name ${{ env.TRAINING_REPOSITORY }} \
+              --image-id imageTag=${{ steps.git-info.outputs.image-tag }} \
+              --region ${{ env.AWS_REGION }} || true
           fi
-        fi
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Git Info:**" >> $GITHUB_STEP_SUMMARY
-        echo "- Commit: \`${{ steps.git-info.outputs.commit }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- Branch: \`${{ steps.git-info.outputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- Build Date: \`${{ steps.git-info.outputs.build-date }}\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update EKS deployment (main branch only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Update Kubernetes deployment with new image
+          # This would typically involve updating deployment YAML or using tools like ArgoCD
+          echo "Would update EKS deployment with image: ${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}"
+
+      - name: Output image information
+        run: |
+          echo "### 🚀 Build Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**API Image:**" >> $GITHUB_STEP_SUMMARY
+          echo "- \`${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          if [[ -n "${{ steps.git-info.outputs.latest-tag }}" ]]; then
+            echo "- \`${{ env.ECR_REGISTRY }}/${{ env.API_REPOSITORY }}:${{ steps.git-info.outputs.latest-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ -f "training/Dockerfile" ]]; then
+            echo "**Training Image:**" >> $GITHUB_STEP_SUMMARY
+            echo "- \`${{ env.ECR_REGISTRY }}/${{ env.TRAINING_REPOSITORY }}:${{ steps.git-info.outputs.image-tag }}\`" >> $GITHUB_STEP_SUMMARY
+            if [[ -n "${{ steps.git-info.outputs.latest-tag }}" ]]; then
+              echo "- \`${{ env.ECR_REGISTRY }}/${{ env.TRAINING_REPOSITORY }}:${{ steps.git-info.outputs.latest-tag }}\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Git Info:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Commit: \`${{ steps.git-info.outputs.commit }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${{ steps.git-info.outputs.branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Build Date: \`${{ steps.git-info.outputs.build-date }}\`" >> $GITHUB_STEP_SUMMARY
 ```
 
 ### 4.2. GitHub Repository Secrets
 
 **Required secrets in GitHub repository:**
+
 ```
 AWS_ACCOUNT_ID: 123456789012
 AWS_ROLE_ARN: arn:aws:iam::123456789012:role/mlops-cicd-role
@@ -935,6 +952,7 @@ AWS_ROLE_ARN: arn:aws:iam::123456789012:role/mlops-cicd-role
 ### 4.3. IAM Role for GitHub Actions (OIDC)
 
 **Create OIDC provider and role:**
+
 ```bash
 # Create OIDC provider
 aws iam create-open-id-connect-provider \
@@ -981,19 +999,21 @@ aws iam attach-role-policy \
 **🎯 CI/CD Integration Complete!**
 
 **Automated Workflow:**
+
 - ✅ GitHub Actions triggered on push to main/develop
 - ✅ Multi-stage Docker builds with caching
 - ✅ Automatic image tagging based on Git branch/commit
 - ✅ ECR vulnerability scanning on push
 - ✅ OIDC authentication (no AWS keys in repo)
 - ✅ Build summaries with image URLs
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 5. Verification & Testing
 
 ### 5.1. Image Verification
 
 **Check repositories in ECR:**
+
 ```bash
 # List all repositories
 aws ecr describe-repositories --region ap-southeast-1
@@ -1010,6 +1030,7 @@ aws ecr list-images \
 ```
 
 **Get detailed image information:**
+
 ```bash
 # Describe specific image
 aws ecr describe-images \
@@ -1027,6 +1048,7 @@ aws ecr describe-image-scan-findings \
 ### 5.2. Local Container Testing
 
 **Test API container locally:**
+
 ```bash
 # Run API container locally
 docker run -d \
@@ -1062,6 +1084,7 @@ docker rm retail-api-test
 ### 5.3. EKS Integration Testing
 
 **Create test deployment:**
+
 ```yaml
 # test-deployment.yaml
 apiVersion: apps/v1
@@ -1081,35 +1104,35 @@ spec:
     spec:
       serviceAccountName: retail-forecast-sa
       containers:
-      - name: api
-        image: 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8000
-        env:
-        - name: AWS_DEFAULT_REGION
-          value: "ap-southeast-1"
-        - name: MODEL_BUCKET
-          value: "mlops-retail-forecast-models"
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: api
+          image: 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: "ap-southeast-1"
+            - name: MODEL_BUCKET
+              value: "mlops-retail-forecast-models"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
@@ -1119,14 +1142,15 @@ spec:
   selector:
     app: retail-api-test
   ports:
-  - port: 80
-    targetPort: 8000
+    - port: 80
+      targetPort: 8000
   type: ClusterIP
 ```
 
 ### 5.4. Security Scan Analysis
 
 **Check vulnerability scan results:**
+
 ```bash
 # Get scan results summary
 aws ecr describe-image-scan-findings \
@@ -1144,6 +1168,7 @@ aws ecr describe-image-scan-findings \
 ```
 
 **Security best practices verification:**
+
 ```bash
 # Check if running as non-root user
 docker run --rm 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest whoami
@@ -1165,6 +1190,7 @@ docker stop health-test
 ### 6.1. ECR Cost Tracking
 
 **Monthly cost breakdown:**
+
 ```bash
 # Check repository storage usage
 aws ecr describe-repositories \
@@ -1182,6 +1208,7 @@ aws ecr describe-repositories \
 ### 6.2. Image Optimization
 
 **Multi-stage build analysis:**
+
 ```bash
 # Compare image sizes
 docker images | grep mlops
@@ -1191,6 +1218,7 @@ docker history 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-ap
 ```
 
 **Optimization strategies:**
+
 1. **Use slim base images**: python:3.9-slim vs python:3.9
 2. **Multi-stage builds**: Separate build and runtime environments
 3. **Layer caching**: Order Dockerfile commands for better caching
@@ -1202,6 +1230,7 @@ docker history 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-ap
 ### 7.1. Common Issues
 
 **Issue 1: ECR Authentication Failed**
+
 ```bash
 # Solution: Refresh ECR login
 aws ecr get-login-password --region ap-southeast-1 | \
@@ -1213,6 +1242,7 @@ aws sts get-caller-identity
 ```
 
 **Issue 2: Image Pull Failed from EKS**
+
 ```bash
 # Check node group IAM permissions
 kubectl describe node
@@ -1227,6 +1257,7 @@ kubectl describe serviceaccount retail-forecast-sa
 ```
 
 **Issue 3: Container Health Check Failing**
+
 ```bash
 # Check container logs
 kubectl logs -l app=retail-api-test
@@ -1243,16 +1274,18 @@ s3.head_object(Bucket='mlops-retail-forecast-models', Key='models/retail-price-s
 ```
 
 **Issue 4: Build Timeout in CI/CD**
+
 ```yaml
 # Increase timeout in GitHub Actions
 jobs:
   build-and-push:
-    timeout-minutes: 30  # Increase from default 360
+    timeout-minutes: 30 # Increase from default 360
 ```
 
 ### 7.2. Performance Optimization
 
 **Build performance:**
+
 ```bash
 # Use BuildKit for faster builds
 export DOCKER_BUILDKIT=1
@@ -1263,6 +1296,7 @@ docker build --cache-from mlops-retail-api:latest ...
 ```
 
 **Runtime performance:**
+
 ```bash
 # Monitor container resource usage
 kubectl top pods -l app=retail-api
@@ -1277,7 +1311,7 @@ kubectl exec -it <pod-name> -- curl -w "@curl-format.txt" http://localhost:8000/
 ✅ **Container Images** - FastAPI prediction service và training containers  
 ✅ **CI/CD Integration** - GitHub Actions automated build-push-deploy  
 ✅ **Security** - Image scanning, non-root users, OIDC authentication  
-✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month  
+✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month
 
 ### Architecture Delivered
 
@@ -1290,7 +1324,7 @@ kubectl exec -it <pod-name> -- curl -w "@curl-format.txt" http://localhost:8000/
 
 ✅ CI/CD Automation:
    - GitHub Actions workflow
-   - Automatic builds on code changes  
+   - Automatic builds on code changes
    - Git-based image tagging (v20241009-abc123)
    - OIDC authentication (no AWS keys)
 
@@ -1313,32 +1347,36 @@ kubectl exec -it <pod-name> -- curl -w "@curl-format.txt" http://localhost:8000/
 
 {{% notice tip %}}
 **🚀 Next Steps:**
+
 - **Task 7**: EKS cluster deployment trong hybrid VPC
 - **Task 8**: EKS node groups với ECR image pull permissions
 - **Task 10**: Deploy API container với ALB integration
 - **Task 11**: ALB ingress controller cho public API access
 
 **Build & Deploy Commands:**
+
 ```bash
 # Local build and push
 ./scripts/build-and-push.sh
 
 # CI/CD triggers automatically on:
 git push origin main        # → v20241009-abc123 + latest
-git push origin develop     # → dev-abc123 + dev-latest  
+git push origin develop     # → dev-abc123 + dev-latest
 git push origin feature/x   # → feature-x-abc123
 ```
+
 {{% /notice %}}
 
 {{% notice info %}}
 **� Production Benchmarks Achieved:**
+
 - **Image Size**: FastAPI ~500MB (optimized multi-stage)
 - **Build Time**: ~3-5 minutes (with caching)
 - **Storage Cost**: ~$0.15/month (1.5GB total)
 - **Security**: Non-root, vulnerability scanned
 - **Availability**: Multi-tag strategy (latest, commit, branch)
 - **CI/CD**: Automated on every commit
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 
