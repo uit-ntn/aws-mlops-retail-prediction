@@ -7,32 +7,40 @@ pre: "<b>5. </b>"
 
 ## 🎯 Mục tiêu Task 5
 
-Thiết lập **Hybrid VPC Layout** cho MLOps platform với khả năng demo public API:
+Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng biệt với SageMaker training VPC):
 
-1. **Secure Private Infrastructure** - EKS Pods, SageMaker training trong private subnets
-2. **Public API Access** - ALB trong public subnets cho demo endpoint `/predict`
+1. **Production EKS Infrastructure** - EKS Cluster và Pods trong private subnets
+2. **Public API Access** - ALB trong public subnets cho demo endpoint `/predict`  
 3. **High-Performance Internal Networking** - VPC Endpoints cho S3/ECR access < 50ms latency
 4. **Cost Optimization** - Bỏ NAT Gateway, chỉ bật ALB khi demo
 
+{{% notice warning %}}
+**⚠️ VPC Separation Strategy:**
+- **Task 4**: SageMaker training dùng VPC mặc định (Quick setup) - đơn giản, tiết kiệm
+- **Task 5**: EKS production dùng VPC riêng - bảo mật, kiểm soát tốt hơn
+- **Không conflict**: 2 VPC độc lập, có thể kết nối qua VPC Peering nếu cần
+{{% /notice %}}
+
 {{% notice info %}}
-**🎯 Hybrid Architecture Strategy:**
-- ✅ **Private Subnets**: EKS Pods, SageMaker jobs (secure, no direct Internet)
+**🎯 Production VPC Architecture:**
+- ✅ **Private Subnets**: EKS Pods (secure, no direct Internet)
 - ✅ **Public Subnets**: ALB only (public API demo access)
-- ✅ **Internal Communication**: EKS ↔ S3 ↔ SageMaker qua VPC Endpoints
+- ✅ **Internal Communication**: EKS ↔ S3 qua VPC Endpoints
 - ✅ **Demo Ready**: Public API endpoint qua ALB với SSL/health checks
 
-**Security Model**: Dữ liệu và training riêng tư, chỉ API inference công khai
+**Focus**: Production-grade networking cho Kubernetes deployment
 {{% /notice %}}
 
 📥 **Input**
-- AWS Account với VPC permissions
-- CIDR planning: `10.0.0.0/16` (hybrid public/private)
+- AWS Account với VPC permissions  
+- CIDR planning: `10.0.0.0/16` (production EKS VPC)
 - Demo requirements: Public API access qua ALB
+- Task 4 completed: SageMaker training chạy trong VPC mặc định
 
 ✅ **Deliverables**
-- Multi-AZ Hybrid VPC: Public (ALB) + Private (EKS/SageMaker)
+- Multi-AZ Production VPC: Public (ALB) + Private (EKS)
 - Application Load Balancer ready cho public API demo
-- VPC Endpoints: S3 (FREE), ECR, SageMaker (high-speed internal)
+- VPC Endpoints: S3 (FREE), ECR (high-speed internal)
 - Security Groups: Layered access control (Internet → ALB → EKS → S3)
 
 📊 **Acceptance Criteria**
@@ -52,14 +60,13 @@ Thiết lập **Hybrid VPC Layout** cho MLOps platform với khả năng demo pu
 ### Network Design Overview
 
 ```
-VPC: 10.0.0.0/16 (Hybrid Public/Private cho MLOps + Demo)
+Production VPC: 10.0.0.0/16 (EKS + Public API Demo)
 ├── ap-southeast-1a (AZ-1)
 │   ├── Public Subnet: 10.0.1.0/24
 │   │   ├── ALB (Application Load Balancer)
 │   │   └── Internet Gateway access
 │   └── Private Subnet: 10.0.101.0/24
 │       ├── EKS Worker Nodes (API Pods)
-│       ├── SageMaker Training Jobs
 │       └── VPC Endpoints access (no Internet)
 └── ap-southeast-1b (AZ-2)
     ├── Public Subnet: 10.0.2.0/24
@@ -70,14 +77,15 @@ VPC: 10.0.0.0/16 (Hybrid Public/Private cho MLOps + Demo)
         ├── SageMaker Training Jobs
         └── VPC Endpoints access (no Internet)
 
-Traffic Flow (Demo API):
-Internet → ALB (Public) → EKS Pods (Private) → S3/SageMaker (VPC Endpoints)
+Traffic Flow (Production API):
+Internet → ALB (Public) → EKS Pods (Private) → S3 (VPC Endpoints)
 
 VPC Endpoints (High-Speed Internal):
-├── S3 Gateway Endpoint (FREE) - Model artifacts, datasets
+├── S3 Gateway Endpoint (FREE) - Model artifacts, datasets  
 ├── ECR Interface Endpoint ($7.2/month) - Container images
-├── SageMaker Runtime Interface Endpoint ($7.2/month) - Model serving
 └── CloudWatch Logs Interface Endpoint ($7.2/month) - Monitoring
+
+Note: SageMaker training vẫn chạy riêng trong VPC mặc định (Task 4)
 
 Security Layers:
 Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints SG (443)
@@ -97,9 +105,9 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 - Data transfer qua VPC Endpoints only
 
 **Performance:**
-- EKS ↔ S3 latency < 50ms (internal network)
+- EKS ↔ S3 latency < 50ms (internal network)  
 - No NAT Gateway bottleneck
-- Direct VPC Endpoint access
+- Direct VPC Endpoint access untuk model serving
 {{% /notice %}}
 
 ### Cost Analysis: Demo-Ready Setup
@@ -111,10 +119,11 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 | **ALB** | **$0.0225/hour** | Public API endpoint | **Only when demo** |
 | **S3 VPC Endpoint** | FREE | Model/data access | Always on |
 | **ECR VPC Endpoint** | $7.2/month | Container images | Always on |
-| **SageMaker VPC Endpoint** | $7.2/month | Model serving | Always on |
 | **CloudWatch VPC Endpoint** | $7.2/month | Monitoring | Always on |
 
-**Monthly Cost:** ~$21.6 + ALB usage = **$21.6 base + $0.02/hour demo**
+**Monthly Cost:** ~$14.4 + ALB usage = **$14.4 base + $0.02/hour demo**
+
+**Tiết kiệm:** ~$7.2/month so với full MLOps VPC (không cần SageMaker VPC endpoint)
 
 **Demo Cost:** Chỉ ~$16/month nếu demo 24/7, hoặc ~$1.6 nếu demo 3 hours/day
 
@@ -162,22 +171,22 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 ![Create Public Subnets](../images/05-vpc-networking/03.1-create-subnets.png)
 
-2. **Private Subnets (EKS + SageMaker):**
+2. **Private Subnets (EKS Production):**
    
    **Private Subnet 1 (ap-southeast-1a):**
    ```
-   Name: mlops-hybrid-private-workloads-ap-southeast-1a
+   Name: mlops-eks-private-workloads-ap-southeast-1a
    Availability Zone: ap-southeast-1a
    IPv4 CIDR: 10.0.101.0/24
-   Purpose: EKS Pods + SageMaker jobs
+   Purpose: EKS API Pods
    ```
 
    **Private Subnet 2 (ap-southeast-1b):**
    ```
-   Name: mlops-hybrid-private-workloads-ap-southeast-1b
+   Name: mlops-eks-private-workloads-ap-southeast-1b
    Availability Zone: ap-southeast-1b
    IPv4 CIDR: 10.0.102.0/24
-   Purpose: EKS Pods + SageMaker jobs
+   Purpose: EKS API Pods
    ```
 
 ![Create Private Subnets](../images/05-vpc-networking/03.2-create-subnets.png)
@@ -325,23 +334,17 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 ![VPC Endpoints Inbound Rules](../images/05-vpc-networking/09.9-vpc-endpoints-inbound.png)
 
-#### 1.5.5. SageMaker Security Group
+{{% notice success %}}
+**🎯 Security Groups Complete!** 
 
-1. **Basic Details:**
-   ```
-   Security group name: mlops-hybrid-sagemaker-sg
-   Description: Security group for SageMaker training/inference jobs
-   VPC: mlops-retail-forecast-hybrid-vpc
-   ```
+**4 Security Groups Created:**
+- ALB SG: Public Internet access (80/443)
+- EKS Nodes SG: Private workloads  
+- EKS Control Plane SG: Cluster management
+- VPC Endpoints SG: AWS services access
 
-2. **Inbound Rules:**
-   - **Rule**: All Traffic from self (SageMaker job communication)
-
-3. **Outbound Rules:**
-   - **Rule 1**: HTTPS (443) to VPC Endpoints SG (S3/ECR access)
-   - **Rule 2**: All Traffic to self (job communication)
-
-![SageMaker Security Group](../images/05-vpc-networking/09.10-sagemaker-sg.png)
+**Note:** SageMaker sẽ dùng default SG trong VPC mặc định (Task 4)
+{{% /notice %}}
 
 ### 1.6. Enable Auto-assign Public IP for ALB Subnets
 
@@ -432,23 +435,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 **Purpose:** Docker layer downloads cho EKS container runtime
 
-### 2.4. SageMaker Runtime Interface Endpoint (Model Serving)
-
-1. **Create SageMaker Runtime Endpoint:**
-   ```
-   Service: com.amazonaws.ap-southeast-1.sagemaker.runtime
-   Type: Interface
-   VPC: mlops-retail-forecast-hybrid-vpc
-   Subnets: Both private workload subnets
-   Security Groups: mlops-hybrid-vpc-endpoints-sg
-   Private DNS: ✅ Enabled
-   ```
-
-![SageMaker Runtime Endpoint](../images/05-vpc-networking/10.6-sagemaker-runtime-endpoint.png)
-
-**Purpose:** EKS API call SageMaker endpoints for model inference
-
-### 2.5. CloudWatch Logs Interface Endpoint (Optional - Monitoring)
+### 2.4. CloudWatch Logs Interface Endpoint (Optional - Monitoring)
 
 1. **Create CloudWatch Logs Endpoint:**
    ```
@@ -470,7 +457,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 **Expected Results:**
 - **S3 Gateway**: Route added to private route table automatically
-- **4x Interface Endpoints**: ENI created in each private subnet
+- **3x Interface Endpoints**: ENI created in each private subnet
 - **Private DNS**: All endpoints resolvable via internal DNS
 
 {{% notice success %}}
@@ -478,9 +465,11 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 **High-Performance Internal Network:**
 - EKS ↔ S3: < 50ms (Gateway Endpoint)
-- EKS ↔ ECR: < 50ms (Interface Endpoints)
-- EKS ↔ SageMaker: < 50ms (Runtime Endpoint)
+- EKS ↔ ECR: < 50ms (Interface Endpoints)  
+- EKS ↔ CloudWatch: < 50ms (Logs Endpoint)
 - No Internet dependency for AWS services
+
+**Cost Optimized:** ~$7.2/month tiết kiệm (không cần SageMaker VPC Endpoint)
 {{% /notice %}}
 
 ## 3. Application Load Balancer Setup (Public API Demo)
