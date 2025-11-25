@@ -102,7 +102,7 @@ pre: "<b>0. </b>"
 <h2 style="margin: 40px 0 30px 0; font-size: 2.2rem; color: #1e293b; text-align: center;">📚 Retail Prediction MLOps Workshop</h2>
 
 <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px dashed #cbd5e1; padding: 30px; border-radius: 16px; margin: 30px 0; text-align: center;">
-  <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">15 Tasks MLOps hoàn chỉnh cho Retail Prediction</h3>
+  <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">13 Tasks MLOps hoàn chỉnh cho Retail Prediction</h3>
   <p style="color: #64748b; font-size: 16px; margin: 0 0 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
     End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization cho Retail Prediction
   </p>
@@ -140,10 +140,8 @@ pre: "<b>0. </b>"
       ML Training & Registry
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/6-ecr-registry/" style="color: #047857; text-decoration: none;">ECR container registry setup</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/7-docker-build/" style="color: #047857; text-decoration: none;">Build & push retail prediction API</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/8-s3-data-storage/" style="color: #047857; text-decoration: none;">S3 data lake & model artifacts</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/9-sagemaker-training/" style="color: #047857; text-decoration: none;">SageMaker retail prediction training & model registry</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/3-s3-data-storage/" style="color: #047857; text-decoration: none;">S3 data lake & model artifacts</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/4-sagemake-training/" style="color: #047857; text-decoration: none;">SageMaker retail prediction training & model registry</a></li>
     </ul>
   </div>
   
@@ -153,9 +151,11 @@ pre: "<b>0. </b>"
       Container Deployment
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/10-kubernetes-deploy/" style="color: #6d28d9; text-decoration: none;">Kubernetes Deployment/Service/HPA</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/11-load-balancer/" style="color: #6d28d9; text-decoration: none;">Application Load Balancer setup</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/12-cloudwatch/" style="color: #6d28d9; text-decoration: none;">Monitoring, logs, and metrics</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/6-ecr-registry/" style="color: #6d28d9; text-decoration: none;">ECR container registry</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/7-eks-cluster/" style="color: #6d28d9; text-decoration: none;">EKS Cluster setup</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/8-docker-build/" style="color: #6d28d9; text-decoration: none;">API Containerization</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/9-deploy-kubernetes/" style="color: #6d28d9; text-decoration: none;">Deploy to Kubernetes</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/10-elastic-load-balancing/" style="color: #6d28d9; text-decoration: none;">Load Balancing</a></li>
     </ul>
   </div>
   
@@ -165,9 +165,8 @@ pre: "<b>0. </b>"
       Security & Audit
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/13-security-audit/" style="color: #b91c1c; text-decoration: none;">KMS encryption & CloudTrail</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/14-cicd-pipeline/" style="color: #b91c1c; text-decoration: none;">Jenkins CI/CD pipeline setup</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/15-dataops/" style="color: #b91c1c; text-decoration: none;">Data versioning & lifecycle</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/11-cloudwatch/" style="color: #b91c1c; text-decoration: none;">CloudWatch Monitoring & Logs</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/12-cicd-jenkins-travis/" style="color: #b91c1c; text-decoration: none;">CI/CD Pipeline</a></li>
     </ul>
   </div>
   
@@ -177,7 +176,7 @@ pre: "<b>0. </b>"
       Cost & Optimization
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #06b6d4;">▸</span><a href="/15-cost-teardown/" style="color: #0891b2; text-decoration: none;">Cost optimization & teardown</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #06b6d4;">▸</span><a href="/13-cost-&-teardown/" style="color: #0891b2; text-decoration: none;">Cost optimization & teardown</a></li>
     </ul>
   </div>
   
@@ -195,7 +194,7 @@ pre: "<b>0. </b>"
     </div>
     <div>
       <div style="color: #64748b; font-weight: 600; margin-bottom: 8px;">⏱️ Thời gian</div>
-      <div style="color: #475569;">15-20 giờ (MLOps end-to-end)</div>
+      <div style="color: #475569;">12-15 giờ (MLOps end-to-end)</div>
     </div>
     <div>
       <div style="color: #64748b; font-weight: 600; margin-bottom: 8px;">📈 Level</div>

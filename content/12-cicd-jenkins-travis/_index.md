@@ -1,9 +1,9 @@
 ---
 title: "CI/CD Pipeline"
 date: 2024-01-01T00:00:00Z
-weight: 13
+weight: 12
 chapter: false
-pre: "<b>13. </b>"
+pre: "<b>12. </b>"
 ---
 
 {{% notice info %}}

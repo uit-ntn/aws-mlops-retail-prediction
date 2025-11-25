@@ -1,70 +1,21 @@
 ---
 title: "API Containerization"
 date: 2024-01-01T00:00:00+07:00
-weight: 9
+weight: 8
 chapter: false
-pre: "<b>9. </b>"
+pre: "<b>8. </b>"
 ---
 
 {{% notice info %}}
 **🎯 Mục tiêu Task 9:**
 
 Đóng gói toàn bộ Retail Prediction API (FastAPI + model đã huấn luyện) vào Docker image, sẵn sàng để deploy lên EKS.
-→ Đảm bảo môi trường thống nhất, dễ tái sử dụng và tích hợp liền mạch với CI/CD & ECR.
+→ Đảm bảo môi trường thống nhất, dễ tái sử dụng và sẵn sàng cho EKS deployment.
 {{% /notice %}}
 
 ## Tổng quan
 
 **API Containerization** là bước quan trọng trong MLOps pipeline, đóng gói ứng dụng dự đoán (Prediction API) thành container image để triển khai trên Kubernetes. Task này tập trung vào việc containerize Retail Prediction API với model đã huấn luyện và tích hợp với ECR registry.
-
-### Kiến trúc API Container
-
-{{< mermaid >}}
-graph TB
-    subgraph "API Components"
-        FASTAPI[FastAPI Application]
-        MODEL[ML Model]
-        PREPROC[Data Preprocessing]
-        CONFIG[Configuration]
-    end
-    
-    subgraph "Container Architecture"
-        APP[app/<br/>Application Code]
-        S3[S3 Connection<br/>Model Loading]
-        HEALTH[Health Checks<br/>Readiness/Liveness]
-        LOGGING[Structured Logging]
-    end
-    
-    subgraph "Docker Container"
-        CODE[Application Code]
-        DEPS[Python Dependencies]
-        RUNTIME[Python Runtime]
-        NONROOT[Non-Root User]
-    end
-    
-    subgraph "Deployment Flow"
-        BUILD[Docker Build]
-        PUSH[ECR Push]
-        DEPLOY[K8s Deployment]
-        SCALE[Auto Scaling]
-    end
-    
-    FASTAPI --> APP
-    MODEL --> S3
-    PREPROC --> APP
-    CONFIG --> APP
-    
-    APP --> CODE
-    S3 --> CODE
-    HEALTH --> CODE
-    LOGGING --> CODE
-    
-    CODE --> BUILD
-    DEPS --> BUILD
-    BUILD --> PUSH
-    PUSH --> DEPLOY
-    DEPLOY --> SCALE
-{{< /mermaid >}}
 
 ### Thành phần chính
 
@@ -72,7 +23,7 @@ graph TB
 2. **Model Integration**: Tải model artifacts từ S3 khi container khởi động
 3. **Dockerfile**: Multi-stage build để tối ưu kích thước và bảo mật
 4. **S3 Connectivity**: Kết nối với model storage thông qua IAM roles
-5. **CI/CD Integration**: Tự động build và deploy khi code thay đổi
+5. **Local Testing**: Validation và testing trước khi deploy lên EKS
 
 ---
 
@@ -1180,7 +1131,7 @@ In this task, we've successfully containerized the Retail Prediction API, making
 
 4. **IAM Configuration:** Established secure access to AWS resources using IAM Roles for Service Accounts.
 
-5. **CI/CD Integration:** Prepared pipelines for automated building, testing, and deployment.
+5. **Local Testing & Validation:** Comprehensive testing before EKS deployment.
 
 This containerization approach ensures consistent environments across development and production, simplifies deployment, and integrates well with Kubernetes for scalable, resilient operation.
 
@@ -1720,104 +1671,70 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 ---
 
-## 5. Deployment Preparation
+## 5. Testing & Validation
 
-## 5.1. CI/CD Integration
+### 5.1. Local Container Testing
 
-When integrating the containerized API with CI/CD pipelines, consider these best practices:
+**Test API container locally:**
 
-### 5.1.1. Jenkins Pipeline Integration
+```bash
+# Run container with environment variables
+docker run -d \
+    --name retail-api-test \
+    -p 8080:8080 \
+    -e AWS_DEFAULT_REGION=ap-southeast-1 \
+    -e MODEL_BUCKET=mlops-retail-prediction-dev-us-east-1 \
+    -e MODEL_PREFIX=artifacts/ \
+    retail-prediction-api:latest
 
-Create a `Jenkinsfile` in your repository:
+# Wait for startup
+sleep 10
 
-```groovy
-pipeline {
-    agent any
-    
-    environment {
-        ECR_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/retail-prediction-api"
-        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-    }
-    
-    stages {
-        stage('Build') {
-            steps {
-                sh '''
-                cd server
-                docker build -t ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} .
-                docker tag ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} ${ECR_REPOSITORY}:latest
-                '''
-            }
-        }
-        
-        stage('Test') {
-            steps {
-                sh '''
-                # Start container
-                CONTAINER_ID=$(docker run -d -p 8001:8000 ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT})
-                
-                # Wait for API to start
-                sleep 5
-                
-                # Test health endpoint
-                curl -f http://localhost:8001/health
-                
-                # Run API tests
-                python -m pytest tests/api
-                
-                # Cleanup
-                docker stop $CONTAINER_ID
-                docker rm $CONTAINER_ID
-                '''
-            }
-        }
-        
-        stage('Push') {
-            when {
-                branch 'main'
-            }
-            steps {
-                sh '''
-                aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REPOSITORY}
-                docker push ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT}
-                docker push ${ECR_REPOSITORY}:latest
-                '''
-            }
-        }
-        
-        stage('Deploy') {
-            when {
-                branch 'main'
-            }
-            steps {
-                sh '''
-                # Update the Kubernetes deployment
-                kubectl set image deployment/retail-prediction-api api=${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} -n retail-prediction
-                
-                # Wait for rollout to complete
-                kubectl rollout status deployment/retail-prediction-api -n retail-prediction
-                '''
-            }
-        }
-    }
-    
-    post {
-        always {
-            // Clean up local Docker images
-            sh 'docker rmi ${ECR_REPOSITORY}:${GIT_COMMIT_SHORT} ${ECR_REPOSITORY}:latest || true'
-        }
-    }
-}
+# Test health endpoint
+curl http://localhost:8080/health
+
+# Test prediction endpoint
+curl -X POST http://localhost:8080/predict \
+    -H "Content-Type: application/json" \
+    -d '{
+        "basket_items": {
+            "item1": {"price": 10.99, "quantity": 2, "category": "food"},
+            "item2": {"price": 25.50, "quantity": 1, "category": "electronics"}
+        },
+        "customer_id": "test-customer-123"
+    }'
+
+# Check container logs
+docker logs retail-api-test
+
+# Clean up
+docker stop retail-api-test
+docker rm retail-api-test
 ```
 
-### 5.1.2. GitHub Actions Workflow
+### 5.2. Image Security Scanning
 
-Create a `.github/workflows/build-deploy.yml` file:
+**Run vulnerability scans:**
 
-```yaml
-name: Build and Deploy API
+```bash
+# Scan image with ECR
+aws ecr start-image-scan \
+    --repository-name retail-prediction-api \
+    --image-id imageTag=latest \
+    --region ap-southeast-1
 
-on:
+# Get scan results
+aws ecr describe-image-scan-findings \
+    --repository-name retail-prediction-api \
+    --image-id imageTag=latest \
+    --region ap-southeast-1
+
+# Use Trivy for local scanning (optional)
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+    aquasec/trivy:latest image retail-prediction-api:latest
+```
+
+### 5.3. EKS Deployment Preparation
   push:
     branches: [ main ]
     paths:
@@ -1975,31 +1892,31 @@ docker logs <container-id>
 ---
 
 {{% notice success %}}
-**🎯 Task 7 Complete!**
+**🎯 Task 9 Complete!**
 
-Docker Build & Push pipeline đã được triển khai thành công với:
+API Containerization đã được hoàn thành thành công với:
 
 ✅ **FastAPI inference application** với health checks và monitoring  
 ✅ **Multi-stage Dockerfile** optimized cho production  
-✅ **Automated build scripts** (Linux/macOS + Windows PowerShell)  
-✅ **CI/CD integration** (GitHub Actions + Jenkins)  
+✅ **Manual build & test scripts** (Linux/macOS + Windows PowerShell)  
+✅ **Local testing** và container validation  
 ✅ **Image optimization** và security best practices  
-✅ **Multiple tagging strategy** (latest, git-sha, branch-sha)  
-✅ **ECR integration** với automated push và scanning  
+✅ **ECR integration** với manual push và scanning  
+✅ **EKS deployment preparation** với Kubernetes manifests  
 
 **Next Steps:**
-- Task 8: S3 Data Lake setup cho model artifacts
-- Task 9: SageMaker integration cho model training
-- Task 10: Kubernetes deployment configurations
+- Task 10: Deploy container lên EKS cluster
+- Task 11: Configure Load Balancer cho API access
+- Task 12: Setup monitoring và logging
 {{% /notice %}}
 
 {{% notice tip %}}
 **💡 Production Considerations:**
 
-- **Security scanning**: Integrate Trivy/Snyk trong CI/CD pipeline
+- **Security scanning**: Regular vulnerability scans với ECR/Trivy
 - **Image signing**: Use AWS Signer cho supply chain security
 - **Multi-architecture builds**: Support ARM64 cho cost optimization
-- **Layer caching**: Optimize Docker layer caching trong CI/CD
-- **Vulnerability management**: Automated image updates cho security patches
-- **Performance monitoring**: Track build times và optimize bottlenecks
+- **Layer caching**: Optimize Dockerfile layer ordering
+- **Version management**: Consistent tagging strategy
+- **Performance monitoring**: Container resource usage và response times
 {{% /notice %}}

@@ -1,9 +1,9 @@
 ---
 title: "API Deployment on EKS"
 date: 2024-01-01T00:00:00Z
-weight: 10
+weight: 9
 chapter: false
-pre: "<b>10. </b>"
+pre: "<b>9. </b>"
 ---
 
 {{% notice info %}}
