@@ -8,520 +8,553 @@ pre: "<b>3. </b>"
 
 ## 🎯 Mục tiêu Task 3
 
-Tạo **S3 bucket** tối ưu để lưu trữ dữ liệu cho MLOps pipeline với hiệu suất đọc/ghi cao.
+Tạo **S3 bucket** và tổ chức dữ liệu cho pipeline MLOps theo chuẩn **raw → silver → gold → artifacts**, chuyển đổi CSV → Parquet bằng **AWS Glue Studio (Visual ETL)** và **đo benchmark hiệu năng đọc/ghi**:
 
-→ **Tập trung vào tốc độ đọc/ghi và tối ưu lưu trữ.**
+- Đo trên **AWS CloudShell** (đọc trực tiếp từ S3).
+- Đo trên **máy local** (Windows, 16GB RAM).
 
-📊 **Nội dung chính**
+Tập trung vào:
 
-**1. Tạo S3 bucket với 4 thư mục chính:**
-```
-s3://mlops-retail-prediction-dev-{account-id}/
-├── raw/        # dữ liệu CSV gốc
-├── silver/     # dữ liệu Parquet đã làm sạch  
-├── gold/       # features để train model
-└── artifacts/  # model + logs
-```
-
-**2. Tối ưu hiệu năng lưu trữ:**
-- **Parquet format** → tăng tốc độ đọc/ghi 3-5 lần so với CSV
-- **Snappy compression** → giảm 70% dung lượng lưu trữ
-- **Intelligent-Tiering** → tự động tối ưu chi phí lưu trữ
-
-💰 **Chi phí**: ~**$0.10/tháng** (10 GB data)
-
-✅ **Hiệu suất**: **Đọc/ghi nhanh hơn 3-5 lần** so với CSV
+- **Hiệu năng đọc/ghi**: CSV vs Parquet.
+- **Dung lượng lưu trữ**: trước/sau khi nén.
+- **Cách làm**: từng bước cụ thể, có thể tái hiện.
 
 {{% notice info %}}
-**💡 Task 3 - S3 Storage Optimization:**
-- ✅ **Tối ưu Format** - Parquet thay vì CSV
-- ✅ **Tăng tốc độ đọc/ghi** - 3-5x nhanh hơn
-- ✅ **Giảm dung lượng** - 70% nhỏ hơn với compression
-- ✅ **Tối ưu chi phí** - Intelligent-Tiering
-{{% /notice %}}
+**💡 Task 3 – S3 Storage Optimization**
 
-📥 **Input**
-- AWS Account với quyền S3
-- Project naming: `mlops-retail-prediction-dev`
-- Region: `ap-southeast-1`
+- ✅ Tối ưu **format**: Parquet + Snappy thay vì CSV thuần.
+- ✅ Tối ưu **hiệu năng đọc/ghi** cho ETL & training.
+- ✅ Tối ưu **dung lượng lưu trữ** (giảm đáng kể GB).
+- ✅ Bổ sung **benchmark thực tế**: CloudShell + local.
+  {{% /notice %}}
 
-## 1. Tạo và Tối ưu S3 Bucket
+---
 
-### 1.1. Cấu trúc lưu trữ tối ưu
+## 🔧 Môi trường lab thực tế
 
+- **Account ID:** `842676018087`
+- **Region lab:** `us-east-1`
+- **Bucket:** `mlops-retail-prediction-dev-842676018087`
+
+Dataset chính:
+
+- `raw/transactions.csv`  
+  ≈ **4,593.65 MB**, **33,850,823 dòng**
+- Ví dụ 1 file Parquet sau ETL:  
+  `silver/shop_week=200607/run-1761638745394-part-block-0-0-r-00000-snappy.parquet`  
+  ≈ **458.45 MB**, **33,850,823 dòng**
+
+---
+
+## 1. Cấu trúc & tổ chức S3 bucket
+
+### 1.1. Cấu trúc lưu trữ tổng quát
+
+Áp dụng cho mọi account, dùng `{account-id}` làm placeholder:
+
+```text
+s3://mlops-retail-prediction-dev-{account-id}/
+├── raw/        # dữ liệu CSV gốc, immutable
+├── silver/     # dữ liệu Parquet đã làm sạch / chuẩn hóa
+├── gold/       # features, aggregated datasets cho training/serving
+└── artifacts/  # model, metadata, logs, reports
 ```
-S3 Bucket: mlops-retail-prediction-dev-123456789012
+
+Ý nghĩa:
+
+- **raw/**: chỉ append, không sửa/xóa → phục vụ audit & reprocessing.
+- **silver/**: nơi lưu Parquet tối ưu (schema chuẩn, sạch).
+- **gold/**: dataset cuối cùng cho training/inference.
+- **artifacts/**: model.tar.gz, notebook export, log, benchmark CSV,…
+
+---
+
+### 1.2. Cấu trúc thực tế trong lab
+
+Với account ID của bạn:
+
+```text
+S3 Bucket: mlops-retail-prediction-dev-842676018087
 ├── raw/
-│   └── transactions.csv (dữ liệu gốc, định dạng CSV)
+│   └── transactions.csv                # file gốc ~4.59GB
 ├── silver/
-│   └── transactions_cleaned.parquet (đã chuyển sang Parquet)
+│   ├── transactions/                   # output từ Glue ETL (nếu không partition theo week)
+│   └── shop_week=200607/
+│       └── run-1761638745394-part-block-0-0-r-00000-snappy.parquet  # ~458MB
 ├── gold/
-│   └── training_features.parquet (features đã tối ưu)
+│   └── (dành cho feature store / aggregated tables)
 └── artifacts/
-    └── model.tar.gz
+    └── (lưu wyniki benchmark, model, logs,…)
 ```
 
-### 1.2. So sánh hiệu suất lưu trữ
+Bạn có thể mở S3 Console để xác nhận đúng đường dẫn, nhất là:
 
-| Định dạng | Kích thước | Tốc độ đọc | Nén dữ liệu |
-|-----------|------------|------------|-------------|
-| **CSV** | >5 GB | 1x (cơ sở) | Không có |
-| **Parquet** | ~1.5 GB | 3-5x nhanh hơn | Có (snappy) |
-| **Parquet + Partitioning** | ~1.5 GB | 8-10x nhanh hơn | Có (snappy) |
+- `raw/transactions.csv`
+- Một file Parquet tiêu biểu trong `silver/shop_week=.../`.
 
-## 2. Tạo S3 Bucket qua Console
+---
 
-### 2.1. Tạo Bucket
+## 2. Tạo bucket & thư mục trên AWS Console
 
-**Bước 1: Truy cập S3 Console**
-AWS Console → S3 → "Create bucket"
+### 2.1. Tạo S3 Bucket
 
-**Bước 2: Cấu hình bucket**
-```
-Bucket name: mlops-retail-prediction-dev-{account-id}
-Region: ap-southeast-1
+1. Vào **AWS Console → S3 → Create bucket**.
+2. Cấu hình:
+
+```text
+Bucket name: mlops-retail-prediction-dev-842676018087
+Region: us-east-1
 Block all public access: ✅ Enabled
-Versioning: ✅ Enabled
-Default encryption: SSE-S3
+Versioning: (khuyến nghị) Enabled
+Default encryption: ✅ SSE-S3
 ```
 
-![Create Bucket](../images/s3-data-storage/01-create-bucket.png)
+_Minh họa:_ `../images/s3-data-storage/01-create-bucket.png`
 
-### 2.2. Tạo thư mục lưu trữ
+<!-- IMAGE PLACEHOLDER: Create-bucket - paste screenshot here -->
 
-**Trong S3 Console:**
-1. Vào bucket → "Create folder"
-2. Tạo 4 thư mục:
-   ```
-   raw/
-   silver/
-   gold/
-   artifacts/
-   ```
+![Placeholder - Create bucket](../images/s3-data-storage/placeholder-create-bucket.png)
 
-![Create Folders](../images/s3-data-storage/02-folders.png)
+---
 
-## 3. Tối ưu hiệu suất lưu trữ
+### 2.2. Tạo 4 thư mục chính
 
-### 3.1. Intelligent-Tiering (tối ưu chi phí)
+Trong S3 Console:
 
-**Cấu hình qua Console:**
-1. Bucket → Properties → Intelligent-Tiering → Edit
-2. Settings:
-   ```
-   Configuration name: storage-optimization
-   Status: ✅ Enabled
-   Scope: Entire bucket
-   ```
+1. Mở bucket `mlops-retail-prediction-dev-842676018087`.
+2. **Create folder** lần lượt:
 
-![Intelligent Tiering](../images/s3-data-storage/03-intelligent-tiering.png)
-
-## 4. Tối ưu hiệu năng đọc/ghi với Parquet
-
-### 4.1. Upload dữ liệu CSV
-
-**Qua S3 Console:**
-1. Chọn bucket → Chọn thư mục `raw/`
-2. Upload → Add files → Chọn file CSV
-3. Upload
-
-![Upload Data](../images/s3-data-storage/05-upload.png)
-
-### 4.2. Chuyển đổi sang Parquet để tăng tốc
-
-**So sánh hiệu năng đọc/ghi:**
-
-| Thao tác | CSV | Parquet | Tăng tốc |
-|----------|-----|---------|----------|
-| Đọc toàn bộ file | 12 giây | 3.4 giây | 3.5x |
-| Đọc một vài cột | 12 giây | 1.8 giây | 6.7x |
-| Lọc dữ liệu | 10.5 giây | 2.1 giây | 5x |
-| Kích thước lưu trữ | 100 MB | 30 MB | 3.3x |
-
-**Chuyển đổi CSV sang Parquet (qua Console):**
-1. S3 Console → Chọn thư mục `raw/`
-2. Chọn file CSV → Actions → Chọn "S3 Batch Operations"
-3. Chọn "Convert CSV to Parquet"
-4. Destination: `s3://mlops-retail-prediction-dev-{account-id}/silver/`
-
-### 4.3. Phương pháp đo hiệu năng cho dataset lớn (>5GB)
-
-**A. Môi trường đo:**
-```
-1. AWS CloudShell (recommended):
-   - Có sẵn AWS CLI và Python
-   - Network gần với S3 (độ trễ thấp)
-   - Không tốn phí
-
-2. Local machine:
-   - Python 3.8+ với boto3, pandas, pyarrow
-   - AWS CLI configured
-   - Băng thông internet ổn định (>50Mbps)
-
-3. Tools cần thiết:
-   - AWS CLI để tương tác với S3
-   - pandas + pyarrow để xử lý Parquet
-   - dask để xử lý dữ liệu song song
+```text
+raw/
+silver/
+gold/
+artifacts/
 ```
 
-**B. Quy trình đo (chạy trên CloudShell hoặc local):**
+<!-- IMAGE PLACEHOLDER: Create-folders - paste screenshot here -->
 
-1. **Chuẩn bị dataset:**
-   ```bash
-   # 1. Chia nhỏ file CSV để upload
-   split -b 500m transactions.csv parts/chunk
-   
-   # 2. Upload song song với AWS CLI
-   aws s3 cp parts/ s3://bucket/raw/ --recursive
-   
-   # 3. Verify kích thước
-   aws s3 ls s3://bucket/raw/ --recursive | awk '{total += $3} END {print total/1024/1024/1024 " GB"}'
-   ```
+![Placeholder - Create folders](../images/s3-data-storage/placeholder-folders.png)
 
-2. **Warm-up và chuẩn bị đo:**
-   ```bash
-   # 1. Clear local disk cache (nếu chạy local)
-   # Windows: Restart explorer.exe
-   # Linux/Mac: sudo sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
-   
-   # 2. Warm-up S3 connection
-   aws s3 cp s3://bucket/raw/chunk01 ./test_download
-   rm ./test_download
-   
-   # 3. Đợi 30s trước mỗi test mới
-   sleep 30
-   ```
+---
 
-3. **Kịch bản test (mỗi kịch bản chạy 5 lần)**
-   ```
-   a) Đọc toàn bộ CSV:
-      - Đọc tuần tự (baseline)
-      - Đọc song song với 8 worker
-   
-   b) Đọc toàn bộ Parquet:
-      - Đọc tuần tự
-      - Đọc song song với 8 worker
-      - Đọc với row group filtering
-   
-   c) Đọc có lọc:
-      - CSV: grep/awk filter
-      - Parquet: predicate pushdown
-      - S3 Select: SQL filter
-   ```
+## 3. Bật Intelligent-Tiering (tối ưu chi phí)
 
-**C. Metrics chi tiết cần đo:**
-```
-1. Thời gian (giây):
-   - Thời gian đọc raw
-   - Thời gian xử lý/transform
-   - Thời gian ghi kết quả
-   
-2. Throughput (MB/s):
-   - Read throughput
-   - Write throughput
-   - Network throughput
+Mục đích: dữ liệu ít truy cập (ví dụ `raw/` cũ, `artifacts/` log cũ) được chuyển tự động sang lớp lưu trữ rẻ hơn, không đổi URL.
 
-3. Resource usage:
-   - CPU utilization (%)
-   - Memory consumption (GB)
-   - Network I/O (MB/s)
-   - IOPS trên EBS
+Các bước:
 
-4. Chất lượng:
-   - p50, p95, p99 latency
-   - Error rate
-   - Standard deviation
+1. Vào bucket → tab **Properties**.
+2. Tìm phần **Intelligent-Tiering archive configurations** → **Edit**.
+3. Thêm cấu hình:
+
+```text
+Configuration name: storage-optimization
+Status: Enabled
+Scope: Entire bucket (hoặc prefix cụ thể: raw/, silver/, gold/, artifacts/)
 ```
 
-### 4.4. Chiến lược tối ưu cho dataset lớn
+<!-- IMAGE PLACEHOLDER: Intelligent-tiering - paste screenshot here -->
 
-**1. Xử lý từng phần để tránh tràn memory:**
-```python
-# Đọc và chuyển đổi CSV -> Parquet theo chunks
-def process_large_csv():
-    # Đọc CSV theo chunks 500MB
-    chunks = pd.read_csv('transactions.csv', chunksize=500_000)
-    
-    for i, chunk in enumerate(chunks):
-        # Optimize dtypes
-        chunk['SHOP_WEEK'] = chunk['SHOP_WEEK'].astype('int32')
-        chunk['QUANTITY'] = chunk['QUANTITY'].astype('int16')
-        
-        # Partition theo SHOP_WEEK
-        week = chunk['SHOP_WEEK'].iloc[0]
-        
-        # Lưu chunk thành Parquet riêng
-        chunk.to_parquet(
-            f's3://bucket/silver/week={week}/chunk_{i}.parquet',
-            compression='snappy',
-            row_group_size=100_000
-        )
+![Placeholder - Intelligent Tiering](../images/s3-data-storage/placeholder-intelligent-tiering.png)
+
+---
+
+## 4. Chuyển CSV → Parquet bằng AWS Glue Studio (Visual ETL)
+
+### 4.1. Upload `transactions.csv` vào `raw/`
+
+Trên S3 Console:
+
+1. Mở bucket → folder `raw/`.
+2. **Upload → Add files →** chọn file `transactions.csv` trên máy.
+3. **Upload**.
+
+<!-- IMAGE PLACEHOLDER: Upload-csv - paste screenshot here -->
+
+![Placeholder - Upload CSV](../images/s3-data-storage/placeholder-upload.png)
+
+---
+
+### 4.2. Tạo Glue Job (Visual ETL)
+
+1. Vào **AWS Glue Studio → Jobs → Create job → Visual with a blank canvas**.
+2. Đặt tên:
+
+```text
+Job name: csv-to-parquet-converter
 ```
 
-**2. Tối ưu schema và partition:**
-```python
-# Schema tối ưu để giảm dung lượng
-optimized_schema = {
-    'SHOP_WEEK': 'int32',     # Thay vì int64
-    'SHOP_HOUR': 'int8',      # 0-23 only
-    'QUANTITY': 'int16',      # Thay vì int64
-    'STORE_CODE': 'category', # Tiết kiệm memory
-    'SPEND': 'float32'        # Thay vì float64
+3. Chọn/ tạo IAM Role có quyền:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": [
+        "arn:aws:s3:::mlops-retail-prediction-dev-842676018087/raw/*",
+        "arn:aws:s3:::mlops-retail-prediction-dev-842676018087/silver/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "glue:*",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
-
-# Partition layout
-s3://bucket/silver/
-├── week=202001/      # Partition theo tuần
-│   ├── chunk_0.parquet
-│   └── chunk_1.parquet
-├── week=202002/
-│   ├── chunk_0.parquet
-│   └── chunk_1.parquet
-└── ...
-```
 ```
 
-**2. Tối ưu schema cho Parquet:**
+---
+
+### 4.3. Source node – đọc CSV từ S3
+
+Trong canvas Glue Studio:
+
+1. Thêm **S3 Source**.
+2. Cấu hình:
+
+```text
+Data source: S3
+Format: CSV
+S3 URL: s3://mlops-retail-prediction-dev-842676018087/raw/transactions.csv
+First row as header: Enabled
+Delimiter: ,
+```
+
+<!-- IMAGE PLACEHOLDER: Glue Source config - paste screenshot here -->
+
+![Placeholder - Glue Source](../images/s3-data-storage/placeholder-glue-source.png)
+
+Tóm tắt:
+
+|     Field | Value                                      |
+| --------: | ------------------------------------------ |
+| S3 bucket | `mlops-retail-prediction-dev-842676018087` |
+|      Path | `raw/transactions.csv`                     |
+|    Format | CSV                                        |
+|    Header | Yes                                        |
+| Delimiter | `,`                                        |
+
+---
+
+### 4.4. Transform – ApplyMapping (tối ưu schema)
+
+1. Thêm node **ApplyMapping**.
+2. Kết nối **Source → ApplyMapping**.
+3. Mapping kiểu dữ liệu (ví dụ):
+
+| Column      | Source type | Target type   | Ghi chú          |
+| ----------- | ----------: | ------------- | ---------------- |
+| SHOP_WEEK   |        long | int           | `int32` là đủ    |
+| SHOP_HOUR   |        long | tinyint       | 0–23             |
+| QUANTITY    |        long | smallint      | Số lượng         |
+| STORE_CODE  |      string | string        | Giữ nguyên       |
+| SPEND       |     decimal | decimal(10,2) | Tiền tệ, 2 số lẻ |
+| BASKET_TYPE |      string | string        | Categorical      |
+
+<!-- IMAGE PLACEHOLDER: Transform schema - paste screenshot here -->
+
+![Placeholder - Transform schema](../images/s3-data-storage/placeholder-transform.png)
+
+**Lợi ích:**
+
+- Giảm kích thước file Parquet.
+- Tối ưu scan & aggregation.
+- Giảm RAM khi đọc dữ liệu.
+
+---
+
+### 4.5. Target – ghi Parquet (Snappy) ra `silver/`
+
+1. Thêm node **S3 Target**.
+2. Kết nối **ApplyMapping → Target**.
+3. Cấu hình:
+
+```text
+Data target: S3
+Format: Parquet
+Compression: Snappy
+S3 path: s3://mlops-retail-prediction-dev-842676018087/silver/transactions/
+Partition keys: SHOP_WEEK (khuyến nghị)
+```
+
+_Minh họa:_
+
+-- Target config: `../images/s3-data-storage/target-config.png`
+-- Toàn pipeline: `../images/s3-data-storage/04-glue-etl.png`
+
+<!-- IMAGE PLACEHOLDER: Glue Target / Pipeline - paste screenshot here -->
+
+![Placeholder - Glue Target](../images/s3-data-storage/placeholder-glue-target.png)
+
+4. **Save & Run job** → theo dõi **Job run details** → kiểm tra output trong `silver/`.
+
+![Placeholder - Glue Target](../images/s3-data-storage/04-glue-etl.png)
+
+![Placeholder - Glue Target](../images/s3-data-storage/result-in-silver.png)
+
+---
+
+## 5. Benchmark thực tế trên AWS CloudShell (đọc trực tiếp từ S3)
+
+### 5.1. Thông tin dataset & cách chạy
+
+- Chạy trên **AWS CloudShell**.
+- Đọc trực tiếp:
+
+  - `raw/transactions.csv` (~4,593.65 MB, 33,850,823 rows).
+  - 1 file Parquet (~458.45 MB, 33,850,823 rows).
+
+Bạn đã dùng script kiểu:
+
+- `read_csv_s3(...)` để đo đọc CSV.
+- `read_parquet_s3(...)` để đo đọc Parquet.
+
+Log chi tiết đã hiện trong CloudShell.)
+
+<!-- IMAGE PLACEHOLDER: CloudShell benchmark - paste screenshot here -->
+
+Kết quả đo đọc CSV:
+![Placeholder - CloudShell benchmark](../images/s3-data-storage/placeholder-cloudshell.png)
+
+Kết quả đo đọc Parquet:
+![Placeholder - CloudShell benchmark](../images/s3-data-storage/placeholder-cloudshell-parquet.png)
+
+---
+
+### 5.2. Kết quả đo (CloudShell)
+
+**CSV – đọc toàn bộ `raw/transactions.csv` từ S3**
+
+5 lần đo:
+
+```text
+151.91s, 146.34s, 141.52s, 126.03s, 115.95s
+```
+
+Tính trung bình (xấp xỉ):
+
+- Avg time ≈ **136.35 s**
+- Size = **4,593.65 MB**
+- Avg throughput ≈ **33.7 MB/s**
+- Rows/s ≈ **~248k rows/s**
+
+---
+
+**Parquet – đọc 1 file ~458.45 MB từ S3**
+
+5 lần đo:
+
+```text
+61.37s, 53.65s, 52.51s, 49.66s, 49.55s
+```
+
+Tính trung bình (xấp xỉ):
+
+- Avg time ≈ **53.35 s**
+- Size = **458.45 MB**
+- Avg throughput ≈ **8.6 MB/s**
+- Rows/s ≈ **~635k rows/s**
+
+---
+
+### 5.3. Bảng so sánh (CloudShell)
+
+|    Loại | Size trên S3 | Avg time (s) | Avg throughput (MB/s) |       Rows | Rows/s (xấp xỉ) | Relative rows/s |
+| ------: | -----------: | -----------: | --------------------: | ---------: | --------------: | --------------: |
+|     CSV |  4,593.65 MB |       136.35 |                  33.7 | 33,850,823 |           ~248k |              1× |
+| Parquet |    458.45 MB |        53.35 |                   8.6 | 33,850,823 |           ~635k |           ~2.6× |
+
+**Giải thích:**
+
+- Theo **MB/s**, CSV có vẻ “nhanh” hơn vì mỗi run xử lý nhiều MB hơn (4.59 GB).
+- Nhưng xét **số dòng/giây (rows/s)**, Parquet **nhanh hơn ~2.6×**, phù hợp cho ETL / training.
+
+{{% notice info %}}
+**Kết luận CloudShell**
+
+- Parquet (Snappy) **giảm mạnh dung lượng**: 4.59 GB → ~0.46 GB.
+- Với cùng 33.85M dòng, Parquet xử lý **nhanh hơn ~2.6×** về rows/s.
+  {{% /notice %}}
+
+---
+
+## 6. Benchmark trên máy local (Windows, 16GB RAM)
+
+### 6.1. Chuẩn bị thư mục & tải dữ liệu
+
+Trên Windows:
+
+```bash
+mkdir s3-local-benchmark
+cd s3-local-benchmark
+```
+
+Tải 2 file:
+
+```bash
+aws s3 cp s3://mlops-retail-prediction-dev-842676018087/raw/transactions.csv ./transactions.csv
+aws s3 cp s3://mlops-retail-prediction-dev-842676018087/silver/shop_week=200607/run-1761638745394-part-block-0-0-r-00000-snappy.parquet ./transactions_200607.parquet
+
+
+
+```
+
+<!-- IMAGE PLACEHOLDER: Local download - paste screenshot here -->
+
+## ![Placeholder - Local download](../images/s3-data-storage/placeholder-local-download.png)
+
+### 6.2. Script benchmark
+
+Tạo file `local_benchmark.py`:
+
 ```python
-# Optimize column types
-optimized_schema = {
-    'SHOP_WEEK': 'int32',      # Thay vì int64
-    'SHOP_HOUR': 'int8',       # 0-23 only
-    'QUANTITY': 'int16',       # Thay vì int64
-    'STORE_CODE': 'category',  # Categorical data
-    'SPEND': 'float32'         # Thay vì float64
+import time
+import os
+import pandas as pd
+
+def bench_csv_stream(path: str, runs: int = 3):
+    print(f"=== Benchmark CSV (streaming): {path} ===")
+    size_mb = os.path.getsize(path) / (1024 * 1024)
+    for i in range(1, runs + 1):
+        t0 = time.time()
+        rows = 0
+        # Đọc theo chunks để tránh tràn RAM
+        for chunk in pd.read_csv(path, chunksize=500_000):
+            rows += len(chunk)
+        t1 = time.time()
+        elapsed = t1 - t0
+        throughput = size_mb / elapsed
+        print(f"[local_csv_stream] run={i} time={elapsed:.2f}s, "
+              f"size={size_mb:.2f} MB, throughput={throughput:.2f} MB/s, rows={rows}")
+
+def bench_parquet_stream(path: str, runs: int = 3):
+    print(f"
+=== Benchmark Parquet (streaming): {path} ===")
+    size_mb = os.path.getsize(path) / (1024 * 1024)
+    for i in range(1, runs + 1):
+        t0 = time.time()
+        df = pd.read_parquet(path)
+        rows = len(df)
+        t1 = time.time()
+        elapsed = t1 - t0
+        throughput = size_mb / elapsed
+        print(f"[local_parquet_stream] run={i} time={elapsed:.2f}s, "
+              f"size={size_mb:.2f} MB, throughput={throughput:.2f} MB/s, rows={rows}")
+
+if __name__ == "__main__":
+    bench_csv_stream("transactions.csv", runs=3)
+    bench_parquet_stream("transactions_200607.parquet", runs=3)
+```
+
+Chạy:
+
+```bash
+python local_benchmark.py
+```
+
+---
+
+### 6.3. Log thực tế
+
+## ![Placeholder - Local download](../images/s3-data-storage/placeholder-result-readfile.png)
+
+````
+
+**Nhận xét:**
+
+- CSV full 4.59 GB: vẫn xử lý được nhờ đọc theo chunks, throughput ~90–95 MB/s.
+- Parquet (sample 1 tuần, 6.48 MB): thời gian đọc ~0.05–0.09s → latency cực thấp.
+- Với nhiều file Parquet nhỏ (partition theo `shop_week`), query theo tuần/tháng sẽ rất nhanh.
+
+---
+
+## 7. IAM – Quyền tối thiểu cho Glue Job (tóm tắt)
+
+Tối thiểu cần:
+
+- **S3:**
+  - `s3:GetObject` cho `raw/*`
+  - `s3:PutObject` cho `silver/*`
+- **Glue:**
+  - Quyền tạo/chạy job, đọc metadata (tùy môi trường).
+- **CloudWatch Logs:** ghi log job.
+
+Ví dụ policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": [
+        "arn:aws:s3:::mlops-retail-prediction-dev-842676018087/raw/*",
+        "arn:aws:s3:::mlops-retail-prediction-dev-842676018087/silver/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "glue:*",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": "*"
+    }
+  ]
 }
+````
 
-# Sắp xếp columns để tối ưu compression
-column_order = [
-    # Frequently filtered columns first
-    'SHOP_WEEK', 'STORE_REGION',
-    # Frequently accessed columns next
-    'SPEND', 'QUANTITY',
-    # Rarely used columns last
-    'STORE_CODE', 'BASKET_TYPE'
-]
-```
+---
 
-**3. Xử lý song song với Dask:**
-```python
-import dask.dataframe as dd
+## 8. Tổng kết Task 3 – S3 Data Storage
 
-# Đọc CSV song song
-ddf = dd.read_csv('s3://bucket/raw/*.csv',
-    blocksize='256MB',      # Chunk size
-    dtype=optimized_schema,
-    compression='gzip'
-)
+**Về kiến trúc:**
 
-# Xử lý và ghi song song
-ddf.map_partitions(transform_func)\
-   .to_parquet(
-        's3://bucket/silver/',
-        engine='pyarrow',
-        compression='snappy',
-        partition_on=['SHOP_WEEK', 'STORE_REGION'],
-        **parquet_options
-    )
-```
+- Thiết kế bucket theo chuẩn MLOps:
 
-**4. Tối ưu lưu trữ S3:**
-```
-a) Intelligent-Tiering với Archive tiers:
-   - 0-30 ngày: Frequent Access
-   - 30-90 ngày: Infrequent Access
-   - 90+ ngày: Archive tier
+  ```text
+  raw/ → silver/ → gold/ → artifacts/
+  ```
 
-b) S3 Lifecycle Rules:
-   raw/
-   ├── hot/     → Standard (0-30 ngày)
-   ├── warm/    → Intelligent-Tiering (30-90 ngày)
-   └── cold/    → Glacier Deep Archive (90+ ngày)
+- Duy trì **raw/ immutable**.
+- Chuẩn hóa dữ liệu vào **Parquet (Snappy)** trong **silver/**.
 
-c) S3 Storage Lens monitoring:
-   - Theo dõi access patterns
-   - Phát hiện hot/cold data
-   - Tối ưu chi phí tự động
-```
+**Về hiệu năng (từ số đo thực tế của bạn):**
 
-### 4.5. Kết quả đo benchmark thực tế (5.2GB dataset)
+- 4.59 GB CSV → ~0.46 GB Parquet cho cùng **33.85M dòng**.
+- Trên CloudShell:
 
-**A. Đo trên AWS CloudShell:**
-```
-📊 Results (trung bình 5 lần chạy):
+  - CSV: ~136s, ~248k rows/s.
+  - Parquet: ~53s, ~635k rows/s → **~2.6× rows/s**.
 
-1. Download speed:
-CSV chunks:     85MB/s (đọc trực tiếp)
-Parquet chunks: 92MB/s (đọc trực tiếp)
-S3 Select:      125MB/s (lọc server-side)
+- Trên máy local (16GB RAM):
 
-2. Thời gian xử lý:
-Chuyển CSV -> Parquet: 12 phút
-- Chia chunks: 2 phút
-- Upload chunks: 4 phút
-- Convert: 6 phút
+  - CSV 4.59 GB vẫn xử lý được với **chunk 500k rows**.
+  - Parquet sample 1 tuần (~6.48 MB) đọc trong **~0.05–0.09s**.
 
-3. Memory sử dụng:
-CSV processing:    ~800MB/chunk
-Parquet processing: ~400MB/chunk
+**Về cost & vận hành:**
 
-4. Storage used:
-Raw CSV:     5.2 GB
-Parquet:     1.5 GB (-71%)
-```
-
-**B. Đo trên máy local (100Mbps internet):**
-```
-📊 Download speeds:
-CSV raw:          11.2 MB/s
-Parquet:          11.8 MB/s
-S3 Select filter: 15.5 MB/s
-
-💾 Processing on 16GB RAM laptop:
-- Xử lý theo chunks 500MB
-- Peak memory: ~2GB
-- Temp storage needed: 3GB
-```
-
-**C. So sánh queries:**
-```sql
--- Test query: Tính tổng chi tiêu theo tuần
--- Data: 5.2GB transactions
-
-1. CSV - Full scan:
-   Time: 485 seconds
-   Reads: 5.2GB
-
-2. Parquet + Partition:
-   Time: 42 seconds
-   Reads: 450MB
-
-3. S3 Select + Partition:
-   Time: 28 seconds
-   Reads: 380MB
-```
-
-
-## 5. Tối ưu truy vấn với S3 Select
-
-S3 Select giúp tăng tốc độ đọc dữ liệu bằng cách chỉ truy vấn các cột cần thiết.
-
-### 5.1. Sử dụng S3 Select qua Console
-
-1. S3 Console → Chọn file Parquet
-2. Actions → Query with S3 Select
-3. Format: Parquet
-4. SQL: `SELECT column1, column2 FROM s3object WHERE column3 > 100`
-5. Run SQL
-
-![S3 Select](../images/s3-data-storage/06-s3-select.png)
-
-### 5.2. So sánh hiệu năng truy vấn
-
-| Truy vấn | Thời gian (CSV) | Thời gian (Parquet + S3 Select) | Tăng tốc |
-|----------|-----------------|--------------------------------|----------|
-| Đọc toàn bộ | 12 giây | 3.4 giây | 3.5x |
-| Lọc dữ liệu | 10.5 giây | 0.8 giây | 13.1x |
-| Nhóm dữ liệu | 15 giây | 2.2 giây | 6.8x |
-
-## 6. Đo lường và so sánh hiệu suất
-
-### 6.1. Benchmark hiệu suất đọc/ghi 
-
-**Kết quả benchmark chi tiết:**
-
-| Thao tác | CSV (giây) | Parquet (giây) | Tăng tốc |
-|----------|------------|----------------|----------|
-| Đọc toàn bộ file (100MB) | 12.45 | 3.21 | 3.9x |
-| Đọc 3 cột | 11.98 | 1.75 | 6.8x |
-| Lọc dữ liệu | 10.52 | 2.04 | 5.2x |
-| Group by và aggregate | 15.31 | 2.87 | 5.3x |
-| Truy vấn với S3 Select | 8.76 | 0.65 | 13.5x |
-
-![Performance Comparison](../images/s3-data-storage/10-performance.png)
-
-### 6.2. Tối ưu hiệu suất truy vấn với S3 Console
-
-**Qua S3 Console:**
-1. Chọn file Parquet → Actions → Query with S3 Select
-2. Nhập SQL query → Run SQL
-
-## 7. Chạy benchmark có thể tái lặp (script)
-
-Nếu cần số liệu chính xác và có thể tái lặp, dùng script benchmark có sẵn `aws/scripts/s3_benchmark.py`.
-
-Chạy trên máy local hoặc AWS CloudShell (ưu tiên CloudShell để có mạng gần AWS):
-
-```powershell
-# Ví dụ (PowerShell):
-python .\aws\scripts\s3_benchmark.py --bucket mlops-retail-prediction-dev-123456789012 --csv-key raw/large.csv --parquet-key silver/large.parquet --runs 5
-```
-
-Script sẽ:
-- Thực hiện warm-up
-- Tải file CSV và Parquet nhiều lần
-- Đo thời gian download (s), kích thước (MB) và throughput (MB/s)
-- Đo thời gian đọc Parquet (pandas) và trả về thống kê trung bình/median
-
-Kết quả raw được ghi vào `s3_benchmark_results.csv` trong thư mục chạy script.
-3. Download results
-
-**Hiệu suất truy vấn trên Console:**
-- Truy vấn 1GB CSV: 35.2 giây
-- Truy vấn 1GB Parquet: 4.8 giây
-- **Tăng tốc: 7.3x**
-
-## 7. Tối ưu chi phí lưu trữ
-
-### 7.1. Storage class và chi phí
-
-| Storage Class | Chi phí/GB/tháng | Access time | Use Case |
-|---------------|------------------|-------------|----------|
-| Standard | $0.023 | Tức thì | Dữ liệu đang hoạt động |
-| Intelligent-Tiering | $0.0125 - $0.023 | Tức thì | Tự động tối ưu |
-| Standard-IA | $0.0125 | Tức thì | Ít truy cập |
-
-### 7.2. Tối ưu chi phí với Intelligent-Tiering
-
-**S3 Console:**
-1. Bucket → Properties → Intelligent-Tiering
-2. Thêm cấu hình:
-   ```
-   Name: cost-optimization
-   Status: Enabled
-   Prefix: (tùy chọn)
-   ```
-
-### 7.3. Chi phí thực tế đã tối ưu
-
-**Chi phí hàng tháng:**
-- **Trước tối ưu**: $0.23 cho 10GB
-- **Sau tối ưu**: $0.10 cho 10GB (tiết kiệm 57%)
-
-## 8. Kết quả tối ưu
-
-✅ **Hiệu suất đọc/ghi**: 
-- Đọc/ghi nhanh hơn **3-7x** so với CSV
-- Truy vấn nhanh hơn **13x** với S3 Select
-- Tải dữ liệu trong **< 3 giây** (so với 12 giây)
-
-✅ **Tối ưu lưu trữ**:
-- Giảm **70%** dung lượng lưu trữ với Parquet+Snappy
-- Tiết kiệm **57%** chi phí với Intelligent-Tiering
-- Tự động chuyển storage class
+- Parquet + Snappy **giảm đáng kể dung lượng** → giảm tiền S3.
+- Intelligent-Tiering giúp tự động hạ tầng lớp lưu trữ cho dữ liệu cũ.
+- Glue Visual ETL giúp không cần code nhiều, dễ show trong báo cáo.
 
 {{% notice success %}}
-**🎯 Task 3 hoàn thành!**
+**🎯 Task 3 hoàn thành**
 
-**Hiệu suất đọc/ghi**: Tăng tốc 3-7x so với phương pháp truyền thống
-**Lưu trữ tối ưu**: Giảm 70% dung lượng, tiết kiệm 57% chi phí
-**Chi phí**: Chỉ ~$0.10/tháng cho 10GB dữ liệu đã tối ưu
-{{% /notice %}}
-
-{{% notice info %}}
-**📊 Hiệu quả đo lường được:**
-- **Tốc độ đọc/ghi**: 3-7x nhanh hơn với Parquet
-- **Dung lượng lưu trữ**: 70% nhỏ hơn với Snappy compression
-- **Chi phí**: 57% tiết kiệm với Intelligent-Tiering
-- **Tốc độ truy vấn**: 13x nhanh hơn với S3 Select
-{{% /notice %}}
+- Kiến trúc S3 rõ ràng, chuẩn MLOps.
+- CSV → Parquet bằng Glue Studio (Visual, có hình minh họa).
+- Có benchmark thực tế trên **CloudShell** và **local**, có số liệu cụ thể.
+- Dễ trình bày trong báo cáo & demo cho GV.
+  {{% /notice %}}

@@ -5,1429 +5,906 @@ chapter: false
 pre: "<b>4. </b>"
 ---
 
-## 🎯 Mục tiêu Task 4
+## Mục tiêu Task 4
 
-Huấn luyện mô hình dự báo **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) bằng Amazon SageMaker, tự động hóa toàn bộ luồng **ETL → Training → Evaluation → Model Registry**.
+Huấn luyện mô hình dự báo **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) bằng Amazon SageMaker với pipeline tự động ETL → Training → Model Registry.
 
-→ **Đây là trái tim của pipeline MLOps** — nơi thực hiện quy trình xử lý dữ liệu tự động (ETL) và huấn luyện mô hình học máy.
+→ **Trái tim của MLOps pipeline** - từ dữ liệu thô đến model production-ready.
 
-📥 **Input**
+**Input**
 - AWS Account với quyền SageMaker/S3/CloudWatch
-- Retail transaction data trong S3 `raw/`
-- Project naming: `mlops-retail-prediction-dev`
+- S3 bucket với dữ liệu (từ Task 3)
+- IAM Role SageMaker (từ Task 2)
 
-✅ **Kết quả mong đợi**
-- Luồng ETL → Train → Evaluate → Save → (Register) chạy tự động end-to-end
+**Kết quả**
 - Model đạt accuracy ≥ 80%, F1 ≥ 0.7
-- Artifact và kết quả huấn luyện được lưu đầy đủ trong S3
+- Model được đăng ký trong Model Registry
+- Artifacts lưu trữ trong S3
 
-💰 **Chi phí ước tính**: ~**$0.3-0.5/job** (instance ml.m5.large, thời gian ~10-15 phút). Nếu bật Spot → giảm 70-80%.
-
-
-📌 **Các bước**
-1. **ETL Pipeline** - Automated data processing  
-2. **Multi-Model Training** - LR, RF, XGBoost comparison
-3. **Model Evaluation** - Comprehensive metrics + confusion matrix
-4. **Model Registry** - Version control và approval workflow
-5. **CI/CD Integration** - Export model info for deployment
+**Chi phí**: ~**$0.3-0.5/job** (ml.m5.large, 10-15 phút)
 
 {{% notice info %}}
-**💡 Task 4 Focus - MLOps Core Pipeline:**
-- ✅ **Automated ETL** - Raw data → Gold features pipeline
-- ✅ **Multi-Model Training** - LR/RF/XGBoost comparison  
-- ✅ **Comprehensive Evaluation** - Accuracy, F1, Confusion Matrix
-- ✅ **Model Registry** - Version control và metadata tracking
-- ✅ **Cost Optimization** - Spot instances + auto cleanup
-
-**Trái tim của MLOps** - tự động hóa hoàn toàn từ data đến model
+**💡 Task 4 - MLOps Core Pipeline:**
+- **ETL tự động** - Raw data → Features
+- **Model training** - Random Forest classifier  
+- **Model evaluation** - Accuracy, F1, Confusion Matrix
+- **Model Registry** - Version control và approval
 {{% /notice %}}
 
-📊 **Success Criteria**
-- ✅ **ETL Success** - Raw data → clean features pipeline hoạt động
-- ✅ **Model Performance** - Accuracy ≥ 80%, F1 ≥ 0.7
-- ✅ **Automation** - End-to-end pipeline chạy tự động
-- ✅ **Cost Efficiency** - Spot instances, auto cleanup
+## 1. Chuẩn bị môi trường và kiểm tra prerequisites
 
-⚠️ **Lưu ý**
-- **ETL Pipeline** cần memory đủ lớn để xử lý transaction data
-- **Model Training** sử dụng Spot để giảm chi phí 
-- **Evaluation Metrics** phải consistent với business requirements
+### 1.1. Kiểm tra S3 bucket (từ Task 3)
 
-## Thực hiện bằng AWS Console - Hướng dẫn chi tiết từng bước
+**AWS Console → S3:**
+1. Tìm bucket: `mlops-retail-prediction-dev-[account-id]`
+2. Kiểm tra cấu trúc thực tế:
 
-### Bước 1: Kiểm tra dữ liệu trong S3 (từ Task 3)
-
-#### 1.1. Xác minh bucket và dữ liệu
-1. **AWS Console** → **S3** 
-2. **Tìm bucket**: `mlops-retail-prediction-dev-[account-id]` (đã tạo ở Task 3)
-3. **Kiểm tra cấu trúc**:
    ```
-   ✅ raw/        # có file dunnhumby_The-Complete-Journey.csv
-   ✅ silver/     # sẽ chứa dữ liệu đã xử lý
-   ✅ gold/       # sẽ chứa features training
-   ✅ artifacts/  # sẽ chứa model outputs
-   ```
+   raw/           # transactions.csv + _select/ folder
+   silver/        # shop_week partitions (200607-200619) 
+   gold/          # features đã xử lý (sẽ tạo từ silver/)
+   artifacts/     # model outputs (sẽ tạo)
+    ```
 
-#### 1.2. Xác minh IAM Role (từ Task 2)
-1. **AWS Console** → **IAM** → **Roles**
-2. **Tìm role**: `mlops-retail-prediction-dev-sagemaker-execution` (đã tạo ở Task 2)
-3. **Kiểm tra permissions**:
+![S3 bucket placeholder](../images/4-sagemake-training/01-s3-bucket.png)
+
+### 1.2. Xác minh IAM Role (từ Task 2)
+
+**AWS Console → IAM → Roles:**
+1. Tìm role: `mlops-retail-prediction-dev-sagemaker-execution`
+2. Kiểm tra permissions:
    - ✅ `AmazonSageMakerFullAccess`
    - ✅ `AmazonS3FullAccess`
    - ✅ `CloudWatchLogsFullAccess`
+ 
+![IAM role placeholder](../images/4-sagemake-training/02-iam-role.png)
 
-### Bước 2: Training Model với SageMaker Studio
+{{% notice warning %}}
+Warning: Nếu bucket của bạn dùng SSE-KMS, role cần có quyền decrypt/encrypt với KMS key; nếu dùng cross-account S3, kiểm tra thêm trust policy.
+{{% /notice %}}
 
-#### 2.1. Mở SageMaker Studio
-1. **AWS Console** → Tìm "SageMaker" → Click **Amazon SageMaker**
-2. **Sidebar trái** → Click **"Studio"**
-3. **Click "Create a SageMaker domain"** (nếu chưa có)
-4. **Domain name**: `mlops-retail-domain`
-5. **Default execution role**: Chọn `mlops-retail-prediction-dev-sagemaker-execution` (từ Task 2)
-6. Click **"Submit"** → Đợi 5-10 phút
-7. **Domain created** → Click **"Launch"** → **"Studio"**
+## 2. Tạo SageMaker Domain và Project
 
-#### 2.2. Tạo Training Job
-1. **SageMaker Studio mở** → **Sidebar trái** → Click **"Training"** → **"Training jobs"**
-2. Click **"Create training job"**
+### 2.1. Truy cập SageMaker Unified Studio
 
-#### 2.3. Cấu hình Job Details
-1. **Job name**: `retail-prediction-training-20241011`
-2. **IAM role**: Chọn `mlops-retail-prediction-dev-sagemaker-execution` (từ Task 2)
-3. Click **"Next"**
+**AWS Console → SageMaker:**
+1. Truy cập URL: `https://[domain-id].studio.sagemaker.[region].amazonaws.com`
+2. Hoặc từ SageMaker Console → **Studio** → **Open Studio**
+3. Chọn authentication method:
+   - **Sign in with SSO** (nếu có setup SSO)
+   - **Sign in with AWS IAM** (dùng IAM user/role)
 
-#### 2.4. Algorithm Options
-1. **Algorithm source**: Chọn **"Your own algorithm container in ECR"**
-2. **Container path**: 
-   ```
-   382416733822.dkr.ecr.ap-southeast-1.amazonaws.com/scikit-learn:1.0-1-cpu-py3
-   ```
-3. **Input mode**: `File`
-4. Click **"Next"**
+![SageMaker Unified Studio Login](../images/4-sagemake-training/04.1-domain.png)
 
-#### 2.5. Configure Resource
-1. **Instance type**: `ml.m5.large`
-2. **Instance count**: `1`
-3. **Additional storage per instance (GB)**: `30`
-4. **Use Spot training**: ✅ **Check** (tiết kiệm 70% chi phí)
-5. **Max wait time**: `7200` seconds (2 hours)
-6. **Max training time**: `3600` seconds (1 hour)
-7. Click **"Next"**
+4. Sau khi đăng nhập, bạn sẽ thấy giao diện **SageMaker Unified Studio**
+5. Dashboard hiển thị:
+   - **"Good morning"** greeting
+   - **Search bar**: "Search for data products, assets, and projects"
+   - **Discover section**: Catalog, Generative AI playground, Shared generative AI assets
+   - **Build section**: ML and generative AI model development, Generative AI app development
+   - **Browse all projects** và **Create project** buttons
 
-#### 2.6. Configure Input Data
-1. **Channel name**: `training`
-2. **Input mode**: `File`
-3. **Data source**: `S3`
-4. **S3 location**: `s3://mlops-retail-prediction-dev-[account-id]/raw/`
-5. **Content type**: `text/csv`
-6. **Compression**: `None`
-7. **Record wrapper**: `None`
-8. Click **"Add channel"**
-9. Click **"Next"**
+![SageMaker Unified Studio Dashboard](../images/4-sagemake-training/04.2-domain.png)
 
-#### 2.7. Configure Output Data
-1. **S3 output path**: `s3://mlops-retail-prediction-dev-[account-id]/artifacts/` (bucket từ Task 3)
-2. **Encryption**: `None`
-3. Click **"Next"**
 
-#### 2.8. Configure Hyperparameters
-1. Click **"Add hyperparameter"** cho từng tham số:
+{{% notice info %}}
+**💡 SageMaker Unified Studio:**
+- **Unified interface** cho data analytics, ML, và generative AI
+- **Project-based workspace** với shared resources
+- **Built-in collaboration** với team members và approval workflows
+- **Integrated tools**: Notebooks, Visual ETL, Workflows, Chat agents
+{{% /notice %}}
 
-| Key | Value |
-|-----|-------|
-| `model_type` | `all` |
-| `random_state` | `42` |
-| `cv_folds` | `5` |
-| `test_size` | `0.2` |
+### 2.2. Tạo Project trong Unified Studio
 
-2. Click **"Next"**
+**Trong SageMaker Unified Studio dashboard:**
 
-#### 2.9. Review và Create
-1. **Review** tất cả cài đặt
-2. Click **"Create training job"**
+**Bước 1: Truy cập Create Project**
+1. Trong **Build** section, click **"Create project"** (nút xanh)
+2. Hoặc click **"Browse all projects"** → **"Create project"**
 
-### Bước 3: Upload Training Script
+![Project Name and Description](../images/4-sagemake-training/05.2.png)
 
-#### 3.1. Tạo Training Script
-1. **SageMaker Studio** → Click **"+"** → **"Python 3"** notebook
-2. **Tạo cell mới** và paste code sau:
+**Bước 2: Điền thông tin Project (Step 1)**
+1. **Project name**: `retail-ml-training`
+2. **Description**: `Retail price sensitivity model training`
+3. Click **Next** để chuyển tới Step 2
 
-```python
-%%writefile train.py
+![Project Name and Description](../images/4-sagemake-training/05.3.png)
 
-import pandas as pd
-import numpy as np
-import joblib
-import os
-import json
-import argparse
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.metrics import accuracy_score, f1_score, classification_report
-import xgboost as xgb
+**Bước 2.5: Chọn Project Profile (Step 2)**
+1. **Project profile**: Chọn **"All capabilities"** (highlighted in blue)
+   - **Description**: "Analyze data and build machine learning and generative AI models and applications powered by Amazon Bedrock, Amazon EMR, AWS Glue, Amazon Athena, Amazon SageMaker AI and Amazon SageMaker Lakehouse"
+   - **Tooling**: LakeHouse Database, Workflows
+   - **+ 12 more** capabilities
+2. Các options khác: **Generative AI application development**, **SQL analytics**
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--model-dir', type=str, default=os.environ.get('SM_MODEL_DIR'))
-    parser.add_argument('--train', type=str, default=os.environ.get('SM_CHANNEL_TRAINING'))
-    parser.add_argument('--model_type', type=str, default='all')
-    args = parser.parse_args()
-    
-    # Load data
-    input_files = [os.path.join(args.train, file) for file in os.listdir(args.train)]
-    raw_data = pd.concat([pd.read_csv(file) for file in input_files])
-    
-    # Basic preprocessing
-    clean_data = raw_data.dropna(subset=['BASKET_ID', 'SPEND', 'BASKET_PRICE_SENSITIVITY'])
-    
-    # Create features
-    features = clean_data.groupby('BASKET_ID').agg({
-        'SPEND': ['sum', 'mean', 'std', 'count'],
-        'QUANTITY': ['sum', 'mean'],
-        'PROD_CODE': 'nunique',
-        'BASKET_PRICE_SENSITIVITY': lambda x: x.iloc[0]
-    }).reset_index()
-    
-    # Flatten columns
-    features.columns = ['basket_id', 'total_spend', 'avg_spend', 'spend_std', 
-                       'basket_size', 'total_qty', 'avg_qty', 'unique_products', 'target']
-    features['spend_std'] = features['spend_std'].fillna(0)
-    
-    # Prepare for ML
-    X = features[['total_spend', 'avg_spend', 'spend_std', 'basket_size', 
-                  'total_qty', 'avg_qty', 'unique_products']]
-    y = features['target']
-    
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    
-    # Train models
-    models = {
-        'random_forest': RandomForestClassifier(n_estimators=100, random_state=42),
-        'logistic': LogisticRegression(random_state=42, max_iter=1000),
-        'decision_tree': DecisionTreeClassifier(random_state=42, max_depth=10)
-    }
-    
-    best_model = None
-    best_score = 0
-    results = {}
-    
-    for name, model in models.items():
-        model.fit(X_train, y_train)
-        pred = model.predict(X_test)
-        f1 = f1_score(y_test, pred, average='macro')
-        acc = accuracy_score(y_test, pred)
-        
-        results[name] = {'accuracy': acc, 'f1_score': f1}
-        
-        if f1 > best_score:
-            best_score = f1
-            best_model = model
-            best_name = name
-    
-    # Save best model
-    joblib.dump(best_model, os.path.join(args.model_dir, 'model.joblib'))
-    
-    # Save results
-    with open(os.path.join(args.model_dir, 'results.json'), 'w') as f:
-        json.dump({
-            'best_model': best_name,
-            'best_f1_score': best_score,
-            'all_results': results
-        }, f)
-    
-    print(f"Best model: {best_name} with F1-score: {best_score:.4f}")
+![Project Profile Selection](../images/4-sagemake-training/05.4.png)
 
-if __name__ == '__main__':
-    main()
+**Bước 3: Blueprint Parameters**
+- **S3 location**: `s3://amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]`
+- **Retention**: 731 days
+- **Enable Project Repository Auto Sync**: false
+- **Lakehouse Database**: `glue_db`
+
+![Blueprint Parameters](../images/4-sagemake-training/05.5.png)
+
+**Bước 4: Create Project**
+- Review các settings và click **"Create project"**
+
+![Project Creation Final](../images/4-sagemake-training/05.5.png)
+
+- Đợi 2-3 phút để Project được provisioned
+
+![Project Creation Final](../images/4-sagemake-training/05.6.png)
+
+
+### 2.3. Truy cập Project Workspace
+
+**Sau khi Project `retail-ml-training` tạo thành công:**
+
+**Bước 1: Vào Project Overview**
+1. Project sẽ hiển thị trong danh sách với status **"Created"**
+2. Click vào project name `retail-ml-training` để vào **Project overview**
+3. Project overview hiển thị:
+   - **Project title**: `retail-ml-training`
+   - **Description**: "Retail price sensitivity model training"
+   - **Project files (6)**: `.ipynb_checkpoints`, `workflows`, `.libs.json`, `.temp_sagemaker_unified_studio_debugging_info`, `README.md`, `getting_started.ipynb`
+   - **S3 path**: `/dzd-5kultpj28sm31d/cu2gr2js1w1wv` (project workspace path)
+   - **Actions** và **New** dropdown buttons
+     - **Project overview** (active)
+     - **Data** - data assets và connections
+     - **Compute** - compute resources và environments  
+     - **Members** - team collaboration
+     - **Project catalog** (expandable)
+     - **Assets**, **Subscription requests**, **Data sources**, **Metadata entities**
+
+
+**Bước 2: Tạo Notebook**
+1. Click **"New"** dropdown (nút xanh) → chọn **"Notebook"**
+2. **New** dropdown hiển thị các options (theo thứ tự trong hình):
+
+![Project Overview](../images/4-sagemake-training/05.6.png)
+
+![New Notebook Creation](../images/4-sagemake-training/06.1.png)
+
+   - **Notebook** (chọn option này)
+
+
+**Bước 3: Project Welcome**
+Trong project overview, bạn cũng thấy **Readme** section hiển thị **"Welcome"** với hướng dẫn bắt đầu sử dụng project.
+
+### 2.4. Xác minh EC2 Permissions (đã có từ Task 2)
+
+**EC2 permissions đã được cấu hình đầy đủ trong Task 2**, bao gồm inline policy `SageMakerEC2Access` trong role `mlops-retail-prediction-dev-sagemaker-execution`.
+
+**Xác minh EC2 permissions đã có:**
+
+```powershell
+# Kiểm tra inline policy đã được thêm từ Task 2
+aws iam get-role-policy --role-name mlops-retail-prediction-dev-sagemaker-execution --policy-name SageMakerEC2Access
+
+# Test quyền EC2 describe
+aws ec2 describe-vpcs --region us-east-1
 ```
 
-3. **Run cell** → File `train.py` được tạo
+**Role đã có đủ 4 policies từ Task 2:**
+- ✅ `AmazonSageMakerFullAccess` (AWS managed)
+- ✅ `AmazonS3FullAccess` (AWS managed)  
+- ✅ `CloudWatchLogsFullAccess` (AWS managed)
+- ✅ `SageMakerEC2Access` (inline policy cho Project creation)
 
-#### 3.2. Upload script lên S3 (sử dụng bucket từ Task 3)
-1. **Tạo cell mới**:
+{{% notice success %}}
+**Project creation ready:** Role đã được cấu hình đầy đủ từ Task 2, có thể tạo Project ngay lập tức.
+{{% /notice %}}
 
+### 2.5. Khuyến nghị vùng cho Task 4 (Region recommendation)
+
+**Tóm tắt:** Nếu dữ liệu `gold/` và `artifacts/` hiện đang nằm trong bucket `mlops-retail-prediction-dev-842676018087` (region `us-east-1`), khuyến nghị là **tạo SageMaker Domain / Project ở cùng `us-east-1`** để tránh lỗi cross-region (S3 301), phức tạp với KMS và endpoint.
+
+- **Lợi ích khi tạo Project ở `us-east-1`:**
+    - Loại bỏ lỗi 'bucket must be addressed using the specified endpoint' khi SageMaker tải dữ liệu từ S3.
+    - Không cần duy trì KMS keys hoặc IAM policies ở nhiều region.
+    - Ít rủi ro khi chạy training jobs từ Studio/Project.
+
+- **Khi cần tạo Project ở `ap-southeast-1` (hoặc region khác):**
+    - Phải **chuyển** hoặc **sao chép** dữ liệu `gold/` và `artifacts/` sang bucket ở region đó hoặc cấu hình Cross-Region Replication (CRR).
+    - Tạo KMS keys tương ứng và cập nhật policies/roles cho bucket mới.
+
+---
+
+Nếu bạn muốn giữ Project trong `ap-southeast-1`, đây là ví dụ lệnh để tạo bucket và sao chép dữ liệu (PowerShell / CloudShell):
+
+```powershell
+# Tạo bucket mới ở ap-southeast-1
+aws s3 mb s3://mlops-retail-prediction-dev-842676018087-apse1 --region ap-southeast-1
+
+# Đồng bộ gold/ và artifacts/ sang bucket mới
+aws s3 sync s3://mlops-retail-prediction-dev-842676018087/gold/ s3://mlops-retail-prediction-dev-842676018087-apse1/gold/ --acl bucket-owner-full-control --exact-timestamps
+aws s3 sync s3://mlops-retail-prediction-dev-842676018087/artifacts/ s3://mlops-retail-prediction-dev-842676018087-apse1/artifacts/ --acl bucket-owner-full-control --exact-timestamps
+
+# (Optional) Tạo KMS key ở ap-southeast-1 và cập nhật bucket policy / IAM role
+# aws kms create-key --region ap-southeast-1 --description "KMS for mlops retail ap-southeast-1"
+```
+
+Ghi chú:
+- Nếu bucket nguồn dùng SSE-KMS, đảm bảo bạn tạo tương ứng KMS key ở region đích và cập nhật cả bucket policy và role `mlops-retail-prediction-dev-sagemaker-execution`.
+- Nếu muốn resolution nhanh và ít thay đổi IAM, chọn tạo Project/Domain ở `us-east-1` (nơi bucket hiện có) — đây là phương án khuyến nghị cho lab và chạy training nhanh.
+
+### 3. ETL - Chuẩn bị dữ liệu trong SageMaker Studio
+
+**🎯 Mục tiêu:** Đọc TẤT CẢ shop_week partitions từ S3 silver/ và tạo train/test/validation splits
+
+**Input:** `silver/shop_week=200607/` đến `silver/shop_week=200619/` (14 partitions)  
+**Output:** `gold/train.parquet`, `gold/test.parquet`, `gold/validation.parquet`
+
+#### **Bước 1: Tạo ETL Notebook trong Project**
+
+**Từ Project overview:**
+1. Click **"New"** dropdown → chọn **"Notebook"**
+2. Notebook sẽ mở trong browser tab mới
+3. Chọn kernel: **Python 3 (Data Science 3.0)**
+4. Đặt tên notebook: **File** → **Rename** → `retail-etl-pipeline.ipynb`
+5. Notebook sẽ tự động lưu vào S3 project path
+
+{{% notice info %}}
+**Lưu ý:** 
+- Notebook chạy trên managed compute instance của SageMaker
+- Files tự động sync với S3 project storage
+- Có thể chia sẻ với team members trong project
+{{% /notice %}}
+
+#### **Bước 2: Thực hiện ETL Pipeline**
+
+Tạo và chạy các cells sau theo thứ tự:
+
+**Cell 1: Cài đặt dependencies**
+```bash
+# Install all required packages
+pip install pandas pyarrow s3fs scikit-learn xgboost sagemaker boto3 joblib
+```
+
+**Cell 2: Thiết lập cấu hình**
 ```python
 import boto3
-
-s3 = boto3.client('s3')
-bucket_name = 'mlops-retail-prediction-dev-[account-id]'  # Thay [account-id]
-
-# Upload training script
-s3.upload_file('train.py', bucket_name, 'code/train.py')
-print("✅ Training script uploaded to S3")
-```
-
-2. **Run cell**
-
-### Bước 4: Chạy Training Job
-
-#### 4.1. Theo dõi Training Job
-1. **SageMaker Console** → **Training jobs**
-2. **Tìm job**: `retail-prediction-training-20241011`
-3. **Status**: `InProgress` → `Completed` (5-10 phút)
-4. **Click vào job name** để xem details
-
-#### 4.2. Xem kết quả
-1. **Scroll xuống** → **Monitor** section
-2. **CloudWatch logs** → Click **"View logs"**
-3. **Tìm dòng**: `Best model: random_forest with F1-score: 0.8234`
-
-### Bước 5: Model Registry
-
-#### 5.1. Tạo Model Package Group
-1. **SageMaker Console** → **Sidebar** → **"Inference"** → **"Model registry"**
-2. Click **"Create model package group"**
-3. **Name**: `retail-price-sensitivity-models`
-4. **Description**: `Models for retail customer price sensitivity prediction`
-5. Click **"Create model package group"**
-
-#### 5.2. Register Model
-1. **Training jobs** → Click job `retail-prediction-training-20241011`
-2. **Scroll xuống** → **Model artifacts** section
-3. Click **"Create model package"**
-4. **Model package group**: `retail-price-sensitivity-models`
-5. **Model package version description**: `First retail prediction model v1.0`
-6. **Approval status**: `PendingManualApproval`
-7. Click **"Create model package"**
-
-#### 5.3. Approve Model (nếu F1-score ≥ 0.7)
-1. **Model registry** → **Model package groups** → Click `retail-price-sensitivity-models`
-2. **Versions** tab → Click **version 1**
-3. **Update status** → **"Approved"**
-4. **Description**: `Auto-approved: F1-score ≥ 0.7`
-5. Click **"Update status"**
-
-### Bước 6: Kiểm tra kết quả
-
-#### 6.1. Download Model Artifacts
-1. **Training job details** → **Output** section
-2. **S3 model artifacts**: Click **S3 URI**
-3. **S3 Console mở** → Click **"Download"** file `model.tar.gz`
-4. **Extract** → Kiểm tra file `model.joblib` và `results.json`
-
-#### 6.2. Verification
-```json
-{
-  "best_model": "random_forest",
-  "best_f1_score": 0.8234,
-  "all_results": {
-    "random_forest": {"accuracy": 0.8456, "f1_score": 0.8234},
-    "logistic": {"accuracy": 0.8123, "f1_score": 0.7891},
-    "decision_tree": {"accuracy": 0.7765, "f1_score": 0.7456}
-  }
-}
-```
-
-### ✅ Hoàn thành!
-
-**Bạn đã thành công:**
-- ✅ **Tạo S3 bucket** và upload dữ liệu
-- ✅ **Cấu hình IAM role** cho SageMaker  
-- ✅ **Train model** với Random Forest, Logistic Regression, Decision Tree
-- ✅ **Chọn best model** dựa trên F1-score
-- ✅ **Register model** trong Model Registry
-- ✅ **Approve model** cho production
-
-**Kết quả:**
-- 🎯 **Best Model**: Random Forest
-- 📊 **F1-Score**: 0.8234 (> 0.7 ✅)
-- 📊 **Accuracy**: 0.8456 (> 0.8 ✅)
-- 💰 **Chi phí**: ~$0.3 (với Spot instances)
-
-**Next Steps:** Model đã sẵn sàng cho deployment trong Task 10!
-
-## Thực hiện bằng Code
-
-### 1. ETL Pipeline - Automated Data Processing
-
-### 1.1. ETL Processing Script
-
-**Tạo file `etl_processing.py`:**
-```python
 import pandas as pd
 import numpy as np
-import boto3
-import os
-import argparse
-from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split
 import json
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def parse_args():
-    """Parse command line arguments for ETL"""
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input-path', type=str, required=True)
-    parser.add_argument('--output-path', type=str, required=True)
-    parser.add_argument('--bucket-name', type=str, required=True)
-    return parser.parse_args()
-
-def load_raw_data(bucket_name, raw_prefix='raw/'):
-    """Load transaction data from S3 raw folder"""
-    logger.info(f"Loading raw data from s3://{bucket_name}/{raw_prefix}")
-    
-    s3 = boto3.client('s3')
-    
-    # List all CSV files in raw folder
-    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=raw_prefix)
-    csv_files = [obj['Key'] for obj in response.get('Contents', []) if obj['Key'].endswith('.csv')]
-    
-    # Load and concatenate all transaction files
-    dataframes = []
-    for file_key in csv_files:
-        logger.info(f"Loading {file_key}")
-        df = pd.read_csv(f's3://{bucket_name}/{file_key}')
-        dataframes.append(df)
-    
-    combined_df = pd.concat(dataframes, ignore_index=True)
-    logger.info(f"Combined dataset shape: {combined_df.shape}")
-    
-    return combined_df
-
-def clean_data(df):
-    """Clean and preprocess transaction data"""
-    logger.info("Starting data cleaning...")
-    
-    # Remove missing values in critical columns
-    critical_cols = ['BASKET_ID', 'SPEND', 'QUANTITY', 'BASKET_PRICE_SENSITIVITY']
-    df = df.dropna(subset=critical_cols)
-    
-    # Convert date columns
-    if 'SHOP_DATE' in df.columns:
-        df['SHOP_DATE'] = pd.to_datetime(df['SHOP_DATE'], errors='coerce')
-    
-    # Remove outliers (spend > 99th percentile)
-    spend_99 = df['SPEND'].quantile(0.99)
-    df = df[df['SPEND'] <= spend_99]
-    
-    # Filter valid price sensitivity values
-    valid_sensitivity = ['Low', 'Medium', 'High']
-    df = df[df['BASKET_PRICE_SENSITIVITY'].isin(valid_sensitivity)]
-    
-    logger.info(f"After cleaning: {df.shape}")
-    return df
-
-def create_features(df):
-    """Create ML features from transaction data"""
-    logger.info("Creating features...")
-    
-    # Aggregate by BASKET_ID to create basket-level features
-    basket_features = df.groupby('BASKET_ID').agg({
-        'SPEND': ['sum', 'mean', 'std', 'count'],
-        'QUANTITY': ['sum', 'mean'],
-        'PROD_CODE': 'nunique',
-        'STORE_FORMAT': lambda x: x.iloc[0],
-        'STORE_REGION': lambda x: x.iloc[0],
-        'SHOP_WEEK': lambda x: x.iloc[0],
-        'SHOP_WEEKDAY': lambda x: x.iloc[0] if 'SHOP_WEEKDAY' in df.columns else 1,
-        'SHOP_HOUR': lambda x: x.iloc[0] if 'SHOP_HOUR' in df.columns else 12,
-        'BASKET_PRICE_SENSITIVITY': lambda x: x.iloc[0]  # Target
-    }).reset_index()
-    
-    # Flatten column names
-    basket_features.columns = [
-        'basket_id', 'total_spend', 'avg_spend', 'spend_std', 'basket_size',
-        'total_quantity', 'avg_quantity', 'unique_products',
-        'store_format', 'store_region', 'shop_week', 'shop_weekday', 'shop_hour',
-        'price_sensitivity'
-    ]
-    
-    # Fill NaN values
-    basket_features['spend_std'] = basket_features['spend_std'].fillna(0)
-    
-    # Create additional features
-    basket_features['spend_per_item'] = basket_features['total_spend'] / basket_features['basket_size']
-    basket_features['quantity_per_product'] = basket_features['total_quantity'] / basket_features['unique_products']
-    
-    # Encode categorical variables
-    le_store_format = LabelEncoder()
-    le_store_region = LabelEncoder()
-    
-    basket_features['store_format_encoded'] = le_store_format.fit_transform(basket_features['store_format'])
-    basket_features['store_region_encoded'] = le_store_region.fit_transform(basket_features['store_region'])
-    
-    # Save encoders for later use
-    encoders = {
-        'store_format': le_store_format.classes_.tolist(),
-        'store_region': le_store_region.classes_.tolist()
-    }
-    
-    logger.info(f"Features created: {basket_features.shape}")
-    return basket_features, encoders
-
-def split_and_save_data(features_df, output_path, bucket_name, test_size=0.2):
-    """Split data and save to S3 gold folder"""
-    logger.info("Splitting and saving data...")
-    
-    # Prepare features and target
-    feature_cols = [col for col in features_df.columns if col not in ['basket_id', 'price_sensitivity', 'store_format', 'store_region']]
-    X = features_df[feature_cols]
-    y = features_df['price_sensitivity']
-    
-    # Train-test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=42, stratify=y
-    )
-    
-    # Create train and test datasets
-    train_df = X_train.copy()
-    train_df['price_sensitivity'] = y_train
-    
-    test_df = X_test.copy()
-    test_df['price_sensitivity'] = y_test
-    
-    # Save to S3 as Parquet
-    train_path = f's3://{bucket_name}/gold/train_features.parquet'
-    test_path = f's3://{bucket_name}/gold/test_features.parquet'
-    
-    train_df.to_parquet(train_path, compression='snappy', index=False)
-    test_df.to_parquet(test_path, compression='snappy', index=False)
-    
-    logger.info(f"Train data saved: {train_path} ({train_df.shape})")
-    logger.info(f"Test data saved: {test_path} ({test_df.shape})")
-    
-    return train_path, test_path, feature_cols
-
-def main():
-    """Main ETL function"""
-    args = parse_args()
-    
-    try:
-        # Load raw data
-        raw_df = load_raw_data(args.bucket_name)
-        
-        # Clean data
-        clean_df = clean_data(raw_df)
-        
-        # Create features
-        features_df, encoders = create_features(clean_df)
-        
-        # Split and save
-        train_path, test_path, feature_cols = split_and_save_data(
-            features_df, args.output_path, args.bucket_name
-        )
-        
-        # Save metadata
-        metadata = {
-            'feature_columns': feature_cols,
-            'encoders': encoders,
-            'train_samples': len(features_df) * 0.8,
-            'test_samples': len(features_df) * 0.2,
-            'target_classes': ['Low', 'Medium', 'High'],
-            'etl_timestamp': pd.Timestamp.now().isoformat()
-        }
-        
-        metadata_path = f's3://{args.bucket_name}/gold/metadata.json'
-        with open('/tmp/metadata.json', 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        s3 = boto3.client('s3')
-        s3.upload_file('/tmp/metadata.json', args.bucket_name, 'gold/metadata.json')
-        
-        logger.info("✅ ETL Pipeline completed successfully")
-        
-    except Exception as e:
-        logger.error(f"❌ ETL Pipeline failed: {str(e)}")
-        raise
-
-if __name__ == '__main__':
-    main()
-```
-
-### 1.2. SageMaker Processing Job Setup
-
-**Chạy ETL Pipeline trên SageMaker:**
-```python
-import boto3
-import sagemaker
-from sagemaker.sklearn.processing import SKLearnProcessor
-from sagemaker.processing import ProcessingInput, ProcessingOutput
-
-# Initialize SageMaker session
-sagemaker_session = sagemaker.Session()
-role = sagemaker.get_execution_role()
-bucket_name = 'mlops-retail-prediction-dev-123456789012'
-
-# Create SKLearn processor
-sklearn_processor = SKLearnProcessor(
-    framework_version='1.0-1',
-    role=role,
-    instance_type='ml.m5.large',
-    instance_count=1,
-    base_job_name='retail-etl-processing',
-    sagemaker_session=sagemaker_session
-)
-
-# Run ETL processing job
-sklearn_processor.run(
-    code='etl_processing.py',
-    inputs=[
-        ProcessingInput(
-            source=f's3://{bucket_name}/raw/',
-            destination='/opt/ml/processing/input'
-        )
-    ],
-    outputs=[
-        ProcessingOutput(
-            output_name='features',
-            source='/opt/ml/processing/output',
-            destination=f's3://{bucket_name}/gold/'
-        )
-    ],
-    arguments=[
-        '--input-path', '/opt/ml/processing/input',
-        '--output-path', '/opt/ml/processing/output', 
-        '--bucket-name', bucket_name
-    ]
-)
-
-print("✅ ETL Processing job completed")
-```
-
-## 2. Multi-Model Training Pipeline
-
-### 2.1. Multi-Model Training Script
-
-**Tạo file `train_multi_model.py`:**
-```python
-import argparse
-import os
-import pandas as pd
-import numpy as np
-import joblib
-import json
-import logging
 from datetime import datetime
 
-# ML models
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier
-import xgboost as xgb
+# Configuration - update bucket name theo project của bạn
+# Nếu dùng project S3: amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]
+# Hoặc bucket từ Task 3: mlops-retail-prediction-dev-[account-id]
+bucket_name = 'amazon-sagemaker-842676018087-ap-southeast-1-f6cd5056a835'  # <-- SỬA theo project của bạn
+raw_prefix = 'silver/'
+gold_prefix = 'gold/'
 
-# Metrics
-from sklearn.metrics import (
-    accuracy_score, precision_score, recall_score, f1_score,
-    classification_report, confusion_matrix
+# Initialize AWS clients
+s3 = boto3.client('s3')
+print(f'✅ AWS clients initialized. Bucket: {bucket_name}')
+```
+
+**Cell 3: Load dữ liệu từ tất cả partitions**
+```python
+print(f'📊 Loading all partitioned data from s3://{bucket_name}/{raw_prefix}...')
+
+# Discover all parquet files in silver/
+response = s3.list_objects_v2(Bucket=bucket_name, Prefix=raw_prefix)
+parquet_files = [obj['Key'] for obj in response.get('Contents', []) 
+                if obj['Key'].endswith('.parquet') and obj['Size'] > 0]
+
+print(f'📁 Found {len(parquet_files)} parquet files')
+
+# Load all files into one DataFrame
+all_dataframes = []
+total_rows = 0
+
+for i, key in enumerate(parquet_files[:10]):  # Limit to first 10 files for demo
+    s3_path = f's3://{bucket_name}/{key}'
+    
+    try:
+        df = pd.read_parquet(s3_path)
+        all_dataframes.append(df)
+        total_rows += len(df)
+        print(f'  ✅ File {i+1}: {len(df):,} rows from {key.split("/")[-1]}')
+    except Exception as e:
+        print(f'  ❌ Failed to load {key}: {e}')
+
+# Combine all data
+combined_data = pd.concat(all_dataframes, ignore_index=True)
+print(f'\n🎯 Combined dataset: {combined_data.shape}')
+print(f'📋 Columns: {list(combined_data.columns)}')
+```
+
+**Cell 4: Tạo features và target variable**
+```python
+print("📌 STEP 1 — Columns in combined_data:")
+print(list(combined_data.columns))
+
+# Force lowercase column names for safety
+combined_data.columns = [c.lower() for c in combined_data.columns]
+print("\n📌 STEP 2 — Columns after lowercase normalization:")
+print(list(combined_data.columns))
+
+print("\n📌 STEP 3 — Checking required columns...")
+
+if 'basket_id' in combined_data.columns and 'spend' in combined_data.columns:
+    print("✅ Found basket_id and spend — proceeding with basket-level feature engineering.")
+
+    print("\n📌 STEP 4 — Converting numeric columns...")
+    for col in ['spend', 'quantity']:
+        if col in combined_data.columns:
+            combined_data[col] = pd.to_numeric(combined_data[col], errors='coerce')
+            print(f"  - Converted column '{col}' to numeric.")
+
+    print("\n📌 STEP 5 — Starting groupby aggregation...")
+    print("⚙️ Aggregating, this may take a moment...")
+
+    features = combined_data.groupby('basket_id').agg({
+        'spend': ['sum', 'mean', 'count'],
+        'quantity': ['sum', 'mean'] if 'quantity' in combined_data.columns else []
+    }).reset_index()
+
+    print("✅ Aggregation complete.")
+    print(f"📊 Features raw shape: {features.shape}")
+
+    # Flatten column names
+    print("\n📌 STEP 6 — Flattening column names...")
+    features.columns = (
+        ['basket_id', 'spend_sum', 'spend_mean', 'spend_count'] +
+        (['quantity_sum', 'quantity_mean'] if 'quantity' in combined_data.columns else [])
+    )
+    print("📋 New feature columns:", list(features.columns))
+
+    print("\n📌 STEP 7 — Creating price_sensitivity target variable...")
+    median_spend = features['spend_sum'].median()
+    print(f"Median spend = {median_spend}")
+
+    features['price_sensitivity'] = (features['spend_sum'] > median_spend).astype(int)
+
+else:
+    print("❌ Could NOT find required columns for basket-level engineering.")
+    print("Available columns:", list(combined_data.columns))
+    
+    print("\n📌 Fallback: Using transaction-level feature engineering...")
+    features = combined_data.copy()
+
+    if 'spend' in features.columns:
+        features['price_sensitivity'] = (
+            features['spend'] > features['spend'].median()
+        ).astype(int)
+        print("✅ Created price_sensitivity for transaction-level data.")
+    else:
+        raise RuntimeError("❌ spend column not found — cannot create price_sensitivity.")
+
+print("\n📌 STEP 8 — Final feature table shape:")
+print(features.shape)
+
+print("\n📌 STEP 9 — Target distribution:")
+print(features['price_sensitivity'].value_counts(dropna=False))
+
+print("\n📌 STEP 10 — Sample output:")
+print(features.head())
+```
+
+**Cell 5: Tạo train/test/validation splits và lưu vào S3**
+```python
+print('📋 Creating train/test/validation splits...')
+
+# Create stratified splits
+train_data, temp_data = train_test_split(
+    features, test_size=0.3, random_state=42,
+    stratify=features['price_sensitivity']
 )
-from sklearn.model_selection import cross_val_score
-import matplotlib.pyplot as plt
-import seaborn as sns
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+test_data, val_data = train_test_split(
+    temp_data, test_size=0.33, random_state=42,
+    stratify=temp_data['price_sensitivity']
+)
 
-def parse_args():
-    """Parse command line arguments"""
-    parser = argparse.ArgumentParser()
-    
-    # SageMaker paths
-    parser.add_argument('--model-dir', type=str, default=os.environ.get('SM_MODEL_DIR'))
-    parser.add_argument('--train', type=str, default=os.environ.get('SM_CHANNEL_TRAIN'))
-    parser.add_argument('--test', type=str, default=os.environ.get('SM_CHANNEL_TEST'))
-    
-    # Model selection
-    parser.add_argument('--model-type', type=str, default='all', 
-                       choices=['logistic', 'decision_tree', 'random_forest', 'xgboost', 'all'])
-    
-    # Hyperparameters
-    parser.add_argument('--random-state', type=int, default=42)
-    parser.add_argument('--cv-folds', type=int, default=5)
-    
-    return parser.parse_args()
+splits = {
+    'train': train_data,
+    'test': test_data,
+    'validation': val_data
+}
 
-def load_data(train_path, test_path):
-    """Load training and test data"""
-    logger.info(f"Loading data from {train_path} and {test_path}")
-    
-    train_df = pd.read_parquet(f'{train_path}/train_features.parquet')
-    test_df = pd.read_parquet(f'{test_path}/test_features.parquet')
-    
-    # Separate features and target
-    feature_cols = [col for col in train_df.columns if col != 'price_sensitivity']
-    
-    X_train = train_df[feature_cols]
-    y_train = train_df['price_sensitivity']
-    X_test = test_df[feature_cols]
-    y_test = test_df['price_sensitivity']
-    
-    logger.info(f"Train shape: {X_train.shape}, Test shape: {X_test.shape}")
-    logger.info(f"Target distribution: {y_train.value_counts().to_dict()}")
-    
-    return X_train, X_test, y_train, y_test, feature_cols
+# Save to S3
+print(f'💾 Saving splits to s3://{bucket_name}/{gold_prefix}...')
 
-def train_logistic_regression(X_train, y_train, random_state=42):
-    """Train Logistic Regression model"""
-    logger.info("Training Logistic Regression...")
+for split_name, split_data in splits.items():
+    s3_path = f's3://{bucket_name}/{gold_prefix}{split_name}.parquet'
+    split_data.to_parquet(s3_path, index=False)
+    print(f'  ✅ {split_name}: {len(split_data):,} rows saved to {split_name}.parquet')
+
+print('\n🎉 ETL Complete! Data ready for training.')
+
+# Verify files created
+response = s3.list_objects_v2(Bucket=bucket_name, Prefix=gold_prefix)
+if 'Contents' in response:
+    print(f'\n📁 Files in gold/:')
+    for obj in response['Contents']:
+        size_mb = obj['Size'] / (1024*1024)
+        print(f'  📄 {obj["Key"]}: {size_mb:.2f} MB')
+```
+
+## 4. Training - Huấn luyện Model
+
+**🎯 Mục tiêu:** Huấn luyện mô hình Random Forest để phân loại độ nhạy giá khách hàng
+
+**Input:** S3 `gold/train.parquet`, `gold/test.parquet`, `gold/validation.parquet`  
+**Output:** Trained Random Forest model trong S3 artifacts/ với performance metrics
+
+#### **Bước 1: Tạo Training Notebook trong Project**
+
+1. Trong Studio interface, click **File** → **New** → **Notebook**
+2. Chọn **conda_python3** kernel (hoặc **Python 3 (Data Science)**)
+3. Đặt tên notebook: `notebooks/retail-model-training.ipynb`  
+4. Click **Create**
+
+![Create notebook](../images/4-sagemake-training/05.7.png)
+
+
+**💡 Lưu ý:** Notebook sẽ được lưu trong Project repository và có thể commit vào CodeCommit.
+
+#### **Bước 2: Thực hiện Model Training**
+
+Tạo và chạy các cells sau theo thứ tự:
+
+**Cell 1: Setup SageMaker Configuration**
+```python
+import sagemaker
+import boto3
+import os
+from sagemaker.sklearn.estimator import SKLearn
+
+# Initialize SageMaker session and get execution role
+sagemaker_session = sagemaker.Session()
+role = sagemaker.get_execution_role()
+
+# Configuration - update bucket name if different
+bucket_name = 'mlops-retail-prediction-dev-842676018087'
+gold_prefix = 'gold/'
+artifacts_prefix = 'artifacts/'
+
+print(f'✅ SageMaker Role: {role}')
+print(f'📊 Training Data: s3://{bucket_name}/{gold_prefix}')
+print(f'📦 Model Artifacts: s3://{bucket_name}/{artifacts_prefix}')
+```
+
+**Cell 2: Tạo Training Script**
+
+```python
+%%writefile train_retail_model.py
+import pandas as pd
+import joblib
+import os
+import json
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report
+
+def main():
+    # Đường dẫn chuẩn của SageMaker
+    train_dir = os.environ.get("SM_CHANNEL_TRAIN", "/opt/ml/input/data/train")
+    model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
     
-    model = LogisticRegression(
-        random_state=random_state,
-        max_iter=1000,
-        multi_class='multinomial',
-        solver='lbfgs'
+    # 1. Load data
+    train_path = os.path.join(train_dir, "train.parquet")
+    print(f"📖 Loading training data from: {train_path}")
+    df = pd.read_parquet(train_path)
+
+    print(f"📊 Dataset shape: {df.shape}")
+    print(f"📋 Columns: {list(df.columns)}")
+    
+    # 2. Chuẩn bị features & target
+    target_col = "price_sensitivity" if "price_sensitivity" in df.columns else df.columns[-1]
+    feature_cols = [c for c in df.columns if c not in [target_col, "basket_id"]]
+    
+    X = df[feature_cols]
+    y = df[target_col]
+    
+    print(f"🔢 Features: {len(feature_cols)} columns")
+    print(f"🎯 Target: {target_col}")
+    print(f"📈 Target distribution: {dict(y.value_counts())}")
+    
+    # 3. Train/validation split (stratified)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
     )
-    model.fit(X_train, y_train)
     
-    return model
-
-def train_decision_tree(X_train, y_train, random_state=42):
-    """Train Decision Tree model"""
-    logger.info("Training Decision Tree...")
-    
-    model = DecisionTreeClassifier(
-        random_state=random_state,
-        max_depth=10,
-        min_samples_split=20,
-        min_samples_leaf=10
-    )
-    model.fit(X_train, y_train)
-    
-    return model
-
-def train_random_forest(X_train, y_train, random_state=42):
-    """Train Random Forest model"""
-    logger.info("Training Random Forest...")
-    
+    # 4. Train Random Forest model
+    print("\n🌲 Training Random Forest model...")
     model = RandomForestClassifier(
         n_estimators=100,
-        max_depth=15,
-        min_samples_split=20,
-        min_samples_leaf=5,
-        random_state=random_state,
-        n_jobs=-1
+        max_depth=10,
+        min_samples_split=5,
+        min_samples_leaf=2,
+        random_state=42
     )
+    
     model.fit(X_train, y_train)
     
-    return model
-
-def train_xgboost(X_train, y_train, random_state=42):
-    """Train XGBoost model"""
-    logger.info("Training XGBoost...")
+    # 5. Evaluate model
+    y_pred = model.predict(X_val)
     
-    # Encode target labels for XGBoost
-    from sklearn.preprocessing import LabelEncoder
-    le = LabelEncoder()
-    y_encoded = le.fit_transform(y_train)
+    accuracy = accuracy_score(y_val, y_pred)
+    f1 = f1_score(y_val, y_pred, average="macro")
+    precision = precision_score(y_val, y_pred, average="macro")
+    recall = recall_score(y_val, y_pred, average="macro")
     
-    model = xgb.XGBClassifier(
-        n_estimators=100,
-        max_depth=6,
-        learning_rate=0.1,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        random_state=random_state,
-        eval_metric='mlogloss'
-    )
-    model.fit(X_train, y_encoded)
+    print(f"\n📊 Model Performance:")
+    print(f"  ✅ Accuracy:  {accuracy:.4f}")
+    print(f"  ✅ Precision: {precision:.4f}")
+    print(f"  ✅ Recall:    {recall:.4f}")
+    print(f"  ✅ F1-Score:  {f1:.4f}")
     
-    # Store label encoder
-    model.label_encoder = le
+    # 6. Save model and results
+    os.makedirs(model_dir, exist_ok=True)
     
-    return model
-
-def evaluate_model(model, X_train, X_test, y_train, y_test, model_name, cv_folds=5):
-    """Comprehensive model evaluation"""
-    logger.info(f"Evaluating {model_name}...")
+    # Save Random Forest model
+    model_path = os.path.join(model_dir, 'model.joblib')
+    joblib.dump(model, model_path)
+    print(f'🌲 Random Forest model saved: {model_path}')
     
-    # Handle XGBoost predictions
-    if model_name == 'xgboost':
-        y_train_pred = model.label_encoder.inverse_transform(model.predict(X_train))
-        y_test_pred = model.label_encoder.inverse_transform(model.predict(X_test))
-        
-        # Cross-validation with encoded labels
-        y_train_encoded = model.label_encoder.transform(y_train)
-        cv_scores = cross_val_score(model, X_train, y_train_encoded, cv=cv_folds, scoring='accuracy')
-    else:
-        y_train_pred = model.predict(X_train)
-        y_test_pred = model.predict(X_test)
-        cv_scores = cross_val_score(model, X_train, y_train, cv=cv_folds, scoring='accuracy')
+    # Save training results
+    results_path = os.path.join(model_dir, 'training_results.json')
+    training_summary = {
+        'model_name': 'RandomForest',
+        'accuracy': float(accuracy),
+        'precision': float(precision),
+        'recall': float(recall),
+        'f1_score': float(f1),
+        'feature_count': len(feature_cols),
+        'training_samples': len(X_train),
+        'validation_samples': len(X_val),
+        'feature_names': feature_cols,
+        'classification_report': classification_report(y_val, y_pred, output_dict=True)
     
-    # Calculate metrics
-    metrics = {
-        'model_name': model_name,
-        'train_accuracy': accuracy_score(y_train, y_train_pred),
-        'test_accuracy': accuracy_score(y_test, y_test_pred),
-        'test_precision': precision_score(y_test, y_test_pred, average='macro'),
-        'test_recall': recall_score(y_test, y_test_pred, average='macro'),
-        'test_f1': f1_score(y_test, y_test_pred, average='macro'),
-        'cv_accuracy_mean': cv_scores.mean(),
-        'cv_accuracy_std': cv_scores.std()
-    }
+    with open(results_path, 'w') as f:
+        json.dump(training_summary, f, indent=2)
     
-    # Classification report
-    class_report = classification_report(y_test, y_test_pred, output_dict=True)
+    print(f'📋 Results saved: {results_path}')
+    print(f'📦 Model artifacts: 1 model + 1 results file')
     
-    # Confusion matrix
-    cm = confusion_matrix(y_test, y_test_pred)
+    # Validation checks
+    target_accuracy = 0.80
+    target_f1 = 0.70
     
-    logger.info(f"{model_name} - Test Accuracy: {metrics['test_accuracy']:.4f}, F1: {metrics['test_f1']:.4f}")
-    
-    return metrics, class_report, cm, y_test_pred
-
-def save_confusion_matrix(cm, model_name, output_dir, class_names=['High', 'Low', 'Medium']):
-    """Save confusion matrix plot"""
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=class_names, yticklabels=class_names)
-    plt.title(f'Confusion Matrix - {model_name}')
-    plt.ylabel('True Label')
-    plt.xlabel('Predicted Label')
-    
-    cm_path = os.path.join(output_dir, f'confusion_matrix_{model_name.lower()}.png')
-    plt.savefig(cm_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
-    return cm_path
-
-def compare_models(all_metrics):
-    """Compare all models and select best one"""
-    logger.info("Comparing models...")
-    
-    comparison_df = pd.DataFrame(all_metrics)
-    comparison_df = comparison_df.sort_values('test_f1', ascending=False)
-    
-    best_model_name = comparison_df.iloc[0]['model_name']
-    logger.info(f"Best model: {best_model_name} (F1: {comparison_df.iloc[0]['test_f1']:.4f})")
-    
-    return comparison_df, best_model_name
-
-def main():
-    """Main training function"""
-    args = parse_args()
-    
-    try:
-        # Load data
-        X_train, X_test, y_train, y_test, feature_cols = load_data(args.train, args.test)
-        
-        # Initialize results storage
-        all_models = {}
-        all_metrics = []
-        all_reports = {}
-        all_predictions = {}
-        
-        # Define models to train
-        models_to_train = ['logistic', 'decision_tree', 'random_forest', 'xgboost'] if args.model_type == 'all' else [args.model_type]
-        
-        # Train models
-        for model_name in models_to_train:
-            logger.info(f"\n{'='*50}")
-            logger.info(f"Training {model_name.upper()}")
-            logger.info(f"{'='*50}")
-            
-            # Train model
-            if model_name == 'logistic':
-                model = train_logistic_regression(X_train, y_train, args.random_state)
-            elif model_name == 'decision_tree':
-                model = train_decision_tree(X_train, y_train, args.random_state)
-            elif model_name == 'random_forest':
-                model = train_random_forest(X_train, y_train, args.random_state)
-            elif model_name == 'xgboost':
-                model = train_xgboost(X_train, y_train, args.random_state)
-            
-            # Evaluate model
-            metrics, class_report, cm, y_pred = evaluate_model(
-                model, X_train, X_test, y_train, y_test, model_name, args.cv_folds
-            )
-            
-            # Store results
-            all_models[model_name] = model
-            all_metrics.append(metrics)
-            all_reports[model_name] = class_report
-            all_predictions[model_name] = y_pred
-            
-            # Save confusion matrix
-            save_confusion_matrix(cm, model_name, args.model_dir)
-        
-        # Compare models
-        comparison_df, best_model_name = compare_models(all_metrics)
-        
-        # Save best model
-        best_model = all_models[best_model_name]
-        joblib.dump(best_model, os.path.join(args.model_dir, 'model.joblib'))
-        
-        # Save all evaluation results
-        evaluation_results = {
-            'model_comparison': comparison_df.to_dict('records'),
-            'best_model': best_model_name,
-            'classification_reports': all_reports,
-            'feature_columns': feature_cols,
-            'target_classes': ['High', 'Low', 'Medium'],
-            'training_timestamp': datetime.now().isoformat()
-        }
-        
-        with open(os.path.join(args.model_dir, 'evaluation_results.json'), 'w') as f:
-            json.dump(evaluation_results, f, indent=2)
-        
-        # Save model metadata
-        metadata = {
-            'model_type': best_model_name,
-            'accuracy': float(comparison_df.iloc[0]['test_accuracy']),
-            'f1_score': float(comparison_df.iloc[0]['test_f1']),
-            'precision': float(comparison_df.iloc[0]['test_precision']),
-            'recall': float(comparison_df.iloc[0]['test_recall']),
-            'cv_accuracy': float(comparison_df.iloc[0]['cv_accuracy_mean']),
-            'feature_count': len(feature_cols),
-            'train_samples': len(X_train),
-            'test_samples': len(X_test)
-        }
-        
-        with open(os.path.join(args.model_dir, 'model_metadata.json'), 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        logger.info(f"\n✅ Training completed successfully!")
-        logger.info(f"Best model: {best_model_name}")
-        logger.info(f"Test accuracy: {metadata['accuracy']:.4f}")
-        logger.info(f"Test F1-score: {metadata['f1_score']:.4f}")
-        
-    except Exception as e:
-        logger.error(f"❌ Training failed: {str(e)}")
-        raise
+    print(f'\n🎯 Performance Validation:')
+    print(f'  📊 Accuracy ≥ {target_accuracy}: {"✅" if accuracy >= target_accuracy else "❌"} ({accuracy:.3f})')
+    print(f'  📊 F1-Score ≥ {target_f1}: {"✅" if f1 >= target_f1 else "❌"} ({f1:.3f})')
 
 if __name__ == '__main__':
     main()
+'''
+
+# Write training script to file
+with open('train_retail_model.py', 'w') as f:
+    f.write(train_script)
+
 ```
 
-### 2.2. SageMaker Training Job Setup
-
-**Khởi chạy multi-model training:**
+**Cell 3: Submit SageMaker Training Job**
 ```python
-import boto3
-import sagemaker
-from sagemaker.sklearn import SKLearn
-from sagemaker.inputs import TrainingInput
-from datetime import datetime
+print("🚀 Submitting SageMaker Training Job...")
 
-# Initialize SageMaker
-sagemaker_session = sagemaker.Session()
-role = sagemaker.get_execution_role()
-bucket_name = 'mlops-retail-prediction-dev-123456789012'
+# Pre-flight: kiểm tra region + data trong gold/
+s3_client = boto3.client("s3")
 
-# Define hyperparameters
-hyperparameters = {
-    'model-type': 'all',  # Train all models
-    'random-state': 42,
-    'cv-folds': 5
-}
+bucket_location = s3_client.get_bucket_location(Bucket=bucket_name)
+bucket_region = bucket_location["LocationConstraint"] or "us-east-1"
+current_region = sagemaker_session.boto_region_name
 
-# Create SKLearn estimator with Spot instances
-sklearn_estimator = SKLearn(
-    entry_point='train_multi_model.py',
-    source_dir='.',
+print(f"📍 Bucket region:    {bucket_region}")
+print(f"📍 SageMaker region: {current_region}")
+
+# Kiểm tra cross-region issue
+if bucket_region != current_region:
+    print(f"⚠️ Region mismatch detected!")
+    print(f"   Bucket: {bucket_name} in {bucket_region}")
+    print(f"   SageMaker: {current_region}")
+    print(f"   This may cause S3 301 redirect errors during training")
+    print(f"   Consider using project bucket in same region or configure cross-region access")
+    
+    # Option 1: Use project bucket in same region
+    print(f"\n💡 Option 1: Use project bucket (same region):")
+    print(f"   bucket_name = '{project_bucket}'")
+    print(f"   (But need to copy gold/ data to this bucket first)")
+    
+    # Option 2: Continue with cross-region
+    print(f"\n💡 Option 2: Continue with cross-region (may need additional config)")
+    
+    # For demo, we'll continue but warn user
+    import warnings
+    warnings.warn(f"Cross-region S3 access: {bucket_region} -> {current_region}")
+else:
+    print(f"✅ Same region - no cross-region issues")
+
+train_s3_uri = f"s3://{bucket_name}/{gold_prefix}"
+
+resp = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=gold_prefix)
+data_files = [o["Key"] for o in resp.get("Contents", []) if o["Key"].endswith(".parquet")]
+
+if not data_files:
+    raise ValueError(f"❌ No .parquet files found in {train_s3_uri}. Run ETL trước đã.")
+
+print(f"✅ Found {len(data_files)} training files in {train_s3_uri}")
+
+# Cấu hình estimator
+estimator = SKLearn(
+    entry_point="train_retail_model.py",
     role=role,
-    instance_type='ml.m5.large',
+    instance_type="ml.m5.xlarge",
+    instance_count=1,
+    framework_version="1.0-1",
+    py_version="py3",
+    base_job_name="retail-prediction-training",
+    sagemaker_session=sagemaker_session,
+)
+
+print(f"📊 Training data location: {train_s3_uri}")
+
+# Chạy training job
+estimator.fit({"train": train_s3_uri}, wait=True)
+
+job_name = estimator.latest_training_job.name
+model_artifacts = estimator.model_data
+
+print("\n🎉 Training job completed!")
+print("📝 Job name:       ", job_name)
+print("💾 Model artifacts:", model_artifacts)
+        
+except Exception as e:
+    print(f'❌ Pre-flight check failed: {e}')
+    print('💡 Solutions:')
+    print('  1. Run ETL notebook first to create gold/ data')
+    print('  2. Make sure you ran debug cell (Bước 4) to fix regions')
+    print('  3. Check IAM role has S3 access')
+    raise
+
+# Configure estimator for Unified Studio project
+estimator = SKLearn(
+    entry_point='train_retail_model.py',
+    role=role,
+    instance_type='ml.m5.xlarge',  # Larger instance for better performance
     instance_count=1,
     framework_version='1.0-1',
     py_version='py3',
-    output_path=f's3://{bucket_name}/artifacts/',
-    hyperparameters=hyperparameters,
-    max_run=3600,  # 1 hour timeout
-    use_spot_instances=True,  # Cost optimization
-    max_wait=7200,  # 2 hours max wait
-    checkpoint_s3_uri=f's3://{bucket_name}/checkpoints',
-    base_job_name='retail-prediction-training'
+    base_job_name='retail-prediction-training',
+    sagemaker_session=sagemaker_session,
+    # Output path sẽ được set tự động vào project S3 location
+    output_path=f's3://{bucket_name}/{artifacts_prefix}'
 )
 
-# Define input data channels
-train_input = TrainingInput(
-    s3_data=f's3://{bucket_name}/gold/',
-    content_type='application/x-parquet',
-    s3_data_type='S3Prefix',
-    input_mode='File'
-)
+print(f'📊 Training data location: {train_s3_uri}')
 
-# Start training job
-job_name = f"retail-prediction-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-
-sklearn_estimator.fit(
-    {
-        'train': train_input,
-        'test': train_input
-    },
-    job_name=job_name,
-    wait=True
-)
-
-print(f"✅ Multi-model training completed: {job_name}")
-print(f"Model artifacts: {sklearn_estimator.model_data}")
+# Start training job with error handling
+try:
+    print('⏳ Starting training job (this will take 5-10 minutes)...')
+    estimator.fit({'train': train_s3_uri}, wait=True)
+    
+    # Get job results
+    job_name = estimator.latest_training_job.name
+    model_artifacts = estimator.model_data
+    
+    print(f'\\n🎉 Training job completed!')
+    print(f'📝 Job name: {job_name}')
+    print(f'💾 Model artifacts: {model_artifacts}')
+    
+except Exception as e:
+    print(f'❌ Training job failed: {e}')
+    print('💡 Troubleshooting:')
+    print('  - Check CloudWatch logs for detailed error')
+    print('  - Verify IAM role permissions')
+    print('  - Ensure training data format is correct')
+    raise
 ```
 
-## 3. Model Evaluation & Analysis
-### 3.1. Model Performance Analysis
+**Cell 4: Download & Đọc Training Results**
 
-**Analyze training results:**
 ```python
-import boto3
+import os
+import tarfile
 import json
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-def download_and_analyze_results(bucket_name, job_name):
-    """Download and analyze training results"""
-    s3 = boto3.client('s3')
-    
-    # Download evaluation results
-    eval_key = f'artifacts/{job_name}/output/model.tar.gz'
-    
-    # Extract and load results
-    import tarfile
-    import tempfile
-    
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Download model artifacts
-        s3.download_file(bucket_name, eval_key, f'{temp_dir}/model.tar.gz')
-        
-        # Extract
-        with tarfile.open(f'{temp_dir}/model.tar.gz', 'r:gz') as tar:
-            tar.extractall(temp_dir)
-        
-        # Load evaluation results
-        with open(f'{temp_dir}/evaluation_results.json', 'r') as f:
-            eval_results = json.load(f)
-        
-        return eval_results
-
-def create_model_comparison_chart(eval_results):
-    """Create model comparison visualization"""
-    comparison_df = pd.DataFrame(eval_results['model_comparison'])
-    
-    # Metrics to compare
-    metrics = ['test_accuracy', 'test_f1', 'test_precision', 'test_recall']
-    
-    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-    axes = axes.ravel()
-    
-    for i, metric in enumerate(metrics):
-        ax = axes[i]
-        bars = ax.bar(comparison_df['model_name'], comparison_df[metric])
-        ax.set_title(f'{metric.replace("_", " ").title()}')
-        ax.set_ylabel('Score')
-        ax.set_ylim(0, 1)
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                   f'{height:.3f}', ha='center', va='bottom')
-    
-    plt.tight_layout()
-    plt.savefig('model_comparison.png', dpi=300, bbox_inches='tight')
-    plt.show()
-    
-    return comparison_df
-
-def analyze_confusion_matrices(eval_results):
-    """Analyze confusion matrices for each model"""
-    models = eval_results['model_comparison']
-    
-    for model_info in models:
-        model_name = model_info['model_name']
-        print(f"\n{'='*50}")
-        print(f"CONFUSION MATRIX ANALYSIS - {model_name.upper()}")
-        print(f"{'='*50}")
-        
-        # Get classification report
-        if model_name in eval_results['classification_reports']:
-            report = eval_results['classification_reports'][model_name]
-            
-            print(f"Per-class Performance:")
-            for class_name in ['High', 'Low', 'Medium']:
-                if class_name in report:
-                    metrics = report[class_name]
-                    print(f"  {class_name:8}: Precision={metrics['precision']:.3f}, "
-                         f"Recall={metrics['recall']:.3f}, F1={metrics['f1-score']:.3f}")
-            
-            # Overall metrics
-            macro_avg = report['macro avg']
-            print(f"\n  Overall: Precision={macro_avg['precision']:.3f}, "
-                 f"Recall={macro_avg['recall']:.3f}, F1={macro_avg['f1-score']:.3f}")
-
-# Usage
-eval_results = download_and_analyze_results(bucket_name, job_name)
-comparison_df = create_model_comparison_chart(eval_results)
-analyze_confusion_matrices(eval_results)
-```
-
-### 3.2. Business Impact Analysis
-
-**Analyze business metrics:**
-```python
-def calculate_business_impact(eval_results, revenue_per_prediction=10):
-    """Calculate business impact of model predictions"""
-    
-    best_model = eval_results['best_model']
-    best_model_metrics = None
-    
-    for model_info in eval_results['model_comparison']:
-        if model_info['model_name'] == best_model:
-            best_model_metrics = model_info
-            break
-    
-    if not best_model_metrics:
-        return
-    
-    # Calculate business metrics
-    accuracy = best_model_metrics['test_accuracy']
-    f1_score = best_model_metrics['test_f1']
-    
-    # Estimate business impact
-    daily_predictions = 1000  # Estimate
-    monthly_predictions = daily_predictions * 30
-    
-    # Revenue impact
-    accurate_predictions = monthly_predictions * accuracy
-    revenue_from_accurate_predictions = accurate_predictions * revenue_per_prediction
-    
-    # Cost savings from automated segmentation
-    manual_cost_per_prediction = 2  # USD
-    automation_savings = monthly_predictions * manual_cost_per_prediction
-    
-    business_impact = {
-        'model_name': best_model,
-        'accuracy': accuracy,
-        'f1_score': f1_score,
-        'monthly_predictions': monthly_predictions,
-        'accurate_predictions': int(accurate_predictions),
-        'monthly_revenue_impact': revenue_from_accurate_predictions,
-        'monthly_cost_savings': automation_savings,
-        'total_monthly_value': revenue_from_accurate_predictions + automation_savings
-    }
-    
-    print(f"\n{'='*60}")
-    print(f"BUSINESS IMPACT ANALYSIS - {best_model.upper()}")
-    print(f"{'='*60}")
-    print(f"Model Accuracy: {accuracy:.1%}")
-    print(f"Model F1-Score: {f1_score:.3f}")
-    print(f"Monthly Predictions: {monthly_predictions:,}")
-    print(f"Accurate Predictions: {int(accurate_predictions):,}")
-    print(f"Revenue Impact: ${revenue_from_accurate_predictions:,.2f}/month")
-    print(f"Cost Savings: ${automation_savings:,.2f}/month")
-    print(f"Total Value: ${business_impact['total_monthly_value']:,.2f}/month")
-    
-    return business_impact
-
-# Calculate business impact
-business_impact = calculate_business_impact(eval_results)
-```
-
-## 4. Model Registry & Versioning
-
-### 4.1. Model Package Group Setup
-
-**Create Model Package Group:**
-```python
 import boto3
-from datetime import datetime
 
-def create_model_package_group():
-    """Create SageMaker Model Package Group"""
-    sm_client = boto3.client('sagemaker')
-    
-    group_name = "retail-price-sensitivity-models"
-    
-    try:
-        response = sm_client.create_model_package_group(
-            ModelPackageGroupName=group_name,
-            ModelPackageGroupDescription="Retail BASKET_PRICE_SENSITIVITY prediction models (Low/Medium/High classification)",
-            Tags=[
-                {'Key': 'Project', 'Value': 'RetailPredictionMLOps'},
-                {'Key': 'Environment', 'Value': 'dev'},
-                {'Key': 'ModelType', 'Value': 'Classification'},
-                {'Key': 'Target', 'Value': 'BASKET_PRICE_SENSITIVITY'}
-            ]
-        )
-        print(f"✅ Created model package group: {group_name}")
-        return group_name
-        
-    except sm_client.exceptions.ResourceInUse:
-        print(f"ℹ️ Model package group {group_name} already exists")
-        return group_name
+print("📊 Analyzing training results...")
 
-model_package_group = create_model_package_group()
+# model_artifacts lấy từ Cell 3 (estimator.model_data)
+print("📦 Artifact path:", model_artifacts)
+
+# Tách bucket + key
+art_parts = model_artifacts.replace("s3://", "").split("/", 1)
+art_bucket = art_parts[0]
+art_key = art_parts[1]
+
+s3 = boto3.client("s3")
+
+# Tải file model.tar.gz về local
+local_tar = "model.tar.gz"
+s3.download_file(art_bucket, art_key, local_tar)
+print("📥 Downloaded", local_tar)
+
+# Giải nén vào thư mục model_artifacts/
+extract_dir = "model_artifacts"
+os.makedirs(extract_dir, exist_ok=True)
+
+with tarfile.open(local_tar, "r:gz") as tar:
+    tar.extractall(extract_dir)
+
+print("\n📂 Files inside model:")
+print(os.listdir(extract_dir))
+
+# Đọc training_results.json
+results_path = os.path.join(extract_dir, "training_results.json")
+with open(results_path, "r") as f:
+    results = json.load(f)
+
+print("\n🌲 RANDOM FOREST TRAINING RESULTS:")
+print(f"  🤖 Model:      {results['model_name']}")
+print(f"  📊 Accuracy:   {results['accuracy']:.4f}")
+print(f"  📊 Precision:  {results['precision']:.4f}")
+print(f"  📊 Recall:     {results['recall']:.4f}")
+print(f"  📊 F1-Score:   {results['f1_score']:.4f}")
+print(f"  🔢 Features:   {results['feature_count']}")
+print(f"  📚 Train rows: {results['training_samples']:,}")
+print(f"  🧪 Val rows:   {results['validation_samples']:,}")
+
+print("\n📋 Per-class Performance:")
+class_report = results['classification_report']
+for class_name, metrics in class_report.items():
+    if isinstance(metrics, dict) and 'f1-score' in metrics:
+        print(f"  {class_name:>12}: Precision={metrics['precision']:.3f}, Recall={metrics['recall']:.3f}, F1={metrics['f1-score']:.3f}")
+
+# Validate target
+acc_target = 0.80
+f1_target = 0.70
+
+print("\n🎯 Performance validation:")
+print(f"  📊 Accuracy ≥ {acc_target}: {'✅' if results['accuracy'] >= acc_target else '❌'} ({results['accuracy']:.3f})")
+print(f"  📊 F1-score ≥ {f1_target}: {'✅' if results['f1_score'] >= f1_target else '❌'} ({results['f1_score']:.3f})")
 ```
 
-### 4.2. Register Best Model
+**Kết quả**
+![Kết quả training](../images/4-sagemake-training/00.png)
 
-**Register model in Model Registry:**
-```python
-def register_best_model(sklearn_estimator, eval_results, model_package_group):
-    """Register best performing model in SageMaker Model Registry"""
-    
-    # Get best model info
-    best_model_name = eval_results['best_model']
-    best_model_metrics = None
-    
-    for model_info in eval_results['model_comparison']:
-        if model_info['model_name'] == best_model_name:
-            best_model_metrics = model_info
-            break
-    
-    # Create model metrics for registry
-    model_metrics = {
-        "accuracy": best_model_metrics['test_accuracy'],
-        "f1_score": best_model_metrics['test_f1'],
-        "precision": best_model_metrics['test_precision'],
-        "recall": best_model_metrics['test_recall'],
-        "cv_accuracy": best_model_metrics['cv_accuracy_mean']
-    }
-    
-    # Register model package
-    model_package_arn = sklearn_estimator.register(
-        content_types=["application/json", "text/csv"],
-        response_types=["application/json"],
-        inference_instances=["ml.t2.medium", "ml.m5.large"],
-        transform_instances=["ml.m5.large"],
-        model_package_group_name=model_package_group,
-        approval_status="PendingManualApproval",
-        description=f"Retail price sensitivity model - {best_model_name} (Accuracy: {best_model_metrics['test_accuracy']:.3f})",
-        model_metrics={
-            "accuracy": best_model_metrics['test_accuracy'],
-            "f1_score": best_model_metrics['test_f1']
-        },
-        metadata_properties={
-            "training_job_name": sklearn_estimator._current_job_name,
-            "model_algorithm": best_model_name,
-            "target_variable": "BASKET_PRICE_SENSITIVITY",
-            "dataset_size": eval_results.get('train_samples', 'unknown'),
-            "feature_count": len(eval_results.get('feature_columns', [])),
-            "training_timestamp": datetime.now().isoformat()
-        },
-        customer_metadata_properties={
-            "business_kpi": "customer_segmentation",
-            "use_case": "retail_price_sensitivity_prediction",
-            "model_version": "v1.0",
-            "data_source": "dunnhumby_retail_transactions"
-        }
-    )
-    
-    print(f"✅ Model registered: {model_package_arn}")
-    print(f"Model algorithm: {best_model_name}")
-    print(f"Accuracy: {best_model_metrics['test_accuracy']:.3f}")
-    print(f"F1-score: {best_model_metrics['test_f1']:.3f}")
-    
-    return model_package_arn
-
-# Register the best model
-model_package_arn = register_best_model(sklearn_estimator, eval_results, model_package_group)
-```
-
-### 4.3. Model Approval Workflow
-
-**Automated model approval based on performance:**
-```python
-def approve_model_if_meets_criteria(model_package_arn, eval_results, 
-                                   min_accuracy=0.80, min_f1=0.70):
-    """Automatically approve model if it meets performance criteria"""
-    
-    sm_client = boto3.client('sagemaker')
-    
-    # Get best model metrics
-    best_model_metrics = eval_results['model_comparison'][0]  # Already sorted by F1
-    
-    accuracy = best_model_metrics['test_accuracy']
-    f1_score = best_model_metrics['test_f1']
-    
-    # Check if model meets criteria
-    meets_criteria = accuracy >= min_accuracy and f1_score >= min_f1
-    
-    if meets_criteria:
-        # Approve model
-        sm_client.update_model_package(
-            ModelPackageArn=model_package_arn,
-            ModelApprovalStatus="Approved",
-            ApprovalDescription=f"Auto-approved: Accuracy={accuracy:.3f} (≥{min_accuracy}), F1={f1_score:.3f} (≥{min_f1})"
-        )
-        
-        print(f"✅ Model AUTO-APPROVED for production")
-        print(f"   Accuracy: {accuracy:.3f} (required: ≥{min_accuracy})")
-        print(f"   F1-score: {f1_score:.3f} (required: ≥{min_f1})")
-        
-        return "Approved"
-    else:
-        print(f"⚠️ Model requires MANUAL REVIEW")
-        print(f"   Accuracy: {accuracy:.3f} (required: ≥{min_accuracy}) {'✅' if accuracy >= min_accuracy else '❌'}")
-        print(f"   F1-score: {f1_score:.3f} (required: ≥{min_f1}) {'✅' if f1_score >= min_f1 else '❌'}")
-        
-        return "PendingManualApproval"
-
-# Auto-approve if meets criteria
-approval_status = approve_model_if_meets_criteria(model_package_arn, eval_results)
-```
-
-## 5. CI/CD Integration & Deployment Preparation
-
-### 5.1. Export Model Information
-
-**Prepare model info for CI/CD pipeline:**
-```python
-def export_model_for_deployment(model_package_arn, eval_results, output_bucket):
-    """Export model information for CI/CD deployment"""
-    
-    sm_client = boto3.client('sagemaker')
-    s3_client = boto3.client('s3')
-    
-    # Get model package details
-    model_package = sm_client.describe_model_package(ModelPackageName=model_package_arn)
-    
-    # Best model info
-    best_model = eval_results['model_comparison'][0]
-    
-    # Create deployment configuration
-    deployment_config = {
-        "model_info": {
-            "model_package_arn": model_package_arn,
-            "model_data_url": model_package['InferenceSpecification']['Containers'][0]['ModelDataUrl'],
-            "image_uri": model_package['InferenceSpecification']['Containers'][0]['Image'],
-            "model_name": best_model['model_name'],
-            "approval_status": model_package['ModelApprovalStatus']
-        },
-        "performance_metrics": {
-            "accuracy": best_model['test_accuracy'],
-            "f1_score": best_model['test_f1'],
-            "precision": best_model['test_precision'],
-            "recall": best_model['test_recall'],
-            "cv_accuracy": best_model['cv_accuracy_mean']
-        },
-        "deployment_config": {
-            "endpoint_config": {
-                "instance_type": "ml.t2.medium",
-                "initial_instance_count": 1,
-                "max_instance_count": 10
-            },
-            "auto_scaling": {
-                "min_capacity": 1,
-                "max_capacity": 10,
-                "target_cpu_utilization": 70
-            }
-        },
-        "feature_info": {
-            "feature_columns": eval_results['feature_columns'],
-            "target_classes": eval_results['target_classes']
-        },
-        "metadata": {
-            "training_timestamp": eval_results['training_timestamp'],
-            "model_version": "v1.0",
-            "export_timestamp": datetime.now().isoformat()
-        }
-    }
-    
-    # Save deployment config locally
-    with open('model_deployment_config.json', 'w') as f:
-        json.dump(deployment_config, f, indent=2)
-    
-    # Upload to S3 for CI/CD access
-    config_key = f'deployment-configs/model_deployment_config_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
-    s3_client.upload_file('model_deployment_config.json', output_bucket, config_key)
-    
-    # Also create "latest" version for CI/CD
-    s3_client.upload_file('model_deployment_config.json', output_bucket, 'deployment-configs/latest_model_config.json')
-    
-    print(f"✅ Deployment config exported:")
-    print(f"   S3 location: s3://{output_bucket}/{config_key}")
-    print(f"   Latest config: s3://{output_bucket}/deployment-configs/latest_model_config.json")
-    print(f"   Model ready for deployment: {deployment_config['model_info']['approval_status']}")
-    
-    return deployment_config
-
-# Export for deployment
-deployment_config = export_model_for_deployment(model_package_arn, eval_results, bucket_name)
-```
-
-### 5.2. Training Pipeline Summary
-
-**Complete pipeline execution summary:**
-```python
-def print_pipeline_summary(eval_results, deployment_config, business_impact):
-    """Print comprehensive pipeline execution summary"""
-    
-    print(f"\n{'='*80}")
-    print(f"🎯 MLOPS PIPELINE EXECUTION SUMMARY")
-    print(f"{'='*80}")
-    
-    # ETL Summary
-    print(f"\n📊 ETL PIPELINE:")
-    print(f"   ✅ Raw data processed from S3 raw/ → gold/")
-    print(f"   ✅ Features engineered and saved as Parquet")
-    print(f"   ✅ Train/test split completed")
-    
-    # Training Summary
-    print(f"\n🤖 MODEL TRAINING:")
-    best_model = eval_results['model_comparison'][0]
-    print(f"   ✅ Multi-model training completed (LR, DT, RF, XGBoost)")
-    print(f"   🏆 Best model: {best_model['model_name']}")
-    print(f"   📈 Test accuracy: {best_model['test_accuracy']:.3f}")
-    print(f"   📈 Test F1-score: {best_model['test_f1']:.3f}")
-    print(f"   📈 Cross-validation: {best_model['cv_accuracy_mean']:.3f} ± {best_model['cv_accuracy_std']:.3f}")
-    
-    # Model Registry
-    print(f"\n📋 MODEL REGISTRY:")
-    print(f"   ✅ Model registered in SageMaker Model Registry")
-    print(f"   📦 Package ARN: {deployment_config['model_info']['model_package_arn'].split('/')[-1]}")
-    print(f"   🔖 Approval status: {deployment_config['model_info']['approval_status']}")
-    
-    # Business Impact
-    if business_impact:
-        print(f"\n💼 BUSINESS IMPACT:")
-        print(f"   💰 Monthly revenue impact: ${business_impact['monthly_revenue_impact']:,.2f}")
-        print(f"   💰 Monthly cost savings: ${business_impact['monthly_cost_savings']:,.2f}")
-        print(f"   💰 Total monthly value: ${business_impact['total_monthly_value']:,.2f}")
-    
-    # Deployment Readiness
-    print(f"\n🚀 DEPLOYMENT READINESS:")
-    print(f"   ✅ Model artifacts ready in S3")
-    print(f"   ✅ Deployment config exported")
-    print(f"   ✅ CI/CD pipeline can proceed to Task 10 (EKS Deployment)")
-    
-    print(f"\n{'='*80}")
-
-# Print complete summary
-print_pipeline_summary(eval_results, deployment_config, business_impact)
-```
-
-## 👉 Kết quả Task 4
-
-✅ **ETL Pipeline** - Automated raw → gold data processing hoàn thành  
-✅ **Multi-Model Training** - LR, Decision Tree, Random Forest, XGBoost comparison  
-✅ **Model Evaluation** - Comprehensive metrics + confusion matrix analysis  
-✅ **Best Model Selection** - Tự động chọn model tốt nhất dựa trên F1-score  
-✅ **Model Registry** - Version control và approval workflow  
-✅ **Business Impact** - Revenue và cost savings analysis  
-✅ **CI/CD Ready** - Deployment config exported cho EKS deployment  
-
-**🎯 Model Performance**: Accuracy ≥ **80%**, F1-score ≥ **0.7**  
-**💰 Cost Optimization**: Spot instances, auto-cleanup  
-**🔄 Automation**: End-to-end ETL → Train → Evaluate → Register → Export  
 
 {{% notice success %}}
-**🎯 Task 4 Complete - MLOps Core Pipeline!**
-
-**ETL Automation**: Raw transaction data → ML-ready features  
-**Multi-Model Training**: Comprehensive algorithm comparison  
-**Performance Validation**: Accuracy + F1 + business impact analysis  
-**Model Registry**: Version control với automated approval  
-**CI/CD Integration**: Deployment config ready cho Task 10 (EKS)  
-**Next**: Task 5 - VPC Networking setup
+✅ **Training Hoàn thành!** Model đạt target performance và sẵn sàng cho Model Registry.
 {{% /notice %}}
 
-{{% notice tip %}}
-**🚀 Next Steps:**
-- **Task 5**: VPC networking cho secure model serving
-- **Task 6**: ECR container registry cho prediction API  
-- **Task 7**: EKS cluster setup
-- **Task 10**: Deploy prediction API với best model
-{{% /notice %}}
+## 5. Monitoring & Results
+
+### 5.1. Theo dõi Training Job trong Studio
+
+Trong **SageMaker Studio (Unified Studio)**:
+
+1. Mở mục **Build** ở thanh bên trái
+
+2. Chọn **Training jobs**
+
+![Training logs example](../images/4-sagemake-training/08.1.png)
+
+3. Tìm job có tên bắt đầu bằng: retail-prediction-training-
+
+4. Nhấp vào **tên Training Job** để mở chi tiết
+
+![Training logs example](../images/4-sagemake-training/08.2.png)
+
+5. Chọn tab **Logs** để xem log real-time  
+
+6. (Tùy chọn) Bấm **“Open in CloudWatch”** để xem log đầy đủ
+
+![Training logs example](../images/4-sagemake-training/08.3.png)
+
+![Training logs example](../images/4-sagemake-training/08.4.png)
+
+
 
 {{% notice info %}}
-**📊 Achieved Performance Benchmarks:**
-- **ETL Processing**: Automated feature engineering pipeline
-- **Model Training**: Multi-algorithm comparison (LR/DT/RF/XGBoost)
-- **Accuracy Target**: ≥80% classification accuracy achieved
-- **F1-Score Target**: ≥0.70 macro F1-score achieved  
-- **Business Value**: Revenue impact + cost savings quantified
-- **Automation**: End-to-end pipeline với minimal manual intervention
+**Info:**  
+CloudWatch logs cho Training Job được lưu dưới dạng: /aws/sagemaker/TrainingJobs/<job-name> Nếu job bị lỗi, lỗi Python sẽ nằm ở cuối log.
+{{% /notice %}}
+
+## 6. Model Registry (Giao diện mới trong Project)
+
+Sau khi training job hoàn thành và tạo ra `model.tar.gz`, bước tiếp theo là đăng ký mô hình trong **Model Registry**.  
+Ở giao diện SageMaker Unified Studio mới, Model Registry nằm **bên trong từng Project**, không còn tách riêng như trước.
+
+---
+
+### 6.1. Mở Model Registry trong Project
+
+**SageMaker Studio → Projects → mlops-retail-prediction → Models → Registered models**
+
+![Model registry](../images/4-sagemake-training/09.1.png)
+
+![Model registry](../images/4-sagemake-training/09.2.png)
+
+
+### 6.2. Tạo Model Group
+
+1. Bấm **Register model group**
+2. Điền:
+   - **Name**: `retail-price-sensitivity-models`
+   - **Description**: `Model group for retail price sensitivity prediction`
+3. Nhấn **Register model group**
+
+![Model registry](../images/4-sagemake-training/09.3.png)
+
+
+Model Group sẽ xuất hiện trong danh sách.
+
+![Model registry](../images/4-sagemake-training/09.4.png)
+
+---
+
+### 6.3. Đăng ký Model Version sau khi Training
+
+![Model registry](../images/4-sagemake-training/09.5.png)
+
+![Model registry](../images/4-sagemake-training/09.6.png)
+
+
+1. Vào **Models → Registered models versions → Model groups**
+
+![Model registry](../images/4-sagemake-training/09.7.png)
+
+2. Chọn nhóm: **retail-price-sensitivity-models**
+3. Nhấn **Register model**
+4. Nhập thông tin:
+   - **Model artifact location (S3)**  
+     Ví dụ:
+     ```
+     s3://amazon-sagemaker-842676018087-us-east-1-xxxx/output/model.tar.gz
+     ```
+   - **Version description**: `Retail prediction model v1.0`
+   - **Approval status**: `Pending manual approval`
+5. Nhấn **Register**
+
+![Model registry](../images/4-sagemake-training/09.8.png)
+
+Một *Model Version* mới sẽ được tạo.
+
+![Model registry](../images/4-sagemake-training/09.9.png)
+
+![Model registry](../images/4-sagemake-training/09.10.png)
+
+---
+
+### 6.4. Approve Model Version
+
+1. Mở **Model group → retail-price-sensitivity-models**
+2. Chọn **Version 1**
+3. Nhấn **Update status**
+4. Đặt:
+   - **Approved**
+5. Save
+
+![Model registry](../images/4-sagemake-training/09.11.png)
+
+### Hoàn thành Task 4
+
+**📁 Notebook thực thi:** `notebooks/sagemaker-retail-etl-training.ipynb`
+
+**Đã thành công:**
+- ✅ **Tạo SageMaker Domain** và cấu hình
+- ✅ **Tạo Project** và mở Studio workspace  
+- ✅ **ETL toàn bộ dataset** - All shop_week partitions → Gold Parquet
+- ✅ **Auto-detect partitions** - Scan tất cả shop_week có sẵn
+- ✅ **Train Random Forest** với optimal hyperparameters
+- ✅ **Chọn single model** focus để tối ưu performance  
+- ✅ **Spot instances** - Cost optimization với auto-scaling
+- ✅ **Complete notebook** - 4 cells với detailed logging
+
+{{% notice info %}}
+**📊 SageMaker Unified Studio Benefits:**
+- **Integrated Workspace**: Project-based collaboration với shared resources
+- **Managed Infrastructure**: Auto-provisioned compute cho notebooks và training
+- **Cross-Region Support**: Built-in handling của S3 cross-region access
+- **Asset Catalog**: Automatic registration của models và datasets
+- **Team Collaboration**: Shared notebooks, workflows, và approval processes
+- **Cost Optimization**: Managed compute với automatic scaling
+- **Unified Interface**: Single pane for data, ML, và generative AI workflows
 {{% /notice %}}

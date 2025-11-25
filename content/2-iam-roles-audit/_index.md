@@ -6,7 +6,7 @@ chapter: false
 pre: "<b>2. </b>"
 ---
 
-## 🎯 Mục tiêu MLOps Retail Prediction - Task 2
+## 🎯 Mục tiêu Task 2
 
 Thiết lập **phân quyền truy cập (IAM)** cho toàn bộ dịch vụ AWS trong pipeline và **bật CloudTrail** để giám sát, ghi lại mọi hoạt động trên tài khoản AWS.
 
@@ -58,68 +58,385 @@ Thiết lập **phân quyền truy cập (IAM)** cho toàn bộ dịch vụ AWS 
 AWS Console → S3 → "Create bucket"
 
 **Cấu hình Bucket:**
-```
-Bucket name: mlops-cloudtrail-logs-ap-southeast-1
-Region: ap-southeast-1
-Block all public access: ✅ Enabled
-Versioning: ✅ Enabled  
-Server-side encryption: ✅ SSE-S3
-```
-
+   ```
+   Bucket name: mlops-cloudtrail-logs-us-east-1-842676018087
+   Region: us-east-1 (phải cùng region với CloudTrail trail)
+   Block all public access: ✅ Enabled
+   Versioning: ✅ Enabled  
+   Default encryption: ✅ AWS KMS
+   KMS key: alias/mlops-retail-prediction-dev-cloudtrail-key
+   ```
 **Cấu hình Lifecycle Policy:**
 
-**Bước 1**. S3 Console → chọn bucket `mlops-cloudtrail-logs-ap-southeast-1` → Management → Create lifecycle rule.  
+**Bước 1**. S3 Console → chọn bucket `mlops-cloudtrail-logs-ap-southeast-1` → Management → Create lifecycle rule.
 
-**Bước 2**. Đặt tên (ví dụ `CloudTrailLogLifecycle`), Apply to all objects hoặc dùng Prefix `mlops-logs/`.  
+![S3 lifecycle](/images/2-iam-roles-audit/1.1-cloudtrail-s3-lifecycle-01.png)
+
+**Bước 2**. Đặt tên (ví dụ `CloudTrailLogLifecycle`), Apply to all objects hoặc dùng Prefix `mlops-logs/`.
+
+**Chi tiết các trường cấu hình:**
+
+1. **Object tags**: 
+   - ❌ Không cần thêm tags vì chúng ta đã dùng prefix để lọc
+
+2. **Object size**: 
+   - ❌ Không cần specify minimum object size
+   - ❌ Không cần specify maximum object size
+   - CloudTrail logs thường có kích thước nhỏ và đồng đều
+
+3. **Lifecycle rule actions**:
+   - ✅ Transition current versions of objects between storage classes
+     - Chọn để tự động chuyển logs sang storage class rẻ hơn
+   - ❌ Transition noncurrent versions of objects between storage classes
+     - Không cần vì CloudTrail logs không có nhiều versions
+   - ❌ Expire current versions of objects
+     - Không expire vì cần giữ logs cho audit
+   - ❌ Permanently delete noncurrent versions of objects
+     - Không xóa vì cần giữ lịch sử logs
+   - ✅ Delete expired object delete markers or incomplete multipart uploads
+     - Chọn để dọn dẹp các markers và uploads lỗi
+
+![S3 lifecycle](/images/2-iam-roles-audit/1.2-cloudtrail-s3-lifecycle-01.png)
 
 **Bước 3**. Chọn actions (Current versions):
    - After 30 days → STANDARD_IA
    - After 90 days → GLACIER / GLACIER_IR (tùy chọn)
    - After 365 days → DEEP_ARCHIVE
 
-**Bước 4**. (Tùy chọn) Thiết lập Transition cho noncurrent versions tương tự; hoặc Expire current versions theo retention (ví dụ 7 năm) nếu cần compliance.  
+   ![S3 Lifecycle Overview](/images/2-iam-roles-audit/1.3-cloudtrail-s3-lifecycle-overview.png "S3 Lifecycle cho CloudTrail logs")
+ 
+**Bước 4**. Kiểm tra rule đã Active trong tab Management.
 
-**Bước 5**. Review → Create rule → kiểm tra rule đã Active trong tab Management.  
-![CloudTrail and S3 lifecycle diagram](/images/2-iam-roles-audit/01-cloudtrail-s3-lifecycle-01.png "CloudTrail multi-region trail -> S3 bucket -> Lifecycle transitions")
-Lưu ý ngắn: bật Versioning nếu chuyển noncurrent versions; giữ encryption và block public access cho bucket.
-
-**Đi tới CloudTrail Console:**
-AWS Console → CloudTrail → "Create trail"
-
+![S3 lifecycle](/images/2-iam-roles-audit/1.4-cloudtrail-s3-lifecycle-01.png)
 ### 1.2 Cấu hình Trail
 
-```
-Trail name: mlops-retail-prediction-audit-trail
-Apply trail to all regions: ✅ Yes
-Management events: ✅ Read/Write
-Data events: ✅ S3 bucket data events
-Insights events: ✅ Enabled (phát hiện pattern bất thường)
+{{% notice warning %}}
+**⚠️ Lưu ý về Region:**
+- CloudTrail là multi-region service nhưng trail phải được tạo ở một region cụ thể (home region)
+- S3 bucket và KMS key phải được tạo ở cùng region với CloudTrail trail
+- Trong trường hợp này, chúng ta sẽ tạo tất cả resource ở region `us-east-1`
+{{% /notice %}}
 
-S3 bucket: mlops-cloudtrail-logs-ap-southeast-1
-Log file prefix: mlops-logs/
+### 1.3. Khuyến nghị: Đồng bộ region giữa S3 và SageMaker Project
+
+**Ngắn gọn:** Nếu dữ liệu chính của pipeline (prefix `gold/` và `artifacts/`) nằm trong `us-east-1`, hãy **tạo SageMaker Domain / Project ở `us-east-1`** để tránh lỗi cross-region (S3 301), phức tạp với KMS keys, và các endpoint khác.
+
+Nếu tổ chức yêu cầu SageMaker phải ở `ap-southeast-1`, bạn cần sao chép hoặc replicate dữ liệu sang bucket ở `ap-southeast-1` trước khi tạo Project. Ví dụ lệnh sync (PowerShell / CloudShell):
+
+```powershell
+aws s3 mb s3://mlops-retail-prediction-dev-842676018087-apse1 --region ap-southeast-1
+aws s3 sync s3://mlops-retail-prediction-dev-842676018087/gold/ s3://mlops-retail-prediction-dev-842676018087-apse1/gold/ --acl bucket-owner-full-control
+aws s3 sync s3://mlops-retail-prediction-dev-842676018087/artifacts/ s3://mlops-retail-prediction-dev-842676018087-apse1/artifacts/ --acl bucket-owner-full-control
 ```
 
-**Tích hợp CloudWatch Logs:**
+Kèm theo:
+- Tạo KMS key ở region đích nếu dùng SSE-KMS.
+- Cập nhật IAM policies để cho phép SageMaker role truy cập bucket mới.
+
+Gợi ý: Cho lab và debug nhanh, phương án ít rủi ro là tạo Project/Domain ở nơi bucket hiện có (ở lab này là `us-east-1`).
+
+#### 1.2.1 Tạo KMS Key cho CloudTrail
+
+1. **Tạo KMS Key (ở region `us-east-1`):**
+
+- AWS Console → KMS → us-east-1 → Customer managed keys → Create key
+
+2. **Cấu hình Key:**
+   ```
+   Key type: ✅ Symmetric (mã hóa và giải mã dữ liệu)
+   Key usage: ✅ Encrypt and decrypt
+   ```
+
+3. **Thêm labels:**
+   ```
+   Alias: alias/mlops-retail-prediction-dev-cloudtrail-key
+   Description (optional): KMS key for CloudTrail logs encryption
+   Tags (optional): 
+     - Key: Project
+     - Value: MLOps-Retail-Prediction
+   ```
+
+4. **Cấu hình quyền quản trị:**
+   ```
+   Key administrators: Chọn IAM users/roles được phép quản lý key
+   Key deletion: Có cho phép xóa key hay không
+   ```
+
+5. **Cấu hình quyền sử dụng:**
+   ```
+   Key users: 
+   - Thêm service principal: cloudtrail.amazonaws.com
+   ```
+
+6. **Chỉnh sửa key policy:**
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Id": "Key policy created by CloudTrail",
+     "Statement": [
+       {
+         "Sid": "Enable IAM User Permissions",
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": [
+             "arn:aws:iam::842676018087:root"
+           ]
+         },
+         "Action": "kms:*",
+         "Resource": "*"
+       },
+       {
+         "Sid": "Allow CloudTrail to encrypt logs",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "cloudtrail.amazonaws.com"
+         },
+         "Action": "kms:GenerateDataKey*",
+         "Resource": "*",
+         "Condition": {
+           "StringLike": {
+             "kms:EncryptionContext:aws:cloudtrail:arn": [
+               "arn:aws:cloudtrail:*:842676018087:trail/*"
+             ]
+           },
+           "StringEquals": {
+             "aws:SourceArn": "arn:aws:cloudtrail:us-east-1:842676018087:trail/mlops-retail-prediction-audit-trail"
+           }
+         }
+       },
+       {
+         "Sid": "Allow CloudTrail to describe key",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "cloudtrail.amazonaws.com"
+         },
+         "Action": "kms:DescribeKey",
+         "Resource": "*"
+       }
+     ]
+   }
+   ```
+
+{{% notice warning %}}
+**Các điểm quan trọng trong KMS policy:**
+Enable IAM User Permissions: Cho phép root account quản lý key
+Allow CloudTrail to encrypt logs:
+   - Cho phép generateDataKey với điều kiện EncryptionContext và SourceArn
+   - EncryptionContext giới hạn cho CloudTrail trails trong account
+   - SourceArn chỉ định chính xác trail được phép sử dụng
+Allow CloudTrail to describe key: Cho phép CloudTrail xem thông tin key
+{{% /notice %}}
+
+3. **Key Policy mặc định cho CloudTrail:**
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Id": "Key policy created by CloudTrail",
+     "Statement": [
+       {
+         "Sid": "Enable IAM User Permissions",
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "arn:aws:iam::842676018087:root"
+         },
+         "Action": "kms:*",
+         "Resource": "*"
+       },
+       {
+         "Sid": "Allow CloudTrail to encrypt logs",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "cloudtrail.amazonaws.com"
+         },
+         "Action": "kms:GenerateDataKey*",
+         "Resource": "*",
+         "Condition": {
+           "StringEquals": {
+             "aws:SourceArn": "arn:aws:cloudtrail:us-east-1:842676018087:trail/mlops-retail-prediction-audit-trail"
+           },
+           "StringLike": {
+             "kms:EncryptionContext:aws:cloudtrail:arn": "arn:aws:cloudtrail:*:842676018087:trail/*"
+           }
+         }
+       },
+       {
+         "Sid": "Allow CloudTrail to describe key",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "cloudtrail.amazonaws.com"
+         },
+         "Action": "kms:DescribeKey",
+         "Resource": "*"
+       },
+       {
+         "Sid": "Allow principals in the account to decrypt log files",
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "*"
+         },
+         "Action": [
+           "kms:Decrypt",
+           "kms:ReEncryptFrom"
+         ],
+         "Resource": "*",
+         "Condition": {
+           "StringEquals": {
+             "kms:CallerAccount": "842676018087"
+           },
+           "StringLike": {
+             "kms:EncryptionContext:aws:cloudtrail:arn": "arn:aws:cloudtrail:*:842676018087:trail/*"
+           }
+         }
+       },
+       {
+         "Sid": "Enable cross account log decryption",
+         "Effect": "Allow",
+         "Principal": {
+           "AWS": "*"
+         },
+         "Action": [
+           "kms:Decrypt",
+           "kms:ReEncryptFrom"
+         ],
+         "Resource": "*",
+         "Condition": {
+           "StringEquals": {
+             "kms:CallerAccount": "842676018087"
+           },
+           "StringLike": {
+             "kms:EncryptionContext:aws:cloudtrail:arn": "arn:aws:cloudtrail:*:842676018087:trail/*"
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+{{% notice info %}}
+
+**Key Policy bao gồm:**
+   - Cho phép root account quản lý key
+   - Cho phép CloudTrail mã hóa logs với điều kiện trail ARN khớp
+   - Cho phép CloudTrail xem thông tin key
+   - Cho phép các principal trong account giải mã logs
+   - Hỗ trợ giải mã logs cross-account nếu cần
+   {{% /notice %}}
+
+{{% notice warning %}}
+KMS key phải được tạo ở cùng Region với S3 bucket và có đúng policy cho phép CloudTrail sử dụng.
+{{% /notice %}}
+
+#### 1.2.2 Cấu hình S3 Bucket Policy
+
+1. **Vào S3 bucket permissions:**
+   ```
+   S3 Console → mlops-cloudtrail-logs-ap-southeast-1 → Permissions → Bucket policy
+   ```
+
+2. **Policy mặc định cho S3 bucket:**
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "AWSCloudTrailAclCheck",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "cloudtrail.amazonaws.com"
+         },
+         "Action": "s3:GetBucketAcl",
+         "Resource": "arn:aws:s3:::mlops-cloudtrail-logs-ap-southeast-1-842676018087",
+         "Condition": {
+           "StringEquals": {
+             "aws:SourceArn": "arn:aws:cloudtrail:us-east-1:842676018087:trail/mlops-retail-prediction-audit-trail"
+           }
+         }
+       },
+       {
+         "Sid": "AWSCloudTrailWrite",
+         "Effect": "Allow",
+         "Principal": {
+           "Service": "cloudtrail.amazonaws.com"
+         },
+         "Action": "s3:PutObject",
+         "Resource": "arn:aws:s3:::mlops-cloudtrail-logs-ap-southeast-1-842676018087/mlops-logs/AWSLogs/842676018087/*",
+         "Condition": {
+           "StringEquals": {
+             "aws:SourceArn": "arn:aws:cloudtrail:us-east-1:842676018087:trail/mlops-retail-prediction-audit-trail",
+             "s3:x-amz-acl": "bucket-owner-full-control"
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+{{% notice info %}}
+   **S3 Bucket Policy bao gồm:**
+   - AWSCloudTrailAclCheck: Cho phép CloudTrail kiểm tra ACL của bucket
+   - AWSCloudTrailWrite: Cho phép CloudTrail ghi logs vào bucket
+   - Conditions:
+     - aws:SourceArn: Đảm bảo chỉ trail cụ thể có thể truy cập
+     - s3:x-amz-acl: Đảm bảo bucket owner có full control với objects
+{{% /notice %}}
+
+{{% notice info %}}
+Policy này cho phép CloudTrail kiểm tra ACL của bucket và ghi logs vào bucket.
+{{% /notice %}}
+
+#### 1.2.3 Tạo CloudTrail
+
+**Bước 1: Tạo Trail mới**
 ```
-CloudWatch Logs: ✅ Enabled
-Log group: mlops-cloudtrail-log-group
-IAM Role: CloudTrail_CloudWatchLogs_Role (auto-created)
+AWS Console → us-east-1 → CloudTrail → Create trail
 ```
 
-⚠️ **Lưu ý**
-- CloudTrail phải được bật trước khi tạo các resource khác để ghi nhận mọi hoạt động
-- EKS Cluster role cần AmazonEKSClusterPolicy
-- Node Group role cần AmazonEKSWorkerNodePolicy + AmazonEKS_CNI_Policy  
-- SageMaker role cần quyền S3 phù hợp cho dữ liệu & model
-- CloudTrail S3 bucket cần lifecycle policies để quản lý chi phí
-- Tên role phải theo convention: `mlops-retail-prediction-dev-*`
+**Bước 2: Cấu hình Trail cơ bản (ở region us-east-1)**
+
+| Mục | Giá trị |
+|-----|----------|
+| **Trail name** | `mlops-retail-prediction-audit-trail` |
+| **Apply trail to all regions** | ✅ Yes |
+| **Management events** | ✅ Read/Write |
+| **Data events** | ✅ S3 bucket data events |
+| **Insights events** | ✅ Enabled (phát hiện hành vi bất thường) |
+
+**Bước 3: Cấu hình Storage**
+
+| Mục | Giá trị |
+|-----|----------|
+| **S3 bucket** | `mlops-cloudtrail-logs-ap-southeast-1` |
+| **Log file prefix** | `mlops-logs/` |
+| **Log file SSE-KMS encryption** | ✅ Enabled |
+| **AWS KMS alias** | `alias/mlops-retail-prediction-dev-cloudtrail-key` (chọn key đã tạo) |
+
+**Bước 4: Tích hợp CloudWatch Logs (tùy chọn)**
+
+| Mục | Giá trị |
+|-----|----------|
+| **CloudWatch Logs** | ✅ Enabled |
+| **Log group** | `mlops-cloudtrail-log-group` |
+| **IAM Role** | `CloudTrail_CloudWatchLogs_Role` (auto-created) |
+
+{{% notice info %}}
+Role CloudTrail_CloudWatchLogs sẽ được tự động tạo với các quyền cần thiết: `logs:PutLogEvents`, `logs:CreateLogStream`, `logs:DescribeLogStreams`
+{{% /notice %}}
+
+**Bước 5: Review và Create trail**
+
+{{% notice tip %}}
+**Thứ tự quan trọng để tránh lỗi:**
+1. ✅ Tạo KMS key với policy phù hợp
+2. ✅ Cấu hình S3 bucket policy
+3. ✅ Tạo CloudTrail với KMS và S3 đã setup
+4. ✅ Kiểm tra logs được ghi thành công
+{{% /notice %}}
 
 ## 2. Thiết lập IAM Roles - Quyền cho dịch vụ
 
-### 2.1. Đi tới IAM Console
-AWS Console → IAM → Roles → "Create role"
 
-### 2.2. EKS Cluster Service Role
+### 2.1. EKS Cluster Service Role
+- AWS Console → IAM → Roles → "Create role"
 
 1. **Trusted Entity Type:**
    ```
@@ -137,7 +454,8 @@ AWS Console → IAM → Roles → "Create role"
    ```
    ![EKS Cluster Service Role - Trust relationship and policies](/images/2-iam-roles-audit/02-eks-cluster-role-trust-policies.png "EKS Cluster Service Role")
 
-### 2.3. EKS Node Group Role
+### 2.2. EKS Node Group Role
+- Tương tự
 
 1. **Trusted Entity Type:**
    ```
@@ -158,7 +476,7 @@ AWS Console → IAM → Roles → "Create role"
    ```
    ![EKS Node Group Role - Trust relationship and attached policies](/images/2-iam-roles-audit/03-eks-nodegroup-role-policies.png "EKS Node Group Role - Trust relationship and attached policies")
 
-### 2.4. SageMaker Execution Role
+### 2.3. SageMaker Execution Role
 
 1. **Trusted Entity Type:**
    ```
@@ -169,13 +487,102 @@ AWS Console → IAM → Roles → "Create role"
    ```
    ✅ AmazonSageMakerFullAccess
    ✅ AmazonS3FullAccess (cho lưu trữ dữ liệu và model)
+   ✅ CloudWatchLogsFullAccess (cho training job logs)
    ```
-3. **Chi tiết Role:**
+
+3. **Thêm Inline Policy cho EC2 (BẮT BUỘC cho Projects):**
+   
+   **Policy Name**: `SageMakerEC2Access`
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "ec2:DescribeVpcs",
+           "ec2:DescribeSubnets",
+           "ec2:DescribeSecurityGroups",
+           "ec2:DescribeNetworkInterfaces",
+           "ec2:DescribeAvailabilityZones",
+           "ec2:DescribeRouteTables"
+         ],
+         "Resource": "*"
+       }
+     ]
+   }
+   ```
+   
+   **Cách thêm:**
+   1. **IAM Console** → **Roles** → `mlops-retail-prediction-dev-sagemaker-execution`
+   2. **Permissions** tab → **Add permissions** → **Create inline policy**
+   3. **JSON** tab → paste policy trên
+   4. **Policy name**: `SageMakerEC2Access`
+
+4. **Chi tiết Role:**
    ```
    Role name: mlops-retail-prediction-dev-sagemaker-execution
    Description: SageMaker execution role for retail prediction training jobs and model deployment
    ```
+
+### 2.4. ⚠️ BẮT BUỘC: Thêm EC2 Permissions
+
+**Vì SageMaker Projects là bắt buộc**, cần thêm EC2 permissions ngay:
+
+1. **IAM Console** → **Roles** → `mlops-retail-prediction-dev-sagemaker-execution`
+2. **Permissions** tab → **Add permissions** → **Create inline policy**
+3. **JSON** tab → paste policy sau:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets", 
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DescribeAvailabilityZones",
+        "ec2:DescribeRouteTables"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+4. **Review** → **Policy name**: `SageMakerEC2Access`
+5. **Create policy**
+
+{{% notice tip %}}
+**✅ Xác minh:** Role phải có 4 policies:
+- `AmazonSageMakerFullAccess` (AWS managed)
+- `AmazonS3FullAccess` (AWS managed)  
+- `CloudWatchLogsFullAccess` (AWS managed)
+- `SageMakerEC2Access` (inline policy vừa tạo)
+{{% /notice %}}
    ![SageMaker Execution Role - Trust relationship and attached policies](/images/2-iam-roles-audit/04-sagemaker-execution-role.png "SageMaker execution role trust relationship and attached policies")
+
+{{% notice warning %}}
+**⚠️ QUAN TRỌNG - Projects là BẮT BUỘC:**
+
+**SageMaker Unified Studio (2024+) yêu cầu:**
+- ✅ **Projects là bắt buộc** - không thể bỏ qua
+- ✅ **EC2 permissions là BẮT BUỘC** - phải thêm inline policy
+- ✅ Project profile cần được setup trước
+
+**Nếu thiếu EC2 permissions:**
+- ❌ "Create project" sẽ fail
+- ❌ "Insufficient permissions to describe VPCs"
+- ❌ Không thể truy cập Studio notebooks
+
+**✅ GIẢI PHÁP:**
+1. **Bắt buộc** thêm inline policy EC2 ở trên
+2. Tạo Project với "ML and generative AI model development"
+3. Studio sẽ hoạt động bình thường
+{{% /notice %}}
 
 ## 3. Xác thực & Kiểm tra an ninh
 
@@ -230,15 +637,23 @@ AWS Console → S3 → mlops-cloudtrail-logs-ap-southeast-1
 # Test SageMaker role có thể assume và truy cập S3
 aws sts assume-role --role-arn arn:aws:iam::ACCOUNT:role/mlops-retail-prediction-dev-sagemaker-execution --role-session-name test
 ```
-![Kiểm tra assume-role SageMaker và truy cập S3](/images/2-iam-roles-audit/05-sagemaker-assume-role-test.png "Assume-role test và kiểm tra truy cập S3")
+
+**Kiểm tra SageMaker role đầy đủ:**
+```bash
+# Test S3 access
+aws s3 ls s3://mlops-retail-prediction-dev-ACCOUNT/ --profile sagemaker-test
+
+# Test SageMaker training job permissions
+aws sagemaker list-training-jobs --region us-east-1 --profile sagemaker-test
+
+# Test EC2 permissions (nếu đã thêm)
+aws ec2 describe-vpcs --region us-east-1 --profile sagemaker-test
+```
 
 ``` bash
 # Test EKS roles sẵn sàng cho việc tạo cluster
 aws eks describe-cluster --name test-cluster --region ap-southeast-1
 ```
-
-![Ví dụ CloudTrail event được ghi lại trong CloudWatch / S3](/images/2-iam-roles-audit/06-cloudtrail-verify-event.png "CloudTrail event sample")
-
 
 ## 4. Tối ưu chi phí & Tuân thủ
 ### 4.1. Quản lý chi phí CloudTrail — Bảng so sánh
@@ -271,7 +686,7 @@ Ghi chú ngắn:
 ✅ **CloudTrail Multi-Region** - Bản ghi kiểm toán toàn diện cho tất cả hoạt động AWS  
 ✅ **Lưu trữ Audit S3** - Lưu giữ log tối ưu chi phí với lifecycle policies  
 ✅ **Role Bảo mật EKS** - Quyền cho cluster và node group đã sẵn sàng  
-✅ **Role Thực thi SageMaker** - Training jobs có quyền truy cập S3 phù hợp  
+✅ **Role Thực thi SageMaker** - Training jobs + Projects ready (EC2 permissions BẮT BUỘC)  
 ✅ **Nền tảng Bảo mật** - Kiến trúc least-privilege chuẩn doanh nghiệp  
 ✅ **Sẵn sàng Tuân thủ** - Audit trail phù hợp với yêu cầu pháp lý  
 
@@ -290,6 +705,8 @@ Ghi chú ngắn:
 {{% notice warning %}}
 **🔐 Lưu ý bảo mật**: 
 - CloudTrail logs chứa thông tin nhạy cảm - đảm bảo bảo mật bucket S3
+- **SageMaker role cần EC2 permissions** (Projects bắt buộc từ 2024)
+- **Phải thêm inline policy EC2** để tạo được Projects
 - Tên role sẽ được sử dụng chính xác trong các task tiếp theo
 - IRSA yêu cầu OIDC provider cho EKS (Task 5)
 - Giám sát chi phí CloudTrail bằng AWS Cost Explorer
