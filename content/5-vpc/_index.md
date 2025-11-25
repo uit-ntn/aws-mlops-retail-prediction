@@ -10,19 +10,21 @@ pre: "<b>5. </b>"
 Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng biệt với SageMaker training VPC):
 
 1. **Production EKS Infrastructure** - EKS Cluster và Pods trong private subnets
-2. **Public API Access** - ALB trong public subnets cho demo endpoint `/predict`  
+2. **Public API Access** - ALB trong public subnets cho demo endpoint `/predict`
 3. **High-Performance Internal Networking** - VPC Endpoints cho S3/ECR access < 50ms latency
 4. **Cost Optimization** - Bỏ NAT Gateway, chỉ bật ALB khi demo
 
 {{% notice warning %}}
 **⚠️ VPC Separation Strategy:**
+
 - **Task 4**: SageMaker training dùng VPC mặc định (Quick setup) - đơn giản, tiết kiệm
 - **Task 5**: EKS production dùng VPC riêng - bảo mật, kiểm soát tốt hơn
 - **Không conflict**: 2 VPC độc lập, có thể kết nối qua VPC Peering nếu cần
-{{% /notice %}}
+  {{% /notice %}}
 
 {{% notice info %}}
 **🎯 Production VPC Architecture:**
+
 - ✅ **Private Subnets**: EKS Pods (secure, no direct Internet)
 - ✅ **Public Subnets**: ALB only (public API demo access)
 - ✅ **Internal Communication**: EKS ↔ S3 qua VPC Endpoints
@@ -32,24 +34,28 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 {{% /notice %}}
 
 📥 **Input**
-- AWS Account với VPC permissions  
+
+- AWS Account với VPC permissions
 - CIDR planning: `10.0.0.0/16` (production EKS VPC)
 - Demo requirements: Public API access qua ALB
 - Task 4 completed: SageMaker training chạy trong VPC mặc định
 
 ✅ **Deliverables**
+
 - Multi-AZ Production VPC: Public (ALB) + Private (EKS)
 - Application Load Balancer ready cho public API demo
 - VPC Endpoints: S3 (FREE), ECR (high-speed internal)
 - Security Groups: Layered access control (Internet → ALB → EKS → S3)
 
 📊 **Acceptance Criteria**
+
 - API demo accessible qua ALB public endpoint
 - Private subnets secure: no direct Internet access
 - Internal EKS ↔ S3 latency < 50ms qua VPC Endpoints
 - Cost optimized: ~$0.02/hour ALB (chỉ khi demo)
 
 ⚠️ **Gotchas**
+
 - ALB Target Groups cần health check configuration cho EKS Pods
 - VPC Endpoints require HTTPS 443 from VPC CIDR trong Security Groups
 - Private DNS must be enabled cho Interface Endpoints
@@ -95,31 +101,34 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 **🎯 Hybrid Architecture Benefits**
 
 **Public Demo Access:**
+
 - ALB provides public endpoint cho API `/predict`
 - SSL/TLS support cho secure HTTPS demo
 - Health checks ensure reliable API availability
 
 **Private Security:**
+
 - EKS Pods trong private subnets (no direct Internet)
 - SageMaker training jobs completely isolated
 - Data transfer qua VPC Endpoints only
 
 **Performance:**
-- EKS ↔ S3 latency < 50ms (internal network)  
+
+- EKS ↔ S3 latency < 50ms (internal network)
 - No NAT Gateway bottleneck
 - Direct VPC Endpoint access untuk model serving
-{{% /notice %}}
+  {{% /notice %}}
 
 ### Cost Analysis: Demo-Ready Setup
 
-| Component | Cost | Purpose | Demo Impact |
-|-----------|------|---------|-------------|
-| **VPC/Subnets** | FREE | Core networking | Always on |
-| **Internet Gateway** | FREE | ALB public access | Always on |
-| **ALB** | **$0.0225/hour** | Public API endpoint | **Only when demo** |
-| **S3 VPC Endpoint** | FREE | Model/data access | Always on |
-| **ECR VPC Endpoint** | $7.2/month | Container images | Always on |
-| **CloudWatch VPC Endpoint** | $7.2/month | Monitoring | Always on |
+| Component                   | Cost             | Purpose             | Demo Impact        |
+| --------------------------- | ---------------- | ------------------- | ------------------ |
+| **VPC/Subnets**             | FREE             | Core networking     | Always on          |
+| **Internet Gateway**        | FREE             | ALB public access   | Always on          |
+| **ALB**                     | **$0.0225/hour** | Public API endpoint | **Only when demo** |
+| **S3 VPC Endpoint**         | FREE             | Model/data access   | Always on          |
+| **ECR VPC Endpoint**        | $7.2/month       | Container images    | Always on          |
+| **CloudWatch VPC Endpoint** | $7.2/month       | Monitoring          | Always on          |
 
 **Monthly Cost:** ~$14.4 + ALB usage = **$14.4 base + $0.02/hour demo**
 
@@ -151,9 +160,11 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 ### 1.2. Tạo Subnets (Hybrid Layout)
 
 1. **Public Subnets (ALB Only):**
+
    - Navigate to "Subnets" → "Create subnet"
 
    **Public Subnet 1 (ap-southeast-1a):**
+
    ```
    Name: mlops-hybrid-public-alb-ap-southeast-1a
    Availability Zone: ap-southeast-1a
@@ -162,6 +173,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
    **Public Subnet 2 (ap-southeast-1b):**
+
    ```
    Name: mlops-hybrid-public-alb-ap-southeast-1b
    Availability Zone: ap-southeast-1b
@@ -172,8 +184,9 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 ![Create Public Subnets](../images/05-vpc-networking/03.1-create-subnets.png)
 
 2. **Private Subnets (EKS Production):**
-   
+
    **Private Subnet 1 (ap-southeast-1a):**
+
    ```
    Name: mlops-eks-private-workloads-ap-southeast-1a
    Availability Zone: ap-southeast-1a
@@ -182,6 +195,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
    **Private Subnet 2 (ap-southeast-1b):**
+
    ```
    Name: mlops-eks-private-workloads-ap-southeast-1b
    Availability Zone: ap-southeast-1b
@@ -234,6 +248,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 #### 1.4.2. Private Route Table (Secure Workloads)
 
 1. **Create Private Route Table:**
+
    ```
    Name: mlops-hybrid-private-workloads-rt
    VPC: mlops-retail-forecast-hybrid-vpc
@@ -241,6 +256,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
 2. **Keep Default Local Routes:**
+
    - Only local VPC route: 10.0.0.0/16 → local
    - NO Internet Gateway route (security)
    - VPC Endpoints will provide AWS services access
@@ -250,58 +266,57 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 ![Private Route Table](../images/05-vpc-networking/08-private-route-tables.png)
 
+![Private Route Table](../images/05-vpc-networking/08-private-route-tables02.png)
+
 ### 1.5. Security Groups Setup (Layered Security)
 
 #### 1.5.1. ALB Security Group (Public Internet Access)
 
 1. **Basic Details:**
+
    ```
    Security group name: mlops-hybrid-alb-sg
    Description: Security group for ALB public API demo access
    VPC: mlops-retail-forecast-hybrid-vpc
    ```
 
-![ALB Security Group Basic](../images/05-vpc-networking/09.1-alb-security-group.png)
-
 2. **Inbound Rules (Public Demo Access):**
+
    - **Rule 1**: HTTP (80) from 0.0.0.0/0 (redirect to HTTPS)
    - **Rule 2**: HTTPS (443) from 0.0.0.0/0 (secure API demo)
-
-![ALB Security Group Rules](../images/05-vpc-networking/09.2-alb-inbound-rules.png)
 
 3. **Outbound Rules:**
    - **Rule**: All traffic to EKS Security Group (ALB → EKS communication)
 
-![ALB Outbound Rules](../images/05-vpc-networking/09.3-alb-outbound-rules.png)
+![ALB Security Group Basic](../images/05-vpc-networking/09.1-alb-security-group.png)
 
 #### 1.5.2. EKS Worker Nodes Security Group (Private Workloads)
 
 1. **Basic Details:**
+
    ```
    Security group name: mlops-hybrid-eks-nodes-sg
    Description: Security group for EKS worker nodes in private subnets
    VPC: mlops-retail-forecast-hybrid-vpc
    ```
 
-![EKS Nodes Security Group](../images/05-vpc-networking/09.4-eks-nodes-basic.png)
-
 2. **Inbound Rules (Controlled Access):**
+
    - **Rule 1**: HTTP (80) from ALB Security Group (API traffic)
    - **Rule 2**: HTTPS (443) from ALB Security Group (secure API traffic)
    - **Rule 3**: All Traffic from self (inter-node communication)
    - **Rule 4**: All Traffic from EKS Control Plane SG (cluster management)
 
-![EKS Nodes Inbound Rules](../images/05-vpc-networking/09.5-eks-nodes-inbound.png)
-
 3. **Outbound Rules:**
    - **Rule 1**: HTTPS (443) to VPC Endpoints SG (AWS services access)
    - **Rule 2**: All Traffic to self (inter-node communication)
 
-![EKS Nodes Outbound Rules](../images/05-vpc-networking/09.6-eks-nodes-outbound.png)
+![EKS Nodes Security Group](../images/05-vpc-networking/09.4-eks-nodes-basic.png)
 
 #### 1.5.3. EKS Control Plane Security Group
 
 1. **Basic Details:**
+
    ```
    Security group name: mlops-hybrid-eks-control-plane-sg
    Description: Security group for EKS control plane
@@ -309,6 +324,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
 2. **Inbound Rules:**
+
    - **Rule**: HTTPS (443) from EKS Nodes SG (cluster API access)
 
 3. **Outbound Rules:**
@@ -319,13 +335,12 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 #### 1.5.4. VPC Endpoints Security Group (AWS Services Access)
 
 1. **Basic Details:**
+
    ```
    Security group name: mlops-hybrid-vpc-endpoints-sg
    Description: Security group for VPC endpoints (S3, ECR, SageMaker)
    VPC: mlops-retail-forecast-hybrid-vpc
    ```
-
-![VPC Endpoints Security Group](../images/05-vpc-networking/09.8-vpc-endpoints-basic.png)
 
 2. **Inbound Rules (Internal Access Only):**
    - **Rule 1**: HTTPS (443) from EKS Nodes SG (EKS → AWS services)
@@ -335,11 +350,12 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 ![VPC Endpoints Inbound Rules](../images/05-vpc-networking/09.9-vpc-endpoints-inbound.png)
 
 {{% notice success %}}
-**🎯 Security Groups Complete!** 
+**🎯 Security Groups Complete!**
 
 **4 Security Groups Created:**
+
 - ALB SG: Public Internet access (80/443)
-- EKS Nodes SG: Private workloads  
+- EKS Nodes SG: Private workloads
 - EKS Control Plane SG: Cluster management
 - VPC Endpoints SG: AWS services access
 
@@ -351,6 +367,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 **Important for ALB functionality:**
 
 1. **Navigate to Public Subnets:**
+
    - VPC Dashboard → Subnets
 
 2. **Enable Auto-assign Public IP:**
@@ -373,6 +390,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 **🎯 Hybrid VPC Console Setup Complete!**
 
 **Security Architecture:**
+
 - **Layer 1**: Internet → ALB (80/443 from 0.0.0.0/0)
 - **Layer 2**: ALB → EKS Nodes (controlled access)
 - **Layer 3**: EKS → VPC Endpoints (AWS services only)
@@ -390,6 +408,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 1. **Create S3 Gateway Endpoint:**
    - VPC Dashboard → "Endpoints" → "Create endpoint"
    ```
+   Endpoint name: mlops-hybrid-s3-gateway-endpoint
    Service: com.amazonaws.ap-southeast-1.s3
    Type: Gateway
    VPC: mlops-retail-forecast-hybrid-vpc
@@ -397,8 +416,8 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    Policy: Full Access (demo purposes)
    ```
 
-![S3 Gateway Endpoint](../images/05-vpc-networking/10.1-s3-gateway-endpoint.png)
 ![S3 Endpoint Configuration](../images/05-vpc-networking/10.2-s3-endpoint-config.png)
+![S3 Endpoint Configuration](../images/05-vpc-networking/10.2-s3-endpoint-config2.png)
 
 **Purpose:** EKS Pods load model artifacts từ S3 < 50ms latency
 
@@ -406,6 +425,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 1. **Create ECR API Endpoint:**
    ```
+   Endpoint name: mlops-hybrid-ecr-api-endpoint
    Service: com.amazonaws.ap-southeast-1.ecr.api
    Type: Interface
    VPC: mlops-retail-forecast-hybrid-vpc
@@ -423,6 +443,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 1. **Create ECR DKR Endpoint:**
    ```
+   Endpoint name: mlops-hybrid-ecr-dkr-endpoint
    Service: com.amazonaws.ap-southeast-1.ecr.dkr
    Type: Interface
    VPC: mlops-retail-forecast-hybrid-vpc
@@ -432,6 +453,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
 ![ECR DKR Endpoint](../images/05-vpc-networking/10.5-ecr-dkr-endpoint.png)
+![ECR DKR Endpoint](../images/05-vpc-networking/10.5-ecr-dkr-endpoint2.png)
 
 **Purpose:** Docker layer downloads cho EKS container runtime
 
@@ -439,6 +461,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 1. **Create CloudWatch Logs Endpoint:**
    ```
+   Endpoint name: mlops-hybrid-logs-endpoint
    Service: com.amazonaws.ap-southeast-1.logs
    Type: Interface
    VPC: mlops-retail-forecast-hybrid-vpc
@@ -448,14 +471,16 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
 ![CloudWatch Logs Endpoint](../images/05-vpc-networking/10.7-logs-endpoint.png)
+![CloudWatch Logs Endpoint](../images/05-vpc-networking/10.7-logs-endpoint2.png)
 
 **Purpose:** Monitoring and logging cho EKS/SageMaker workloads
 
-### 2.6. VPC Endpoints Verification
+### 2.5. VPC Endpoints Verification
 
 ![VPC Endpoints Overview](../images/05-vpc-networking/10.8-vpc-endpoints-overview.png)
 
 **Expected Results:**
+
 - **S3 Gateway**: Route added to private route table automatically
 - **3x Interface Endpoints**: ENI created in each private subnet
 - **Private DNS**: All endpoints resolvable via internal DNS
@@ -464,8 +489,9 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 **🎯 VPC Endpoints Complete!**
 
 **High-Performance Internal Network:**
+
 - EKS ↔ S3: < 50ms (Gateway Endpoint)
-- EKS ↔ ECR: < 50ms (Interface Endpoints)  
+- EKS ↔ ECR: < 50ms (Interface Endpoints)
 - EKS ↔ CloudWatch: < 50ms (Logs Endpoint)
 - No Internet dependency for AWS services
 
@@ -477,6 +503,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 ### 3.1. Create Application Load Balancer
 
 1. **Navigate to Load Balancers:**
+
    - EC2 Dashboard → Load Balancers → "Create load balancer"
 
 2. **ALB Configuration:**
@@ -524,6 +551,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 ### 3.3. Configure ALB Listeners
 
 1. **HTTP Listener (Redirect to HTTPS):**
+
    ```
    Protocol: HTTP
    Port: 80
@@ -539,19 +567,23 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
    ```
 
 ![ALB Listeners Configuration](../images/05-vpc-networking/11.5-alb-listeners.png)
+![ALB Listeners Configuration](../images/05-vpc-networking/11.5-alb-listeners2.png)
+![ALB Listeners Configuration](../images/05-vpc-networking/11.5-alb-listeners3.png)
 
 {{% notice info %}}
 **💡 SSL Certificate Options:**
+
 - **Production**: Use AWS Certificate Manager (ACM) với domain
 - **Demo**: Create self-signed certificate or use HTTP only
 - **Development**: Skip SSL, use HTTP listener only
-{{% /notice %}}
+  {{% /notice %}}
 
 ### 3.4. ALB Creation Complete
 
 ![ALB Creation Complete](../images/05-vpc-networking/11.6-alb-complete.png)
 
 **ALB DNS Name:** Will be used for public API demo access
+
 ```
 Example: mlops-hybrid-api-demo-alb-1234567890.ap-southeast-1.elb.amazonaws.com
 ```
@@ -560,11 +592,12 @@ Example: mlops-hybrid-api-demo-alb-1234567890.ap-southeast-1.elb.amazonaws.com
 **🎯 ALB Setup Complete!**
 
 **Public Demo Access Ready:**
+
 - HTTP/HTTPS endpoints configured
 - Target group ready for EKS API pods
 - Health checks configured
 - Multi-AZ availability
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 4. Advanced Configuration & Integration
 
@@ -584,6 +617,7 @@ aws ec2 create-flow-logs \
 ### 4.2. Network Performance Testing
 
 **Test EKS ↔ S3 Latency:**
+
 ```bash
 # From EKS Pod (after cluster setup)
 kubectl run test-pod --image=amazonlinux --restart=Never -- sleep 3600
@@ -596,6 +630,7 @@ time aws s3 ls s3://your-model-bucket/
 ```
 
 **Test ALB ↔ EKS Connectivity:**
+
 ```bash
 # Test from outside VPC
 curl -I http://your-alb-dns-name/health
@@ -605,6 +640,7 @@ curl -I http://your-alb-dns-name/health
 ### 4.3. Cost Monitoring Setup
 
 **CloudWatch Cost Alarms:**
+
 ```bash
 # Create cost alarm for VPC Endpoints
 aws cloudwatch put-metric-alarm \
@@ -623,6 +659,7 @@ aws cloudwatch put-metric-alarm \
 
 {{% notice info %}}
 **💡 Khi nào cần Terraform outputs:**
+
 - ✅ Task 7-10 sẽ dùng Terraform (EKS cluster, ALB controller)
 - ✅ Cần automated deployment across environments
 - ✅ Want to reference infrastructure programmatically
@@ -638,7 +675,7 @@ aws cloudwatch put-metric-alarm \
 # Reference VPC infrastructure từ Console
 data "aws_vpc" "hybrid" {
   filter {
-    name   = "tag:Name" 
+    name   = "tag:Name"
     values = ["mlops-retail-forecast-hybrid-vpc"]
   }
 }
@@ -831,6 +868,7 @@ terraform output api_demo_config
 ```
 
 Expected output:
+
 ```json
 {
   "health_check" = "https://mlops-hybrid-api-demo-alb-123456789.ap-southeast-1.elb.amazonaws.com/health"
@@ -844,6 +882,7 @@ Expected output:
 ### 6.1. Network Architecture Verification
 
 **Verify Hybrid VPC Setup:**
+
 ```bash
 # Check VPC configuration
 aws ec2 describe-vpcs \
@@ -857,6 +896,7 @@ aws ec2 describe-subnets \
 ```
 
 **Verify Security Groups:**
+
 ```bash
 # List all security groups for the VPC
 aws ec2 describe-security-groups \
@@ -868,6 +908,7 @@ aws ec2 describe-security-groups \
 ### 6.2. VPC Endpoints Testing
 
 **Test S3 VPC Endpoint (after EKS setup):**
+
 ```bash
 # From EKS pod
 kubectl run network-test --image=amazonlinux --restart=Never -- sleep 3600
@@ -884,6 +925,7 @@ time aws ecr get-login-token --region ap-southeast-1
 ```
 
 **Verify VPC Endpoint DNS Resolution:**
+
 ```bash
 # Inside EKS pod
 nslookup s3.ap-southeast-1.amazonaws.com
@@ -895,6 +937,7 @@ nslookup runtime.sagemaker.ap-southeast-1.amazonaws.com
 ### 6.3. ALB Demo Testing
 
 **Test ALB Public Access:**
+
 ```bash
 # Get ALB DNS name
 ALB_DNS=$(aws elbv2 describe-load-balancers \
@@ -910,6 +953,7 @@ curl -I http://$ALB_DNS/
 ```
 
 **Verify Target Group (after EKS deployment):**
+
 ```bash
 # Check target group health
 aws elbv2 describe-target-health \
@@ -921,6 +965,7 @@ aws elbv2 describe-target-health \
 ### 6.4. Cost Monitoring
 
 **Monthly Cost Breakdown:**
+
 ```bash
 # Check VPC Endpoints cost (should be ~$21.6/month)
 aws ce get-cost-and-usage \
@@ -936,6 +981,7 @@ aws ce get-cost-and-usage \
 ### 7.1. VPC Endpoints Issues
 
 **Problem: EKS pods can't access S3**
+
 ```bash
 # Solution 1: Check route table
 aws ec2 describe-route-tables \
@@ -951,6 +997,7 @@ aws ec2 describe-security-groups \
 ```
 
 **Problem: Interface endpoint DNS not resolving**
+
 ```bash
 # Check private DNS is enabled
 aws ec2 describe-vpc-endpoints \
@@ -961,6 +1008,7 @@ aws ec2 describe-vpc-endpoints \
 ### 7.2. ALB Issues
 
 **Problem: ALB not accessible from Internet**
+
 ```bash
 # Check Internet Gateway attached
 aws ec2 describe-internet-gateways \
@@ -974,6 +1022,7 @@ aws ec2 describe-route-tables \
 ```
 
 **Problem: ALB can't reach EKS targets**
+
 ```bash
 # Check security group rules
 aws ec2 describe-security-groups \
@@ -985,6 +1034,7 @@ aws ec2 describe-security-groups \
 ### 7.3. Performance Issues
 
 **Problem: High latency EKS ↔ S3**
+
 ```bash
 # Verify using VPC endpoint
 kubectl exec -it network-test -- traceroute s3.ap-southeast-1.amazonaws.com
@@ -1002,7 +1052,7 @@ aws ec2 describe-vpc-endpoints \
 ✅ **Public API Demo Ready** - ALB configured cho demo endpoint `/predict`  
 ✅ **High-Performance Internal** - VPC Endpoints < 50ms latency EKS ↔ S3  
 ✅ **Cost Optimized** - $21.6/month base + $0.02/hour ALB demo usage  
-✅ **Production Security** - Layered security groups, no Internet access for workloads  
+✅ **Production Security** - Layered security groups, no Internet access for workloads
 
 ### Architecture Delivered
 
@@ -1039,6 +1089,7 @@ aws ec2 describe-vpc-endpoints \
 
 {{% notice tip %}}
 **🚀 Next Steps:**
+
 - **Task 6**: ECR container registry cho API container images
 - **Task 7**: EKS cluster deployment trong private subnets
 - **Task 8**: EKS node groups với auto-scaling
@@ -1046,6 +1097,7 @@ aws ec2 describe-vpc-endpoints \
 - **Task 11**: ALB ingress controller configuration
 
 **Demo Commands Ready:**
+
 ```bash
 # Public API demo endpoint (after deployment)
 curl https://your-alb-dns/predict -d '{"data": "your-input"}'
@@ -1053,35 +1105,38 @@ curl https://your-alb-dns/predict -d '{"data": "your-input"}'
 # Health check endpoint
 curl https://your-alb-dns/health
 ```
+
 {{% /notice %}}
 
 {{% notice info %}}
 **📊 Performance Benchmarks Achieved:**
+
 - **EKS ↔ S3 Latency**: < 50ms (VPC Gateway Endpoint)
 - **EKS ↔ ECR Latency**: < 100ms (Interface Endpoints)
 - **ALB ↔ EKS Latency**: < 10ms (same VPC)
 - **Internet ↔ ALB**: Standard Internet latency
 - **Cost**: $21.6/month base + $0.02/hour demo usage
 - **Availability**: Multi-AZ (99.99% SLA)
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 
 **Next Step**: [Task 6: ECR Container Registry](../6-ecr-registry/)
 
 {{% notice tip %}}
-**🚀 Next Steps:** 
+**🚀 Next Steps:**
+
 - **Task 3**: IAM Roles & IRSA sử dụng VPC infrastructure
 - **Task 4**: EKS cluster deployment với VPC Endpoints integration
 - **Task 5**: EKS managed node groups trong cost-optimized private subnets
-{{% /notice %}}
+  {{% /notice %}}
 
 {{% notice info %}}
 
-***Console-created resources*** sẵn sàng cho subsequent tasks:
+**_Console-created resources_** sẵn sàng cho subsequent tasks:
+
 - VPC ID, subnet IDs cho EKS cluster creation
 - Security Group IDs cho EKS và ALB configuration
 - VPC Endpoint IDs cho cost-optimized AWS services access
-
 
 {{% /notice %}}

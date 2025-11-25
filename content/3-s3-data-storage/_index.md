@@ -556,4 +556,5 @@ Ví dụ policy:
 - Kiến trúc S3 rõ ràng, chuẩn MLOps.
 - CSV → Parquet bằng Glue Studio (Visual, có hình minh họa).
 - Có benchmark thực tế trên **CloudShell** và **local**, có số liệu cụ thể.
+- Dễ trình bày trong báo cáo & demo cho GV.
   {{% /notice %}}
