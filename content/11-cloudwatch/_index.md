@@ -16,6 +16,11 @@ Thiết lập hệ thống giám sát toàn diện cho pipeline MLOps Retail Pre
 → Giúp phát hiện sớm lỗi, đảm bảo SLA, và đánh giá hiệu quả mô hình sau triển khai.
 {{% /notice %}}
 
+📥 **Input từ các Task trước:**
+- **Task 7 (EKS Cluster):** Cluster, namespaces và pods cần metrics/logs collection
+- **Task 9 (API Deployment on EKS):** Deployed services and endpoints (`/health`, `/predict`) to instrument for logs and metrics
+- **Task 2 (IAM Roles & Audit):** IAM roles/policies required for CloudWatch Agents and log delivery
+
 ## Kiến trúc tổng quan
 
 Dưới đây là kiến trúc tổng thể của hệ thống monitoring cho MLOps Retail Prediction:

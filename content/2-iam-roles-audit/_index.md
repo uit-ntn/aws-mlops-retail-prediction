@@ -18,6 +18,8 @@ Thiết lập **phân quyền truy cập (IAM)** cho toàn bộ dịch vụ AWS 
 - Vùng mục tiêu: `ap-southeast-1`
 - CloudTrail đa vùng được bật
 
+- **Input từ Task 1:** Task 1 (Introduction) — project conventions, naming, and high-level objectives
+
 
 ✅ **Output**
 - Các dịch vụ AWS có quyền **Least Privilege** phù hợp vai trò

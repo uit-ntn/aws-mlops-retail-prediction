@@ -1,5 +1,5 @@
 ---
-title: "S3 Data Storage"
+title: "Data Pipeline Optimization"
 date: 2024-01-01T00:00:00Z
 weight: 3
 chapter: false
@@ -29,6 +29,8 @@ Tập trung vào:
   {{% /notice %}}
 
 ---
+ 
+📥 **Input từ Task 2:** `IAM Roles & Audit` — account ID, IAM roles/policies and CloudTrail/audit setup required to create buckets, Glue roles and permissions.
 
 ## 🔧 Môi trường lab thực tế
 

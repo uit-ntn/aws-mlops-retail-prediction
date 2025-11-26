@@ -28,6 +28,11 @@ Triển khai Amazon Elastic Kubernetes Service (EKS) để làm nền tảng ch�
 **Cost**: ~$73/month control plane + FREE nodes (12 months)
 {{% /notice %}}
 
+📥 **Input từ các Task trước:**
+- **Task 5 (Production VPC):** Hybrid VPC, subnets, VPC Endpoints and security groups used for EKS networking
+- **Task 2 (IAM Roles & Audit):** IAM roles and policies (cluster role, node role, IRSA foundations)
+- **Task 6 (ECR Registry):** ECR repository for container images that EKS will pull
+
 ## Kiến trúc EKS trong MLOps Pipeline
 
 ### EKS Architecture Overview

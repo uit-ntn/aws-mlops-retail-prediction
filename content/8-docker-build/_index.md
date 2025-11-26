@@ -7,11 +7,15 @@ pre: "<b>8. </b>"
 ---
 
 {{% notice info %}}
-**🎯 Mục tiêu Task 9:**
+**🎯 Mục tiêu Task 8:**
 
 Đóng gói toàn bộ Retail Prediction API (FastAPI + model đã huấn luyện) vào Docker image, sẵn sàng để deploy lên EKS.
 → Đảm bảo môi trường thống nhất, dễ tái sử dụng và sẵn sàng cho EKS deployment.
 {{% /notice %}}
+
+📥 **Input từ Task trước:**
+- **Task 6 (ECR Container Registry):** Source code, Dockerfile and image requirements; reference implementation of the `server/` code
+- **Task 2 (IAM Roles & Audit):** IAM policies required for pulling from ECR and accessing S3 at runtime
 
 ## Tổng quan
 
@@ -47,45 +51,49 @@ server/
 Cấu trúc này đơn giản và dễ maintain. Code thực tế đã được tạo sẵn trong thư mục `retail-price_sensitivy_prediction/server/` và được reference trong Task 6 (ECR Registry).
 {{% /notice %}}
 
-### 1.2. FastAPI Application Reference
+### 1.2. API Components
 
-{{% notice info %}}
-**Code đã được implement trong Task 6 - ECR Registry (Section 2.1)**
-
-Các files sau đã được tạo sẵn và có thể tham khảo trong Task 6:
-- `server/main.py` (145 dòng): FastAPI app với 6 endpoints
-- `server/model_loader.py` (150 dòng): S3 model loading với mock fallback  
-- `server/prediction_service.py` (115 dòng): Feature preprocessing và prediction
-- `server/health_check.py` (24 dòng): Docker HEALTHCHECK script
-- `server/requirements.txt`: Python dependencies
-- `server/Dockerfile`: Multi-stage Docker build
-
-Task này tập trung vào **containerization workflow** và **deployment process**.
-{{% /notice %}}
-
-**Key Features của API đã implement:**
-- ✅ FastAPI với CORS middleware
-- ✅ Pydantic validation models
-- ✅ Model loading từ S3 (với mock fallback cho testing)
-- ✅ Health check endpoints (`/health`, `/ready`)
-- ✅ Prediction endpoints (`/predict`, `/predict/batch`)
-- ✅ Model info endpoint (`/model/info`)
+**API đã được implement với các tính năng cốt lõi:**
+- ✅ FastAPI application với prediction endpoints
+- ✅ Model loading từ S3 
+- ✅ Health check endpoints
 - ✅ Error handling và logging
+- ✅ Docker containerization ready
 ## 2. Dockerfile Configuration
 
-**Dockerfile đã được tạo trong Task 6 - Section 2.1:**
+**Basic Dockerfile cho API containerization:**
 
-Chi tiết cấu hình Docker image với multi-stage build, non-root user, health checks đã được document đầy đủ trong Task 6. File `server/Dockerfile` bao gồm:
+```dockerfile
+# Multi-stage build
+FROM python:3.9-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user -r requirements.txt
 
-- ✅ Multi-stage build (builder + production)
-- ✅ Python 3.9-slim base image
-- ✅ Non-root user `apiuser` cho security
-- ✅ Health check configuration
-- ✅ Environment variables cho S3 model loading
-- ✅ Port 8000 exposed
-- ✅ Uvicorn ASGI server
+# Production stage  
+FROM python:3.9-slim as production
+WORKDIR /app
 
-**Reference:** Xem Task 6, Section 2.1 để biết chi tiết Dockerfile configuration.
+# Copy dependencies
+COPY --from=builder /root/.local /root/.local
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash apiuser
+USER apiuser
+
+# Copy application
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
 
 ## 2. .dockerignore Configuration
 
@@ -327,139 +335,38 @@ Code trong `server/` đã sẵn sàng để build. Chỉ cần navigate đến t
    echo "Images pushed to ECR successfully"
    ```
 
-### 3.3. Create Build & Push Script
+### 3.3. Simple Build & Push Script
 
-**Tạo `scripts/build-push-api.sh` - Automated Build Script:**
+**Tạo `scripts/build-push.sh`:**
 
 ```bash
 #!/bin/bash
+# Simple build and push script
 
-set -e
+# Configuration
+REGION="ap-southeast-1"
+REPO_NAME="mlops/retail-api"
 
-# Script configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-SERVER_DIR="$PROJECT_ROOT/server"
-AWS_REGION="ap-southeast-1"
-ECR_REPO_NAME="retail-prediction-api"
+# Get account ID
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+ECR_URI="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$REPO_NAME"
 
-# Colors for output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+echo "Building Docker image..."
+cd server/
+docker build -t $REPO_NAME:latest .
 
-# Print colored messages
-info() { echo -e "${BLUE}INFO: $1${NC}"; }
-success() { echo -e "${GREEN}SUCCESS: $1${NC}"; }
-warn() { echo -e "${YELLOW}WARNING: $1${NC}"; }
-error() { echo -e "${RED}ERROR: $1${NC}"; exit 1; }
-
-# Validate requirements
-command -v docker >/dev/null 2>&1 || error "Docker is required but not installed"
-command -v aws >/dev/null 2>&1 || error "AWS CLI is required but not installed"
-
-# Get git information
-GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
-BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
-
-info "Building API container image"
-info "Git commit: $GIT_COMMIT"
-info "Git branch: $GIT_BRANCH"
-
-# Validate server directory
-[ -d "$SERVER_DIR" ] || error "Server directory not found: $SERVER_DIR"
-
-# Navigate to server directory  
-cd "$SERVER_DIR"
-
-# Build Docker image
-info "Building Docker image..."
-docker build \
-  --build-arg BUILD_DATE="$BUILD_DATE" \
-  --build-arg GIT_COMMIT="$GIT_COMMIT" \
-  --build-arg GIT_BRANCH="$GIT_BRANCH" \
-  -t "$ECR_REPO_NAME:$GIT_COMMIT" \
-  .
-
-success "Docker image built successfully"
-
-# Test the image
-info "Running container for testing..."
-CONTAINER_ID=$(docker run -d -p 8000:8000 "$ECR_REPO_NAME:$GIT_COMMIT")
-  --build-arg BUILD_DATE="$BUILD_DATE" \
-  --build-arg GIT_COMMIT="$GIT_COMMIT" \
-  --build-arg GIT_BRANCH="$GIT_BRANCH" \
-  -t "$ECR_REPO_NAME:$GIT_COMMIT" \
-  .
-
-success "Docker image built successfully"
-
-# Test the image
-info "Running container for testing..."
-CONTAINER_ID=$(docker run -d -p 8080:8080 "$ECR_REPO_NAME:$GIT_COMMIT")
-
-info "Waiting for container to start..."
+echo "Testing container..."
+docker run -d --name test -p 8000:8000 $REPO_NAME:latest
 sleep 10
+curl -f http://localhost:8000/health
+docker stop test && docker rm test
 
-# Test health endpoint
-if curl -s -f http://localhost:8080/health > /dev/null; then
-  success "Health check passed"
-else
-  warn "Health check failed, but continuing with push"
-fi
+echo "Pushing to ECR..."
+aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URI
+docker tag $REPO_NAME:latest $ECR_URI:latest
+docker push $ECR_URI:latest
 
-# Stop and remove the test container
-docker stop "$CONTAINER_ID" > /dev/null
-docker rm "$CONTAINER_ID" > /dev/null
-
-# Get AWS account ID
-info "Getting AWS account ID..."
-AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-[ -z "$AWS_ACCOUNT_ID" ] && error "Failed to get AWS account ID"
-
-ECR_REPOSITORY="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO_NAME"
-
-# Create ECR repository if it doesn't exist
-info "Checking ECR repository..."
-if ! aws ecr describe-repositories --repository-names "$ECR_REPO_NAME" --region "$AWS_REGION" &> /dev/null; then
-  info "Creating ECR repository: $ECR_REPO_NAME"
-  aws ecr create-repository \
-    --repository-name "$ECR_REPO_NAME" \
-    --image-scanning-configuration scanOnPush=true \
-    --region "$AWS_REGION"
-fi
-
-# Login to ECR
-info "Logging in to ECR..."
-aws ecr get-login-password --region "$AWS_REGION" | \
-  docker login --username AWS --password-stdin "$ECR_REPOSITORY"
-
-# Tag images
-info "Tagging images..."
-docker tag "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:latest"
-docker tag "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:$GIT_COMMIT"
-docker tag "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT"
-
-# Push images to ECR
-info "Pushing images to ECR..."
-docker push "$ECR_REPOSITORY:latest"
-docker push "$ECR_REPOSITORY:$GIT_COMMIT"
-docker push "$ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT"
-
-success "Images successfully pushed to ECR"
-echo "📦 Image URLs:"
-echo "  - $ECR_REPOSITORY:latest"
-echo "  - $ECR_REPOSITORY:$GIT_COMMIT"
-echo "  - $ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT"
-
-# Clean up local images
-info "Cleaning up local images..."
-docker rmi "$ECR_REPO_NAME:$GIT_COMMIT" "$ECR_REPOSITORY:latest" "$ECR_REPOSITORY:$GIT_COMMIT" "$ECR_REPOSITORY:$GIT_BRANCH-$GIT_COMMIT" > /dev/null 2>&1 || true
-
-success "Build and push completed successfully!"
+echo "✅ Build and push completed!"
 ```
 
 ### 3.4. Verify in ECR Console
@@ -675,786 +582,54 @@ This containerization approach ensures consistent environments across developmen
 
 The containerized API is now ready to be deployed to Amazon EKS, which will be covered in the next task.
 
----
 
-### 3.1. GitHub Actions Workflow
 
-**Tạo `.github/workflows/docker-build.yml`:**
+## 4. Verification
 
-```yaml
-name: Docker Build and Push
-
-on:
-  push:
-    branches: [main, develop]
-    paths:
-      - 'server/**'
-      - '.github/workflows/docker-build.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'server/**'
-
-env:
-  AWS_REGION: ap-southeast-1
-  ECR_REPOSITORY: retail-forecast
-
-jobs:
-  build-and-push:
-    name: Build and Push Docker Image
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Extract metadata
-      id: meta
-      run: |
-        echo "git-commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-        echo "git-branch=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-        echo "build-date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-        echo "image-tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: ./server
-        file: ./server/Dockerfile
-        push: true
-        tags: |
-          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image-tag }}
-          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.git-branch }}-${{ steps.meta.outputs.image-tag }}
-        build-args: |
-          BUILD_DATE=${{ steps.meta.outputs.build-date }}
-          GIT_COMMIT=${{ steps.meta.outputs.git-commit }}
-          GIT_BRANCH=${{ steps.meta.outputs.git-branch }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-
-    - name: Run security scan
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image-tag }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-
-    - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
-      if: always()
-      with:
-        sarif_file: 'trivy-results.sarif'
-
-    - name: Test container
-      run: |
-        # Run container for testing
-        docker run -d --name test-container \
-          -p 8000:8000 \
-          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image-tag }}
-        
-        # Wait for container to start
-        sleep 30
-        
-        # Test health endpoint
-        curl -f http://localhost:8000/health || exit 1
-        
-        # Stop test container
-        docker stop test-container
-        docker rm test-container
-
-    - name: Output image details
-      run: |
-        echo "🚀 Successfully built and pushed:"
-        echo "📍 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest"
-        echo "📍 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.image-tag }}"
-        echo "📍 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.meta.outputs.git-branch }}-${{ steps.meta.outputs.image-tag }}"
-```
-
-### 3.2. Jenkins Pipeline
-
-**Tạo `aws/Jenkinsfile`:**
-
-```groovy
-pipeline {
-    agent any
-    
-    environment {
-        AWS_REGION = 'ap-southeast-1'
-        ECR_REPOSITORY = 'retail-forecast'
-        PROJECT_NAME = 'mlops-retail-forecast'
-        ENVIRONMENT = 'dev'
-    }
-    
-    stages {
-        stage('Checkout') {
-            steps {
-                checkout scm
-                script {
-                    env.GIT_COMMIT = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
-                    env.GIT_BRANCH = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
-                    env.BUILD_DATE = sh(returnStdout: true, script: 'date -u +%Y-%m-%dT%H:%M:%SZ').trim()
-                }
-            }
-        }
-        
-        stage('Validate') {
-            steps {
-                script {
-                    // Check required files
-                    def requiredFiles = [
-                        'server/Dockerfile',
-                        'server/main.py', 
-                        'server/requirements.txt'
-                    ]
-                    
-                    requiredFiles.each { file ->
-                        if (!fileExists(file)) {
-                            error("Required file not found: ${file}")
-                        }
-                    }
-                }
-            }
-        }
-        
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    dir('server') {
-                        def imageTag = "${env.GIT_COMMIT}"
-                        def imageName = "${env.ECR_REPOSITORY}:${imageTag}"
-                        
-                        sh """
-                            docker build \
-                                --build-arg BUILD_DATE='${env.BUILD_DATE}' \
-                                --build-arg GIT_COMMIT='${env.GIT_COMMIT}' \
-                                --build-arg GIT_BRANCH='${env.GIT_BRANCH}' \
-                                -t ${imageName} \
-                                .
-                        """
-                        
-                        env.IMAGE_NAME = imageName
-                        env.IMAGE_TAG = imageTag
-                    }
-                }
-            }
-        }
-        
-        stage('Test Image') {
-            steps {
-                script {
-                    // Run container for testing
-                    def containerId = sh(
-                        returnStdout: true,
-                        script: "docker run -d -p 8001:8000 ${env.IMAGE_NAME}"
-                    ).trim()
-                    
-                    try {
-                        // Wait for container to start
-                        sleep(30)
-                        
-                        // Test health endpoint
-                        sh "curl -f http://localhost:8001/health"
-                        
-                        echo "✅ Container health check passed"
-                        
-                    } finally {
-                        // Always clean up
-                        sh "docker stop ${containerId} || true"
-                        sh "docker rm ${containerId} || true"
-                    }
-                }
-            }
-        }
-        
-        stage('Security Scan') {
-            steps {
-                script {
-                    // Run Trivy security scan
-                    sh """
-                        docker run --rm \
-                            -v /var/run/docker.sock:/var/run/docker.sock \
-                            -v \$PWD:/workspace \
-                            aquasec/trivy:latest \
-                            image --format json --output /workspace/trivy-report.json \
-                            ${env.IMAGE_NAME}
-                    """
-                    
-                    // Archive scan results
-                    archiveArtifacts artifacts: 'trivy-report.json', fingerprint: true
-                }
-            }
-        }
-        
-        stage('Push to ECR') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'develop'
-                }
-            }
-            steps {
-                script {
-                    // Get AWS account ID
-                    def awsAccountId = sh(
-                        returnStdout: true,
-                        script: 'aws sts get-caller-identity --query Account --output text'
-                    ).trim()
-                    
-                    def ecrRegistry = "${awsAccountId}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
-                    def ecrRepository = "${ecrRegistry}/${env.ECR_REPOSITORY}"
-                    
-                    // Login to ECR
-                    sh """
-                        aws ecr get-login-password --region ${env.AWS_REGION} | \
-                        docker login --username AWS --password-stdin ${ecrRegistry}
-                    """
-                    
-                    // Tag images
-                    def tags = ['latest', env.IMAGE_TAG, "${env.GIT_BRANCH}-${env.IMAGE_TAG}"]
-                    
-                    tags.each { tag ->
-                        sh "docker tag ${env.IMAGE_NAME} ${ecrRepository}:${tag}"
-                        sh "docker push ${ecrRepository}:${tag}"
-                        echo "✅ Pushed ${ecrRepository}:${tag}"
-                    }
-                    
-                    // Store ECR URLs for later stages
-                    env.ECR_REPOSITORY_URL = ecrRepository
-                }
-            }
-        }
-        
-        stage('Update Deployment') {
-            when {
-                branch 'main'
-            }
-            steps {
-                script {
-                    // Update Kubernetes deployment
-                    sh """
-                        kubectl set image deployment/retail-forecast-api \
-                            api=${env.ECR_REPOSITORY_URL}:${env.IMAGE_TAG} \
-                            --record
-                    """
-                    
-                    echo "✅ Deployment updated with new image"
-                }
-            }
-        }
-        
-        stage('Cleanup') {
-            steps {
-                script {
-                    // Clean up local images
-                    sh "docker rmi ${env.IMAGE_NAME} || true"
-                    sh "docker system prune -f || true"
-                }
-            }
-        }
-    }
-    
-    post {
-        always {
-            // Clean up workspace
-            cleanWs()
-        }
-        
-        success {
-            echo """
-            🎉 Pipeline completed successfully!
-            
-            📍 Image URLs:
-            - ${env.ECR_REPOSITORY_URL}:latest
-            - ${env.ECR_REPOSITORY_URL}:${env.IMAGE_TAG}
-            - ${env.ECR_REPOSITORY_URL}:${env.GIT_BRANCH}-${env.IMAGE_TAG}
-            
-            🚀 Next steps:
-            - Verify deployment in EKS
-            - Run integration tests
-            - Monitor application metrics
-            """
-        }
-        
-        failure {
-            echo "❌ Pipeline failed. Check logs for details."
-        }
-    }
-}
-```
-
----
-
-## 4. Image Optimization & Best Practices
-
-### 4.1. Multi-stage Build Optimization
-
-**Advanced Dockerfile với optimization:**
-
-```dockerfile
-# Build stage với dependency caching
-FROM python:3.9-slim as dependencies
-
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy requirements first for Docker layer caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-# Production base image
-FROM python:3.9-slim as base
-
-# Install only runtime dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
-
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Production stage
-FROM base as production
-
-ARG BUILD_DATE
-ARG GIT_COMMIT  
-ARG GIT_BRANCH
-
-# Metadata labels
-LABEL maintainer="MLOps Team"
-LABEL build_date=$BUILD_DATE
-LABEL git_commit=$GIT_COMMIT
-LABEL git_branch=$GIT_BRANCH
-LABEL description="Retail Forecast ML Inference API"
-
-WORKDIR /app
-
-# Copy dependencies from builder
-COPY --from=dependencies /root/.local /home/appuser/.local
-
-# Copy application code
-COPY --chown=appuser:appuser . .
-
-# Create required directories
-RUN mkdir -p /app/model /app/logs && \
-    chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
-
-# Environment variables
-ENV PATH=/home/appuser/.local/bin:$PATH
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-ENV AWS_DEFAULT_REGION=ap-southeast-1
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Start application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
-```
-
-### 4.2. .dockerignore Configuration
-
-**Tạo `server/.dockerignore`:**
-
-```
-# Git
-.git
-.gitignore
-
-# Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-.Python
-*.so
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache
-
-# Virtual environments
-venv/
-env/
-ENV/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Documentation
-README.md
-*.md
-docs/
-
-# Test files
-test_*
-*_test.py
-tests/
-
-# Development files
-docker-compose.yml
-Dockerfile.dev
-
-# Logs
-logs/
-*.log
-
-# Temporary files
-tmp/
-temp/
-.tmp
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-
-# Model files (large files should be downloaded at runtime)
-model/*.pkl
-model/*.joblib
-*.model
-```
-
-### 4.3. Image Size Optimization
-
-**Strategies để giảm image size:**
-
-1. **Use Alpine base images:**
-```dockerfile
-FROM python:3.9-alpine as builder
-# Install build dependencies for Alpine
-RUN apk add --no-cache gcc musl-dev libffi-dev
-```
-
-2. **Multi-stage builds:**
-```dockerfile
-# Only copy production dependencies
-COPY --from=builder /root/.local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
-```
-
-3. **Remove unnecessary packages:**
-```dockerfile
-RUN apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-```
-
-### 4.4. Security Best Practices
-
-**Security hardening:**
-
-```dockerfile
-# Use specific version tags
-FROM python:3.9.18-slim
-
-# Don't run as root
-USER appuser
-
-# Use read-only filesystem
-COPY --chown=appuser:appuser --chmod=755 ./scripts/ /app/scripts/
-
-# Set security headers
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Health check with timeout
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-```
-
----
-
-## 5. Testing & Validation
-
-### 5.1. Local Container Testing
-
-**Test API container locally:**
+### 4.1. Local Testing
 
 ```bash
-# Run container with environment variables
-docker run -d \
-    --name retail-api-test \
-    -p 8080:8080 \
-    -e AWS_DEFAULT_REGION=ap-southeast-1 \
-    -e MODEL_BUCKET=mlops-retail-prediction-dev-us-east-1 \
-    -e MODEL_PREFIX=artifacts/ \
-    retail-prediction-api:latest
-
-# Wait for startup
-sleep 10
+# Test container locally
+docker run -d --name test-api -p 8000:8000 mlops/retail-api:latest
 
 # Test health endpoint
-curl http://localhost:8080/health
+curl http://localhost:8000/health
 
 # Test prediction endpoint
-curl -X POST http://localhost:8080/predict \
-    -H "Content-Type: application/json" \
-    -d '{
-        "basket_items": {
-            "item1": {"price": 10.99, "quantity": 2, "category": "food"},
-            "item2": {"price": 25.50, "quantity": 1, "category": "electronics"}
-        },
-        "customer_id": "test-customer-123"
-    }'
-
-# Check container logs
-docker logs retail-api-test
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"basket_items": {"item1": {"price": 10.0, "quantity": 2}}}'
 
 # Clean up
-docker stop retail-api-test
-docker rm retail-api-test
+docker stop test-api && docker rm test-api
 ```
 
-### 5.2. Image Security Scanning
-
-**Run vulnerability scans:**
+### 4.2. ECR Push Verification
 
 ```bash
-# Scan image with ECR
-aws ecr start-image-scan \
-    --repository-name retail-prediction-api \
-    --image-id imageTag=latest \
-    --region ap-southeast-1
+# Verify image in ECR
+aws ecr list-images --repository-name mlops/retail-api --region ap-southeast-1
 
-# Get scan results
+# Check image scan results
 aws ecr describe-image-scan-findings \
-    --repository-name retail-prediction-api \
-    --image-id imageTag=latest \
-    --region ap-southeast-1
-
-# Use Trivy for local scanning (optional)
-docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-    aquasec/trivy:latest image retail-prediction-api:latest
+  --repository-name mlops/retail-api \
+  --image-id imageTag=latest \
+  --region ap-southeast-1
 ```
 
-### 5.3. EKS Deployment Preparation
-  push:
-    branches: [ main ]
-    paths:
-      - 'server/**'
-  pull_request:
-    branches: [ main ]
-    paths:
-      - 'server/**'
-
-env:
-  AWS_REGION: ap-southeast-1
-  ECR_REPOSITORY: retail-prediction-api
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-    
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      run: |
-        cd server
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} .
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
-    
-    - name: Fill in the new image ID in the Amazon EKS deployment
-      if: github.ref == 'refs/heads/main'
-      run: |
-        aws eks update-kubeconfig --name mlops-eks-cluster --region $AWS_REGION
-        kubectl set image deployment/retail-prediction-api api=${{ steps.build-image.outputs.image }} -n retail-prediction
-        kubectl rollout status deployment/retail-prediction-api -n retail-prediction
-```
-
-## 5.2. EKS Deployment
-
-Create a basic Kubernetes deployment manifest for the prediction API:
-
-```yaml
-# deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: retail-prediction-api
-  namespace: retail-prediction
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: retail-prediction-api
-  template:
-    metadata:
-      labels:
-        app: retail-prediction-api
-    spec:
-      serviceAccountName: retail-api  # IRSA-enabled service account
-      containers:
-      - name: api
-        image: ${AWS_ACCOUNT_ID}.dkr.ecr.ap-southeast-1.amazonaws.com/retail-prediction-api:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8000
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "0.5"
-          limits:
-            memory: "2Gi"
-            cpu: "1"
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 15
-          periodSeconds: 5
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 15
-        env:
-        - name: LOG_LEVEL
-          value: "INFO"
-        - name: MODEL_BUCKET
-          value: "mlops-retail-models"
-        - name: MODEL_KEY
-          value: "artifacts/model-v1/model.tar.gz"
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: retail-prediction-api
-  namespace: retail-prediction
-spec:
-  selector:
-    app: retail-prediction-api
-  ports:
-  - port: 80
-    targetPort: 8000
-  type: ClusterIP
-```
-```bash
-# Solution: Use pip-tools for dependency management
-pip install pip-tools
-pip-compile requirements.in  # Generate requirements.txt with locked versions
-```
-
-**Issue 2: Large image sizes**
-```bash
-# Analyze image layers
-docker history retail-forecast:latest
-
-# Use dive tool for detailed analysis
-dive retail-forecast:latest
-```
-
-**Issue 3: ECR push fails with authentication errors**
-```bash
-# Refresh ECR login
-aws ecr get-login-password --region ap-southeast-1 | \
-    docker login --username AWS --password-stdin $ECR_REPOSITORY
-
-# Check AWS credentials
-aws sts get-caller-identity
-```
-
-**Issue 4: Container startup fails**
-```bash
-# Debug container startup
-docker run -it --entrypoint /bin/bash retail-forecast:latest
-
-# Check application logs
-docker logs <container-id>
-```
-
----
+## 5. Summary
 
 {{% notice success %}}
-**🎯 Task 9 Complete!**
+**🎯 Task 8 Complete - API Containerization**
 
-API Containerization đã được hoàn thành thành công với:
+✅ **Docker image** ready cho deployment  
+✅ **Local testing** passed  
+✅ **ECR integration** working  
+✅ **Build scripts** available cho automation  
 
-✅ **FastAPI inference application** với health checks và monitoring  
-✅ **Multi-stage Dockerfile** optimized cho production  
-✅ **Manual build & test scripts** (Linux/macOS + Windows PowerShell)  
-✅ **Local testing** và container validation  
-✅ **Image optimization** và security best practices  
-✅ **ECR integration** với manual push và scanning  
-✅ **EKS deployment preparation** với Kubernetes manifests  
-
-**Next Steps:**
-- Task 10: Deploy container lên EKS cluster
-- Task 11: Configure Load Balancer cho API access
-- Task 12: Setup monitoring và logging
+**Container sẵn sàng cho EKS deployment trong Task 9!**
 {{% /notice %}}
 
-{{% notice tip %}}
-**💡 Production Considerations:**
+---
 
-- **Security scanning**: Regular vulnerability scans với ECR/Trivy
-- **Image signing**: Use AWS Signer cho supply chain security
-- **Multi-architecture builds**: Support ARM64 cho cost optimization
-- **Layer caching**: Optimize Dockerfile layer ordering
-- **Version management**: Consistent tagging strategy
-- **Performance monitoring**: Container resource usage và response times
-{{% /notice %}}
+**Next Step**: [Task 9: Deploy API lên EKS](../9-deploy-kubernetes/)

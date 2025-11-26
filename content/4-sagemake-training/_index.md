@@ -1,5 +1,5 @@
 ---
-title: "SageMaker Training & Model Registry"
+title: "End-to-End Model Training Pipeline"
 weight: 4
 chapter: false
 pre: "<b>4. </b>"
@@ -136,9 +136,6 @@ Warning: Nếu bucket của bạn dùng SSE-KMS, role cần có quyền decrypt/
 
 - Đợi 2-3 phút để Project được provisioned
 
-![Project Creation Final](../images/4-sagemake-training/05.6.png)
-
-
 ### 2.3. Truy cập Project Workspace
 
 **Sau khi Project `retail-ml-training` tạo thành công:**
@@ -198,7 +195,7 @@ aws ec2 describe-vpcs --region us-east-1
 **Project creation ready:** Role đã được cấu hình đầy đủ từ Task 2, có thể tạo Project ngay lập tức.
 {{% /notice %}}
 
-### 2.5. Khuyến nghị vùng cho Task 4 (Region recommendation)
+### 2.5. Khuyến nghị Region cho Task 4
 
 **Tóm tắt:** Nếu dữ liệu `gold/` và `artifacts/` hiện đang nằm trong bucket `mlops-retail-prediction-dev-842676018087` (region `us-east-1`), khuyến nghị là **tạo SageMaker Domain / Project ở cùng `us-east-1`** để tránh lỗi cross-region (S3 301), phức tạp với KMS và endpoint.
 

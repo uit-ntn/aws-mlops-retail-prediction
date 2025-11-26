@@ -18,6 +18,12 @@ Thiết lập pipeline CI/CD tự động cho toàn bộ vòng đời dự án M
 → Đảm bảo triển khai liên tục, giảm lỗi thủ công, tiết kiệm thời gian và chi phí.
 {{% /notice %}}
 
+📥 **Input từ các Task trước:**
+- **Task 6 (ECR Container Registry):** Docker images & repository URIs to push built images
+- **Task 9 (API Deployment on EKS):** Kubernetes manifests and deployment steps used by CD stage
+- **Task 11 (CloudWatch):** Monitoring and alarms used for deployment verification and auto-rollback
+- **Task 2 (IAM Roles & Audit):** IAM roles and OIDC/permissions for CI runners (GitHub Actions / Jenkins)
+
 ## 1. Cấu trúc pipeline tổng quát
 
 Pipeline CI/CD của dự án Retail Prediction sẽ tự động hóa toàn bộ quy trình từ commit code đến deploy lên production, bao gồm cả việc huấn luyện lại model khi cần thiết.

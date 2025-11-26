@@ -15,6 +15,11 @@ Thiết lập cơ chế phân phối lưu lượng (Load Balancing) cho API Reta
 - Duy trì tính sẵn sàng & bảo mật của dịch vụ
 {{% /notice %}}
 
+📥 **Input từ các Task trước:**
+- **Task 5 (Production VPC):** VPC subnets, security groups và VPC Endpoints để ALB và EKS hoạt động
+- **Task 7 (EKS Cluster):** EKS cluster và Service/Ingress targets để ALB forward traffic
+- **Task 6 (ECR Container Registry):** Container images (API) được deploy vào EKS và expose qua ALB
+
 ## 1. Tổng quan về Load Balancing cho Retail Prediction API
 
 Load Balancing là một thành phần thiết yếu trong kiến trúc microservices trên AWS EKS, đặc biệt quan trọng cho Retail Prediction API - dịch vụ dự đoán doanh số có thể phải xử lý khối lượng request lớn và đột biến. Load Balancing đảm bảo:
