@@ -8,15 +8,18 @@ pre: "<b>6. </b>"
 
 {{% notice info %}}
 **🎯 Mục tiêu Task 6:** Thiết lập Amazon Elastic Container Registry (ECR) cho MLOps pipeline:
-1. **Tạo ECR Repository**: Cài đặt repo cho API và training image
-2. **Cấu hình Security**: Image scanning, IAM policy, lifecycle rules
-3. **Build & Push Image**: Upload image lên ECR thông qua CLI/console
+1. **Tạo ECR Repository**: Repository cho API container
+2. **Cấu hình Security**: Image scanning, IAM policy, lifecycle rules  
+3. **Build & Push Image**: Upload FastAPI container lên ECR
 4. **Manual Build & Push**: Hướng dẫn build/push bằng script (CLI / PowerShell)
 {{% /notice %}}
 
 📥 **Input từ các Task trước:**
 - **Task 2 (IAM Roles & Audit):** IAM roles, policies và permissions cho ECR/EKS/S3 access
 - **Task 5 (Production VPC):** VPC endpoints, networking và security groups để cho phép EKS pull images từ ECR
+
+📦 **Output:**
+- **Inference Container**: `server/` code → FastAPI API serving predictions trong EKS
 
 ## Tổng quan
 
@@ -49,11 +52,9 @@ pre: "<b>6. </b>"
 
 ![](/images/06-ecr-registry/03.1.png)
 
-4. **Training Repository (Optional):**
+4. **Repository Setup Complete:**
    
-   Tương tự, tạo thêm repository cho training model:
-
-![](/images/06-ecr-registry/03.2.png)
+   API repository đã sẵn sàng cho containerized FastAPI application.
 
 5. **Repository Management Interface:**
    
@@ -144,7 +145,7 @@ pre: "<b>6. </b>"
 {{% notice success %}}
 **🎯 ECR Repositories Setup Complete!**
 
-**Created Repositories:**
+**Created Repository:**
 
 - ✅ `mlops/retail-api`: FastAPI prediction service container
 - ✅ Repository URI: `<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api`
@@ -289,6 +290,12 @@ docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:l
 
 ![](/images/06-ecr-registry/12.png)
 
+![](/images/06-ecr-registry/13.png)
+
+**Kiểm tra bằng console:**
+
+![](/images/06-ecr-registry/14.png)
+
 ### 2.5. Container Environment & Testing
 
 **Environment Variables:**
@@ -331,8 +338,8 @@ ECR registry đã được thiết lập và tích hợp với EKS cluster `mlop
 
 ## Kết quả Task 6
 
-✅ **ECR Repositories** - mlops/retail-api và mlops/train-model repositories  
-✅ **Container Images** - FastAPI prediction service và training containers  
+✅ **ECR Repository** - mlops/retail-api repository  
+✅ **Container Image** - FastAPI prediction service  
 ✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month  
 
 {{% notice success %}}

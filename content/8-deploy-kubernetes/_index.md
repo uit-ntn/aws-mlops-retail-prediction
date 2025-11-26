@@ -8,15 +8,13 @@ pre: "<b>8. </b>"
 
 {{% notice info %}}
 **🎯 Mục tiêu Task 9:**
-
+{{% /notice %}}
 Triển khai Retail Prediction API (FastAPI) lên EKS Cluster, kết nối model từ S3 và expose endpoint public qua Load Balancer (ALB).  
 → Đảm bảo dịch vụ chạy ổn định, tự động scale, bảo mật, và có thể demo API thật.
-{{% /notice %}}
 
 📥 **Input từ các Task trước:**
 - **Task 5 (Production VPC):** VPC design, subnets, VPC Endpoints and ALB networking required for cluster and load balancer
 - **Task 6 (ECR Container Registry):** Container images and repository URIs to deploy
-- **Task 8 (API Containerization):** Docker image layout, Dockerfile and runtime environment variables
 - **Task 2 (IAM Roles & Audit):** IRSA roles and policies for Pods to access S3 and other AWS services
 - **Task 7 (EKS Cluster):** EKS cluster and node groups where manifests will be applied
 
@@ -373,9 +371,6 @@ kubectl get hpa retail-api-hpa -n retail-prediction -w
 # Theo dõi pods được tạo mới
 kubectl get pods -n retail-prediction -w
 ```
-
-## 7. Summary
-
 {{% notice success %}}
 **🎯 Task 9 Complete - API Deployment on EKS**
 
@@ -391,7 +386,7 @@ kubectl get pods -n retail-prediction -w
 
 **Next Step**: [Task 10: Load Balancing](../10-elastic-load-balancing/)
 
-## 11. Chi phí ước tính
+## 9. Chi phí ước tính
 
 | Thành phần | Ước tính | Ghi chú |
 |------------|----------|---------|
@@ -402,21 +397,6 @@ kubectl get pods -n retail-prediction -w
 {{% notice info %}}
 Chi phí tính toán dựa trên Spot instances t3.medium và NLB tại region ap-southeast-1. Chi phí thực tế có thể thay đổi tùy theo cấu hình và thời gian sử dụng.
 {{% /notice %}}
-
-## 12. Kết quả kỳ vọng
-
-### ✅ Checklist hoàn thành
-
-- [ ] **Namespace**: Namespace `retail-prediction` được tạo thành công
-- [ ] **ConfigMap**: Environment variables được cấu hình
-- [ ] **ServiceAccount**: IRSA được thiết lập cho S3 access
-- [ ] **Deployment**: Pod ở trạng thái Running
-- [ ] **Service**: LoadBalancer hoạt động với external IP/hostname
-- [ ] **HPA**: Horizontal Pod Autoscaler được cấu hình
-- [ ] **Health Checks**: `/health` endpoint trả về 200 OK
-- [ ] **Load Testing**: API có khả năng scale khi tải tăng
-- [ ] **Model Access**: Container có thể tải model từ S3
-- [ ] **Prediction API**: Endpoint `/predict` có thể xử lý requests
 
 ### 📊 Kiểm tra xác nhận
 
