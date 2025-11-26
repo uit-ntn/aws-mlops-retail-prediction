@@ -33,577 +33,97 @@ pre: "<b>8. </b>"
 
 ```
 server/
-├── app/
-│   ├── main.py           # FastAPI application
-│   ├── predict.py        # Model inference logic
-│   └── utils/            # Data preprocessing
+├── main.py               # FastAPI application
+├── model_loader.py       # Model loading từ S3
+├── prediction_service.py # Prediction logic
+├── health_check.py       # Health check script
+├── index.html            # Web UI cho testing
 ├── Dockerfile            # Multi-stage build
-└── requirements.txt      # Python dependencies
+├── requirements.txt      # Python dependencies
+└── README.md             # Documentation
 ```
 
-### 1.2. FastAPI Application
+{{% notice tip %}}
+Cấu trúc này đơn giản và dễ maintain. Code thực tế đã được tạo sẵn trong thư mục `retail-price_sensitivy_prediction/server/` và được reference trong Task 6 (ECR Registry).
+{{% /notice %}}
 
-**Tạo `server/app/main.py` - FastAPI Application:**
+### 1.2. FastAPI Application Reference
 
-```python
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-import logging
-import uuid
-from typing import Dict, Any, Optional
-import os
-from datetime import datetime
-import uvicorn
+{{% notice info %}}
+**Code đã được implement trong Task 6 - ECR Registry (Section 2.1)**
 
-from app.predict import PriceModel
-from app.utils.logging import setup_logger
+Các files sau đã được tạo sẵn và có thể tham khảo trong Task 6:
+- `server/main.py` (145 dòng): FastAPI app với 6 endpoints
+- `server/model_loader.py` (150 dòng): S3 model loading với mock fallback  
+- `server/prediction_service.py` (115 dòng): Feature preprocessing và prediction
+- `server/health_check.py` (24 dòng): Docker HEALTHCHECK script
+- `server/requirements.txt`: Python dependencies
+- `server/Dockerfile`: Multi-stage Docker build
 
-# Configure logging
-logger = setup_logger("retail-api")
+Task này tập trung vào **containerization workflow** và **deployment process**.
+{{% /notice %}}
 
-# FastAPI app initialization
-app = FastAPI(
-    title="Retail Price Sensitivity API",
-    description="ML API for predicting basket price sensitivity",
-    version="1.0.0"
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Pydantic models
-class BasketItem(BaseModel):
-    product_id: str
-    quantity: int
-    price: float
-    category: Optional[str] = None
-
-class PredictionRequest(BaseModel):
-    basket_items: Dict[str, Any]
-    customer_id: Optional[str] = None
-    store_id: Optional[str] = None
-    timestamp: Optional[datetime] = None
-
-class PredictionResponse(BaseModel):
-    sensitivity: str = Field(..., description="Price sensitivity level: Low, Medium, or High")
-    confidence: float = Field(..., description="Confidence score of prediction")
-    prediction_id: str = Field(..., description="Unique identifier for this prediction")
-    model_version: str = Field(..., description="Version of the model used")
-    timestamp: datetime = Field(..., description="Time when prediction was made")
-
-# Initialize model
-model = None
-
-@app.on_event("startup")
-async def startup_event():
-    """Load model on startup"""
-    global model
-    logger.info("Starting up Retail Price Sensitivity API")
-    
-    try:
-        model = PriceModel()
-        await model.load_model()
-        logger.info(f"Model loaded successfully: version {model.version}")
-    except Exception as e:
-        logger.error(f"Failed to load model: {str(e)}")
-        model = None
-
-@app.get("/")
-async def root():
-    """Root endpoint"""
-    return {
-        "message": "Retail Price Sensitivity Prediction API",
-        "version": "1.0.0",
-        "status": "running"
-    }
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    is_healthy = model is not None and model.is_loaded
-    
-    if not is_healthy:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-        
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat(),
-        "version": model.version if model else "unknown",
-        "model_loaded": is_healthy
-    }
-
-@app.get("/ready")
-async def readiness():
-    """Kubernetes readiness probe"""
-    if model is None or not model.is_loaded:
-        raise HTTPException(status_code=503, detail="Model not ready")
-    return {"status": "ready"}
-
-@app.post("/predict", response_model=PredictionResponse)
-async def predict(request: PredictionRequest):
-    """Predict price sensitivity for a basket"""
-    
-    if model is None or not model.is_loaded:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    
-    try:
-        # Process the basket items and make prediction
-        result = await model.predict(
-            basket_items=request.basket_items,
-            customer_id=request.customer_id,
-            store_id=request.store_id
-        )
-        
-        # Return formatted response
-        return PredictionResponse(
-            sensitivity=result["sensitivity"],
-            confidence=result["confidence"],
-            prediction_id=str(uuid.uuid4()),
-            model_version=model.version,
-            timestamp=datetime.utcnow()
-        )
-    except ValueError as e:
-        logger.warning(f"Invalid input: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Prediction error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Prediction failed")
-
-@app.post("/model/reload")
-async def reload_model(background_tasks: BackgroundTasks):
-    """Reload model in background"""
-    global model
-    
-    async def _reload():
-        global model
-        try:
-            if model is None:
-                model = PriceModel()
-            await model.load_model(force_reload=True)
-            logger.info("Model reloaded successfully")
-        except Exception as e:
-            logger.error(f"Failed to reload model: {str(e)}")
-    
-    background_tasks.add_task(_reload)
-    return {"message": "Model reload initiated"}
-
-@app.get("/model/info")
-async def model_info():
-    """Get model information"""
-    if model is None or not model.is_loaded:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    
-    return {
-        "version": model.version,
-        "features": model.features,
-        "model_type": model.model_type,
-        "loaded_at": model.loaded_at.isoformat() if model.loaded_at else None,
-        "metrics": model.metrics
-    }
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8080"))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, log_level="info")
-```
-
-### 1.3. Model Prediction Logic
-
-**Tạo `server/app/predict.py` - Model Integration Logic:**
-
-```python
-import os
-import boto3
-import joblib
-import tarfile
-import tempfile
-import asyncio
-import logging
-import numpy as np
-import pandas as pd
-from datetime import datetime
-from typing import Dict, Any, List, Optional, Tuple
-
-from app.utils.preprocessing import preprocess_basket
-
-logger = logging.getLogger("retail-api.predict")
-
-class PriceModel:
-    """Price sensitivity prediction model"""
-    
-    def __init__(self):
-        """Initialize the model"""
-        self.model = None
-        self.is_loaded = False
-        self.version = "unknown"
-        self.features = []
-        self.model_type = "unknown"
-        self.loaded_at = None
-        self.metrics = {}
-        
-        # Model S3 location
-        self.bucket = os.environ.get("MODEL_BUCKET", "mlops-retail-models")
-        self.model_key = os.environ.get("MODEL_KEY", "artifacts/model-v1/model.tar.gz")
-        self.region = os.environ.get("AWS_REGION", "ap-southeast-1")
-    
-    async def load_model(self, force_reload: bool = False):
-        """Load model from S3 or local storage"""
-        if self.is_loaded and not force_reload:
-            logger.info("Model already loaded")
-            return
-            
-        try:
-            # Create temp directory for model artifacts
-            temp_dir = tempfile.mkdtemp()
-            model_file = os.path.join(temp_dir, "model.tar.gz")
-            
-            # Download model from S3 if in AWS environment
-            if os.environ.get("AWS_REGION"):
-                logger.info(f"Downloading model from S3: s3://{self.bucket}/{self.model_key}")
-                
-                # Use asyncio to not block the event loop
-                await asyncio.to_thread(
-                    self._download_from_s3, 
-                    self.bucket, 
-                    self.model_key, 
-                    model_file
-                )
-            else:
-                # For local development use local file
-                model_file = os.environ.get("MODEL_PATH", "model/model.tar.gz")
-                if not os.path.exists(model_file):
-                    raise FileNotFoundError(f"Model file not found at {model_file}")
-                
-            # Extract and load the model
-            logger.info("Loading model from file")
-            await asyncio.to_thread(self._load_from_tarfile, model_file)
-            
-            self.is_loaded = True
-            self.loaded_at = datetime.utcnow()
-            logger.info(f"Model loaded successfully: {self.model_type} (version {self.version})")
-            
-        except Exception as e:
-            logger.error(f"Failed to load model: {str(e)}")
-            self.is_loaded = False
-            raise
-    
-    def _download_from_s3(self, bucket: str, key: str, local_path: str):
-        """Download model file from S3"""
-        try:
-            s3_client = boto3.client('s3', region_name=self.region)
-            s3_client.download_file(bucket, key, local_path)
-            logger.info(f"Model downloaded from S3 to {local_path}")
-        except Exception as e:
-            logger.error(f"Failed to download from S3: {str(e)}")
-            raise
-    
-    def _load_from_tarfile(self, tarfile_path: str):
-        """Extract and load model from tarfile"""
-        extract_dir = tempfile.mkdtemp()
-        
-        try:
-            # Extract tar.gz file
-            with tarfile.open(tarfile_path, "r:gz") as tar:
-                tar.extractall(path=extract_dir)
-            
-            # Load model and metadata
-            self.model = joblib.load(os.path.join(extract_dir, "model.joblib"))
-            
-            # Load metadata if available
-            metadata_path = os.path.join(extract_dir, "metadata.json")
-            if os.path.exists(metadata_path):
-                import json
-                with open(metadata_path, "r") as f:
-                    metadata = json.load(f)
-                
-                self.version = metadata.get("version", "1.0.0")
-                self.model_type = metadata.get("model_type", "RandomForestClassifier")
-                self.features = metadata.get("features", [])
-                self.metrics = metadata.get("metrics", {})
-            else:
-                # Default metadata
-                self.version = "1.0.0"
-                self.model_type = "RandomForestClassifier"
-                self.features = ["total_items", "total_value", "avg_item_value", "category_ratio"]
-        
-        except Exception as e:
-            logger.error(f"Error loading model from tarfile: {str(e)}")
-            raise
-        finally:
-            # Clean up
-            import shutil
-            shutil.rmtree(extract_dir, ignore_errors=True)
-    
-    async def predict(self, basket_items: Dict[str, Any], 
-                     customer_id: Optional[str] = None,
-                     store_id: Optional[str] = None) -> Dict[str, Any]:
-        """Make price sensitivity prediction"""
-        if not self.is_loaded:
-            raise ValueError("Model not loaded")
-        
-        try:
-            # Preprocess basket items
-            features = preprocess_basket(basket_items, customer_id, store_id)
-            
-            # Create features DataFrame
-            features_df = pd.DataFrame([features])
-            
-            # Ensure all model features are present
-            for feature in self.features:
-                if feature not in features_df:
-                    features_df[feature] = 0
-            
-            # Use only the features expected by the model
-            if self.features:
-                features_df = features_df[self.features]
-            
-            # Run prediction in a separate thread to avoid blocking
-            prediction = await asyncio.to_thread(self._run_prediction, features_df)
-            
-            # Map numerical class to sensitivity label
-            sensitivity = self._map_to_sensitivity(prediction["class"])
-            
-            return {
-                "sensitivity": sensitivity,
-                "confidence": prediction["probability"],
-                "class": prediction["class"]
-            }
-        
-        except Exception as e:
-            logger.error(f"Prediction error: {str(e)}")
-            raise
-    
-    def _run_prediction(self, features_df: pd.DataFrame) -> Dict[str, Any]:
-        """Run the actual prediction (called in a separate thread)"""
-        # Get probability predictions
-        probabilities = self.model.predict_proba(features_df)
-        
-        # Get class with highest probability
-        class_idx = np.argmax(probabilities[0])
-        probability = float(probabilities[0][class_idx])
-        
-        return {
-            "class": int(class_idx),
-            "probability": probability
-        }
-    
-    def _map_to_sensitivity(self, class_idx: int) -> str:
-        """Map numerical class to sensitivity label"""
-        sensitivity_map = {
-            0: "Low",
-            1: "Medium",
-            2: "High"
-        }
-        return sensitivity_map.get(class_idx, "Unknown")
-```
-
-### 1.4. Preprocessing Utility
-
-**Tạo `server/app/utils/preprocessing.py` - Data Preprocessing:**
-
-```python
-from typing import Dict, Any, Optional, List
-import numpy as np
-
-def preprocess_basket(basket_items: Dict[str, Any], 
-                     customer_id: Optional[str] = None,
-                     store_id: Optional[str] = None) -> Dict[str, float]:
-    """
-    Preprocess basket data for model input
-    
-    Args:
-        basket_items: Dictionary of basket items with product info
-        customer_id: Optional customer identifier
-        store_id: Optional store identifier
-        
-    Returns:
-        Dictionary of features for model input
-    """
-    # Initialize features
-    features = {}
-    
-    # Extract basic basket metrics
-    total_items = sum(item.get("quantity", 1) for item in basket_items.values())
-    total_value = sum(item.get("price", 0) * item.get("quantity", 1) 
-                      for item in basket_items.values())
-    
-    # Calculate average metrics
-    features["total_items"] = total_items
-    features["total_value"] = total_value
-    features["avg_item_value"] = total_value / total_items if total_items > 0 else 0
-    features["unique_items"] = len(basket_items)
-    
-    # Add customer/store features
-    features["has_customer_id"] = 1.0 if customer_id else 0.0
-    features["has_store_id"] = 1.0 if store_id else 0.0
-    
-    # Process category information
-    categories = {}
-    for item_id, item in basket_items.items():
-        category = item.get("category", "unknown")
-        if category not in categories:
-            categories[category] = 0
-        categories[category] += item.get("quantity", 1)
-    
-    # Add category features
-    for category, count in categories.items():
-        # Category counts
-        features[f"category_{category}_count"] = count
-        
-        # Category ratios
-        features[f"category_{category}_ratio"] = count / total_items if total_items > 0 else 0
-    
-    # Add derived features
-    features["high_value_item_ratio"] = sum(
-        1 for item in basket_items.values() if item.get("price", 0) > 50
-    ) / len(basket_items) if basket_items else 0
-    
-    return features
-```
-
-### 1.5. Logging Setup
-
-**Tạo `server/app/utils/logging.py` - Logging Configuration:**
-
-```python
-import logging
-import sys
-from logging.handlers import RotatingFileHandler
-import os
-
-def setup_logger(name: str, log_level: str = None, log_file: str = None):
-    """Setup logger with consistent configuration"""
-    
-    if log_level is None:
-        log_level = os.environ.get("LOG_LEVEL", "INFO")
-    
-    # Get numeric log level
-    numeric_level = getattr(logging, log_level.upper(), logging.INFO)
-    
-    # Create logger
-    logger = logging.getLogger(name)
-    logger.setLevel(numeric_level)
-    
-    # Check if logger already has handlers
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    
-    # Create formatter
-    log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    formatter = logging.Formatter(log_format)
-    
-    # Create console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # Create file handler if specified
-    if log_file:
-        log_dir = os.path.dirname(log_file)
-        if log_dir and not os.path.exists(log_dir):
-            os.makedirs(log_dir)
-        
-        file_handler = RotatingFileHandler(
-            log_file, maxBytes=10485760, backupCount=5
-        )
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    
-    # Reduce noise from other loggers
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-    logging.getLogger("uvicorn").setLevel(logging.WARNING)
-    logging.getLogger("boto3").setLevel(logging.WARNING)
-    logging.getLogger("botocore").setLevel(logging.WARNING)
-    
-    return logger
-```
-
-### 1.6. Application Requirements
-
-**Tạo `server/requirements.txt` - Python Dependencies:**
-
-```txt
-# API Framework
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-
-# Data Processing
-pandas==2.1.4
-numpy==1.25.2
-scikit-learn==1.3.2
-joblib==1.3.2
-
-# AWS Integration
-boto3==1.34.0
-botocore==1.34.0
-
-# Utilities
-python-multipart==0.0.6
-aiofiles==23.2.1
-httpx==0.25.2
-requests==2.31.0
-
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-```
-
+**Key Features của API đã implement:**
+- ✅ FastAPI với CORS middleware
+- ✅ Pydantic validation models
+- ✅ Model loading từ S3 (với mock fallback cho testing)
+- ✅ Health check endpoints (`/health`, `/ready`)
+- ✅ Prediction endpoints (`/predict`, `/predict/batch`)
+- ✅ Model info endpoint (`/model/info`)
+- ✅ Error handling và logging
 ## 2. Dockerfile Configuration
 
-### 2.1. Multi-stage Dockerfile
+**Dockerfile đã được tạo trong Task 6 - Section 2.1:**
 
-**Tạo `server/Dockerfile` - Multi-stage Build:**
+Chi tiết cấu hình Docker image với multi-stage build, non-root user, health checks đã được document đầy đủ trong Task 6. File `server/Dockerfile` bao gồm:
 
-```dockerfile
-# Stage 1: Build dependencies
-FROM python:3.9-slim as builder
+- ✅ Multi-stage build (builder + production)
+- ✅ Python 3.9-slim base image
+- ✅ Non-root user `apiuser` cho security
+- ✅ Health check configuration
+- ✅ Environment variables cho S3 model loading
+- ✅ Port 8000 exposed
+- ✅ Uvicorn ASGI server
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    make \
-    && rm -rf /var/lib/apt/lists/*
+**Reference:** Xem Task 6, Section 2.1 để biết chi tiết Dockerfile configuration.
 
-# Set working directory
-WORKDIR /app
+## 2. .dockerignore Configuration
 
-# Copy and install requirements
-COPY requirements.txt .
+**Tạo `server/.dockerignore` - Exclude Unnecessary Files:**
 
-# Install Python dependencies to a virtual environment
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-RUN pip install --no-cache-dir -r requirements.txt
+```
+# Git files
+.git
+.gitignore
 
-# Stage 2: Runtime image
-FROM python:3.9-slim
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+.pytest_cache/
 
-# Set build arguments
-ARG BUILD_DATE
-ARG GIT_COMMIT
-ARG GIT_BRANCH
+# Editor files
+.idea/
+.vscode/
+*.swp
 
-# Add metadata labels
-LABEL maintainer="MLOps Team"
-LABEL build_date=$BUILD_DATE
-LABEL git_commit=$GIT_COMMIT
-LABEL git_branch=$GIT_BRANCH
-LABEL description="Retail Price Sensitivity API"
+# OS files
+.DS_Store
+Thumbs.db
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV PATH="/opt/venv/bin:$PATH"
-ENV PYTHONPATH="/app"
+# Development files
+.env
+*.log
+logs/
+
+# Large model files (downloaded at runtime)
+*.joblib
+*.pkl
+model/
 ENV PORT=8080
 
 # Install runtime dependencies
@@ -703,10 +223,17 @@ model/
 
 ## 3. Build & Push Docker Image
 
-### 3.1. Manual Build Process
+## 3. Build & Push Docker Image
+
+### 3.1. Local Build và Test
+
+{{% notice tip %}}  
+Code trong `server/` đã sẵn sàng để build. Chỉ cần navigate đến thư mục và build Docker image.
+{{% /notice %}}
 
 1. **Navigate to Server Directory:**
    ```bash
+   cd retail-price_sensitivy_prediction/server
    cd server/
    ```
 
@@ -845,12 +372,23 @@ info "Git branch: $GIT_BRANCH"
 # Validate server directory
 [ -d "$SERVER_DIR" ] || error "Server directory not found: $SERVER_DIR"
 
-# Navigate to server directory
+# Navigate to server directory  
 cd "$SERVER_DIR"
 
 # Build Docker image
 info "Building Docker image..."
 docker build \
+  --build-arg BUILD_DATE="$BUILD_DATE" \
+  --build-arg GIT_COMMIT="$GIT_COMMIT" \
+  --build-arg GIT_BRANCH="$GIT_BRANCH" \
+  -t "$ECR_REPO_NAME:$GIT_COMMIT" \
+  .
+
+success "Docker image built successfully"
+
+# Test the image
+info "Running container for testing..."
+CONTAINER_ID=$(docker run -d -p 8000:8000 "$ECR_REPO_NAME:$GIT_COMMIT")
   --build-arg BUILD_DATE="$BUILD_DATE" \
   --build-arg GIT_COMMIT="$GIT_COMMIT" \
   --build-arg GIT_BRANCH="$GIT_BRANCH" \

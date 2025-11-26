@@ -102,7 +102,7 @@ spec:
   type: LoadBalancer
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:
@@ -173,7 +173,7 @@ metadata:
     
     # Health check configuration
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8080"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8000"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "HTTP"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "20"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
@@ -194,7 +194,7 @@ spec:
   type: LoadBalancer
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:
@@ -537,11 +537,11 @@ spec:
   type: LoadBalancer
   ports:
   - port: 443
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: https
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:

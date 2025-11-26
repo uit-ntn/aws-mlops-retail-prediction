@@ -102,14 +102,14 @@ metadata:
   namespace: retail-prediction
 data:
   # S3 Configuration
-  MODEL_BUCKET: "mlops-retail-models"
-  MODEL_KEY: "artifacts/model-v1/model.tar.gz"
+  MODEL_BUCKET: "mlops-retail-forecast-models"
+  MODEL_KEY: "models/retail-price-sensitivity/model.joblib"
   AWS_REGION: "ap-southeast-1"
   
   # API Configuration
-  PORT: "8080"
+  PORT: "8000"
   HOST: "0.0.0.0"
-  WORKERS: "2"
+  WORKERS: "1"
   
   # Logging Configuration
   LOG_LEVEL: "INFO"
@@ -222,7 +222,7 @@ spec:
         image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/retail-prediction-api:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+        - containerPort: 8000
           name: http
           protocol: TCP
         
@@ -263,7 +263,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 8000
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -272,7 +272,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 8080
+            port: 8000
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3
@@ -360,7 +360,7 @@ spec:
   type: LoadBalancer
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:

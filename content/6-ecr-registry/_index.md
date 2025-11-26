@@ -125,46 +125,49 @@ pre: "<b>6. </b>"
 ![](/images/06-ecr-registry/07-api-lifecycle-policy.png)
 
 2. **Configure API Lifecycle Rules:**
-   
+
    **Rule 1 - Keep Latest Production Images:**
+
    ```
    Rule priority: 1
    Description: Keep latest 10 production images
    Image status: Tagged
    Tag status: Starts with "v" (production versions)
-   
+
    Match criteria:
    - Count type: imageCountMoreThan
    - Count number: 10
-   
+
    Action: expire
    ```
 
    **Rule 2 - Keep Latest Development Images:**
+
    ```
    Rule priority: 2
    Description: Keep latest 5 development images
    Image status: Tagged
    Tag status: Starts with "dev", "feature", "main"
-   
+
    Match criteria:
    - Count type: imageCountMoreThan
    - Count number: 5
-   
+
    Action: expire
    ```
 
    **Rule 3 - Remove Old Untagged Images:**
+
    ```
-   Rule priority: 3  
+   Rule priority: 3
    Description: Delete untagged images after 1 day
    Image status: Untagged
-   
+
    Match criteria:
    - Count type: sinceImagePushed
    - Count number: 1
    - Count unit: days
-   
+
    Action: expire
    ```
 
@@ -196,6 +199,7 @@ pre: "<b>6. </b>"
 **🎯 ECR Repositories Setup Complete!**
 
 **Created Repositories:**
+
 - ✅ `mlops/retail-api`: FastAPI prediction service container
 - ✅ `mlops/train-model`: Custom training container (optional)
 - ✅ Image scanning enabled on push
@@ -209,6 +213,7 @@ pre: "<b>6. </b>"
 ### 2.1. FastAPI Prediction Service Container
 
 **Create directory structure:**
+
 ```
 server/
 ├── Dockerfile
@@ -220,6 +225,7 @@ server/
 ```
 
 **File: `server/Dockerfile`**
+
 ```dockerfile
 # Multi-stage build for FastAPI retail prediction API
 FROM python:3.9-slim as builder
@@ -281,6 +287,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", 
 ```
 
 **File: `server/requirements.txt`**
+
 ```txt
 # FastAPI and web framework
 fastapi==0.104.1
@@ -751,6 +758,7 @@ echo "Training Repository: ${TRAINING_REPO}"
 ### 5.1. Image Verification
 
 **Check repositories in ECR:**
+
 ```bash
 # List all repositories
 aws ecr describe-repositories --region ap-southeast-1
@@ -767,6 +775,7 @@ aws ecr list-images \
 ```
 
 **Get detailed image information:**
+
 ```bash
 # Describe specific image
 aws ecr describe-images \
@@ -784,6 +793,7 @@ aws ecr describe-image-scan-findings \
 ### 5.2. Local Container Testing
 
 **Test API container locally:**
+
 ```bash
 # Run API container locally
 docker run -d \
@@ -819,6 +829,7 @@ docker rm retail-api-test
 ### 5.3. EKS Integration Testing
 
 **Create test deployment:**
+
 ```yaml
 # test-deployment.yaml
 apiVersion: apps/v1
@@ -838,35 +849,35 @@ spec:
     spec:
       serviceAccountName: retail-forecast-sa
       containers:
-      - name: api
-        image: 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
-        imagePullPolicy: Always
-        ports:
-        - containerPort: 8000
-        env:
-        - name: AWS_DEFAULT_REGION
-          value: "ap-southeast-1"
-        - name: MODEL_BUCKET
-          value: "mlops-retail-forecast-models"
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "250m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /ready
-            port: 8000
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: api
+          image: 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: "ap-southeast-1"
+            - name: MODEL_BUCKET
+              value: "mlops-retail-forecast-models"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
@@ -876,14 +887,15 @@ spec:
   selector:
     app: retail-api-test
   ports:
-  - port: 80
-    targetPort: 8000
+    - port: 80
+      targetPort: 8000
   type: ClusterIP
 ```
 
 ### 5.4. Security Scan Analysis
 
 **Check vulnerability scan results:**
+
 ```bash
 # Get scan results summary
 aws ecr describe-image-scan-findings \
@@ -901,6 +913,7 @@ aws ecr describe-image-scan-findings \
 ```
 
 **Security best practices verification:**
+
 ```bash
 # Check if running as non-root user
 docker run --rm 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest whoami
@@ -922,6 +935,7 @@ docker stop health-test
 ### 6.1. ECR Cost Tracking
 
 **Monthly cost breakdown:**
+
 ```bash
 # Check repository storage usage
 aws ecr describe-repositories \
@@ -939,6 +953,7 @@ aws ecr describe-repositories \
 ### 6.2. Image Optimization
 
 **Multi-stage build analysis:**
+
 ```bash
 # Compare image sizes
 docker images | grep mlops
@@ -948,6 +963,7 @@ docker history 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-ap
 ```
 
 **Optimization strategies:**
+
 1. **Use slim base images**: python:3.9-slim vs python:3.9
 2. **Multi-stage builds**: Separate build and runtime environments
 3. **Layer caching**: Order Dockerfile commands for better caching
@@ -959,6 +975,7 @@ docker history 123456789012.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-ap
 ### 7.1. Common Issues
 
 **Issue 1: ECR Authentication Failed**
+
 ```bash
 # Solution: Refresh ECR login
 aws ecr get-login-password --region ap-southeast-1 | \
@@ -970,6 +987,7 @@ aws sts get-caller-identity
 ```
 
 **Issue 2: Image Pull Failed from EKS**
+
 ```bash
 # Check node group IAM permissions
 kubectl describe node
@@ -984,6 +1002,7 @@ kubectl describe serviceaccount retail-forecast-sa
 ```
 
 **Issue 3: Container Health Check Failing**
+
 ```bash
 # Check container logs
 kubectl logs -l app=retail-api-test
@@ -1000,16 +1019,18 @@ s3.head_object(Bucket='mlops-retail-forecast-models', Key='models/retail-price-s
 ```
 
 **Issue 4: Build Timeout in CI/CD**
+
 ```yaml
 # Increase timeout in GitHub Actions
 jobs:
   build-and-push:
-    timeout-minutes: 30  # Increase from default 360
+    timeout-minutes: 30 # Increase from default 360
 ```
 
 ### 7.2. Performance Optimization
 
 **Build performance:**
+
 ```bash
 # Use BuildKit for faster builds
 export DOCKER_BUILDKIT=1
@@ -1020,6 +1041,7 @@ docker build --cache-from mlops-retail-api:latest ...
 ```
 
 **Runtime performance:**
+
 ```bash
 # Monitor container resource usage
 kubectl top pods -l app=retail-api
@@ -1045,7 +1067,7 @@ kubectl exec -it <pod-name> -- curl -w "@curl-format.txt" http://localhost:8000/
 
 ✅ CI/CD Automation:
    - GitHub Actions workflow
-   - Automatic builds on code changes  
+   - Automatic builds on code changes
    - Git-based image tagging (v20241009-abc123)
    - OIDC authentication (no AWS keys)
 
@@ -1068,32 +1090,36 @@ kubectl exec -it <pod-name> -- curl -w "@curl-format.txt" http://localhost:8000/
 
 {{% notice tip %}}
 **🚀 Next Steps:**
+
 - **Task 7**: EKS cluster deployment trong hybrid VPC
 - **Task 8**: EKS node groups với ECR image pull permissions
 - **Task 10**: Deploy API container với ALB integration
 - **Task 11**: ALB ingress controller cho public API access
 
 **Build & Deploy Commands:**
+
 ```bash
 # Local build and push
 ./scripts/build-and-push.sh
 
 # CI/CD triggers automatically on:
 git push origin main        # → v20241009-abc123 + latest
-git push origin develop     # → dev-abc123 + dev-latest  
+git push origin develop     # → dev-abc123 + dev-latest
 git push origin feature/x   # → feature-x-abc123
 ```
+
 {{% /notice %}}
 
 {{% notice info %}}
 **� Production Benchmarks Achieved:**
+
 - **Image Size**: FastAPI ~500MB (optimized multi-stage)
 - **Build Time**: ~3-5 minutes (with caching)
 - **Storage Cost**: ~$0.15/month (1.5GB total)
 - **Security**: Non-root, vulnerability scanned
 - **Availability**: Multi-tag strategy (latest, commit, branch)
 - **CI/CD**: Automated on every commit
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 
