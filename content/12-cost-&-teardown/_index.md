@@ -3,7 +3,7 @@ title: "Cost Management & Teardown"
 date: 2024-01-01T00:00:00Z
 weight: 13
 chapter: false
-pre: "<b>13. </b>"
+pre: "<b>12. </b>"
 ---
 
 {{% notice info %}}

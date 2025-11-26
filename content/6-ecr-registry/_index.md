@@ -155,9 +155,81 @@ pre: "<b>6. </b>"
 - ✅ IAM access policies for EKS integration
 {{% /notice %}}
 
-## 2. Build & Push Docker Image
+## 2. API Containerization Workflow
 
-### 2.1. View Push Commands từ AWS Console
+### 2.1. Dockerfile Configuration
+
+**Tạo `server/Dockerfile` - Multi-stage build:**
+
+```dockerfile
+# Multi-stage build
+FROM python:3.9-slim as builder
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --user -r requirements.txt
+
+# Production stage  
+FROM python:3.9-slim as production
+WORKDIR /app
+
+# Copy dependencies
+COPY --from=builder /root/.local /root/.local
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash apiuser
+USER apiuser
+
+# Copy application
+COPY . .
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+**Tạo `server/.dockerignore`:**
+
+```
+# Development files
+.git
+.gitignore
+__pycache__/
+*.pyc
+.env
+*.log
+
+# Editor files  
+.idea/
+.vscode/
+
+# Large files (downloaded at runtime)
+*.joblib
+*.pkl
+model/
+```
+
+### 2.2. Local Build & Test
+
+```bash
+# Navigate to server directory
+cd retail-price-sensitivity-prediction/server
+
+# Build Docker image
+docker build -t mlops/retail-api:latest .
+
+# Test locally
+docker run -d --name test -p 8000:8000 mlops/retail-api:latest
+curl http://localhost:8000/health
+docker stop test && docker rm test
+```
+
+### 2.3. View Push Commands từ AWS Console
 
 1. **Trong ECR Console:**
    - Chọn repository `mlops/retail-api`
@@ -217,16 +289,28 @@ docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:l
 
 ![](/images/06-ecr-registry/12.png)
 
-### 2.3. Test Docker Image Locally
+### 2.5. Container Environment & Testing
+
+**Environment Variables:**
+
+```bash
+# Basic configuration
+AWS_DEFAULT_REGION=ap-southeast-1
+MODEL_BUCKET=mlops-retail-forecast-models
+LOG_LEVEL=INFO
+PORT=8000
+```
+
+**Test Docker Image Locally:**
 
 ```bash
 # Test API container locally
 docker run -d \
     --name retail-api-test \
     -p 8000:8000 \
-    -e AWS_DEFAULT_REGION=us-east-1 \
+    -e AWS_DEFAULT_REGION=ap-southeast-1 \
     -e MODEL_BUCKET=mlops-retail-prediction-dev-842676018087 \
-    842676018087.dkr.ecr.us-east-1.amazonaws.com/mlops/retail-api:latest
+    842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
 
 # Test health endpoint
 curl http://localhost:8000/health
@@ -252,22 +336,21 @@ ECR registry đã được thiết lập và tích hợp với EKS cluster `mlop
 ✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month  
 
 {{% notice success %}}
-**🎯 Task 6 Complete - Production-Ready Container Registry!**
+**🎯 Task 6 Complete - ECR Registry + API Containerization!**
 
-**Container Strategy**: FastAPI API + optional training containers  
-**Manual Build**: Local Docker build & push commands  
-**Security**: Image scanning, non-root users, access control  
-**Cost Efficient**: ~$0.15/month storage + lifecycle cleanup  
-**Demo Ready**: API container ready for ALB + EKS deployment  
+**✅ ECR Setup**: Repository với lifecycle policies & image scanning  
+**✅ Dockerfile**: Multi-stage build, non-root user, health checks  
+**✅ Build & Push**: Local build → ECR push workflow  
+**✅ Testing**: Container verification & API validation  
+**✅ Ready**: Sẵn sàng cho EKS deployment trong Task 7  
 {{% /notice %}}
 
 {{% notice tip %}}
 **🚀 Next Steps:**
 
-- **Task 7**: EKS cluster deployment trong hybrid VPC
-- **Task 8**: EKS node groups với ECR image pull permissions
-- **Task 10**: Deploy API container với ALB integration
-- **Task 11**: ALB ingress controller cho public API access
+- **Task 7**: EKS cluster deployment với ECR integration
+- **Task 8**: Deploy API container lên EKS với ALB
+- **Task 9**: Load balancing và scaling configuration
 
 {{% /notice %}}
 
