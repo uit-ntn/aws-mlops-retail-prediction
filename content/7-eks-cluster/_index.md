@@ -17,17 +17,6 @@ Triển khai Amazon Elastic Kubernetes Service (EKS) để làm nền tảng ch�
 
 → Đảm bảo hệ thống ổn định, mở rộng linh hoạt (scalable), và tích hợp bảo mật với IAM (IRSA).
 
-{{% notice info %}}
-**🎯 EKS Strategy cho MLOps:**
-
-**Control Plane**: AWS managed, multi-AZ high availability  
-**Worker Nodes**: t2.micro (Free Tier) trong private subnets  
-**Networking**: Hybrid VPC với VPC Endpoints (Task 5)  
-**Container Registry**: ECR integration (Task 6)  
-**Security**: IRSA cho secure S3/CloudWatch access  
-**Cost**: ~$73/month control plane + FREE nodes (12 months)
-{{% /notice %}}
-
 📥 **Input từ các Task trước:**
 - **Task 5 (Production VPC):** Hybrid VPC, subnets, VPC Endpoints and security groups used for EKS networking
 - **Task 2 (IAM Roles & Audit):** IAM roles and policies (cluster role, node role, IRSA foundations)
