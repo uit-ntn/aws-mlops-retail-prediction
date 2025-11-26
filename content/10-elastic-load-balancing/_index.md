@@ -1,9 +1,9 @@
 ---
 title: "Load Balancing"
 date: 2024-01-01T00:00:00Z
-weight: 11
+weight: 10
 chapter: false
-pre: "<b>11. </b>"
+pre: "<b>10. </b>"
 ---
 
 {{% notice info %}}
@@ -14,6 +14,11 @@ Thiết lập cơ chế phân phối lưu lượng (Load Balancing) cho API Reta
 - Tự động phân phối traffic giữa nhiều Pod khi scaling  
 - Duy trì tính sẵn sàng & bảo mật của dịch vụ
 {{% /notice %}}
+
+📥 **Input từ các Task trước:**
+- **Task 5 (Production VPC):** VPC subnets, security groups và VPC Endpoints để ALB và EKS hoạt động
+- **Task 7 (EKS Cluster):** EKS cluster và Service/Ingress targets để ALB forward traffic
+- **Task 6 (ECR Container Registry):** Container images (API) được deploy vào EKS và expose qua ALB
 
 ## 1. Tổng quan về Load Balancing cho Retail Prediction API
 
@@ -102,7 +107,7 @@ spec:
   type: LoadBalancer
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:
@@ -173,7 +178,7 @@ metadata:
     
     # Health check configuration
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8080"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8000"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "HTTP"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "20"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
@@ -194,7 +199,7 @@ spec:
   type: LoadBalancer
   ports:
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:
@@ -537,11 +542,11 @@ spec:
   type: LoadBalancer
   ports:
   - port: 443
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: https
   - port: 80
-    targetPort: 8080
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:

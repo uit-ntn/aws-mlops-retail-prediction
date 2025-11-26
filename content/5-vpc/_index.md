@@ -1,5 +1,5 @@
 ---
-title: "VPC / Networking"
+title: "Production Networking"
 weight: 5
 chapter: false
 pre: "<b>5. </b>"
@@ -39,6 +39,9 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 - CIDR planning: `10.0.0.0/16` (production EKS VPC)
 - Demo requirements: Public API access qua ALB
 - Task 4 completed: SageMaker training chạy trong VPC mặc định
+
+- **Input từ Task 4:** Task 4 (SageMaker training) — training VPC choices and requirements
+- **Input từ Task 2:** Task 2 (IAM Roles & Audit) — roles and policies required for VPC, EKS and ECR access
 
 ✅ **Deliverables**
 
