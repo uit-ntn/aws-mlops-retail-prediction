@@ -3,7 +3,7 @@ title: "Load Balancing"
 date: 2024-01-01T00:00:00Z
 weight: 10
 chapter: false
-pre: "<b>10. </b>"
+pre: "<b>9. </b>"
 ---
 
 {{% notice info %}}
