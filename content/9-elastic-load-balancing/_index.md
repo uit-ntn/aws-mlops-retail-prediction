@@ -8,12 +8,12 @@ pre: "<b>9. </b>"
 
 {{% notice info %}}
 **🎯 Mục tiêu Task 11:**
+{{% /notice %}}
 
 Thiết lập cơ chế phân phối lưu lượng (Load Balancing) cho API Retail Prediction, đảm bảo:  
 - Có endpoint public để demo API /predict và /docs  
 - Tự động phân phối traffic giữa nhiều Pod khi scaling  
 - Duy trì tính sẵn sàng & bảo mật của dịch vụ
-{{% /notice %}}
 
 📥 **Input từ các Task trước:**
 - **Task 5 (Production VPC):** VPC subnets, security groups và VPC Endpoints để ALB và EKS hoạt động

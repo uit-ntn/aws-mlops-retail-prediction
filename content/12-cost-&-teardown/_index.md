@@ -7,15 +7,12 @@ pre: "<b>12. </b>"
 ---
 
 {{% notice info %}}
-**🎯 Mục tiêu Task 15:**
-
-Quản lý và tối ưu chi phí vận hành toàn bộ hạ tầng MLOps trên AWS:
-
+**🎯 Mục tiêu Task 12:** Quản lý và tối ưu chi phí vận hành toàn bộ hạ tầng MLOps trên AWS:
+{{% /notice %}}
 - Giảm thiểu chi phí compute (EC2, SageMaker, ALB)
 - Tự động scale-down hoặc xóa tài nguyên không sử dụng
 - Áp dụng lifecycle policies cho dữ liệu và container images
 - Đảm bảo pipeline vừa hoạt động hiệu quả, vừa tiết kiệm chi phí tối đa
-{{% /notice %}}
 
 ## 1. Chi phí vận hành hệ thống MLOps
 
@@ -70,16 +67,7 @@ module "eks_managed_node_group" {
   
   # Thêm labels và taints cho Kubernetes scheduler
   labels = {
-    Environment = "dev"
-    GithubRepo = "retail-forecast"
-    GithubOrg  = "terraform-aws-modules"
-    Spot       = "true"
-  }
-  
-  tags = {
-    Environment = "dev"
-    Terraform   = "true"
-    CostCenter  = "retail-forecast"
+    app = "retail-api"
   }
 }
 ```
@@ -136,7 +124,7 @@ def create_training_job(job_name, data_bucket, output_bucket, instance_type, use
         'Tags': [
             {
                 'Key': 'Project',
-                'Value': 'RetailForecast'
+                'Value': 'RetailMLOps'
             }
         ]
     }
@@ -246,9 +234,7 @@ resource "aws_s3_bucket" "retail_forecast_data" {
   bucket = "retail-forecast-data-${var.environment}"
   
   tags = {
-    Name        = "Retail Forecast Data"
-    Environment = var.environment
-    Project     = "RetailForecast"
+    Project = "RetailMLOps"
   }
 }
 
@@ -573,11 +559,7 @@ jobs:
 
 locals {
   common_tags = {
-    Project     = "RetailForecastMLOps"
-    Environment = var.environment
-    Terraform   = "true"
-    CostCenter  = "DataScience"
-    Team        = "MLOps"
+    Project = "RetailMLOps"
   }
 }
 
@@ -695,8 +677,6 @@ resource "aws_ecr_repository" "retail_forecast" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  
-  tags = local.common_tags
 }
 
 resource "aws_ecr_lifecycle_policy" "retail_forecast_policy" {
@@ -799,24 +779,13 @@ aws ecr put-lifecycle-policy \
 ```hcl
 # infra/modules/logs/main.tf
 resource "aws_cloudwatch_log_group" "eks_logs" {
-  name              = "/aws/eks/retail-forecast-cluster/cluster"
-  retention_in_days = 30
-  
-  tags = local.common_tags
+  name              = "/aws/eks/mlops-retail-cluster/cluster"
+  retention_in_days = 7
 }
 
 resource "aws_cloudwatch_log_group" "app_logs" {
-  name              = "/aws/retail-forecast/api"
-  retention_in_days = 30
-  
-  tags = local.common_tags
-}
-
-resource "aws_cloudwatch_log_group" "sagemaker_training" {
-  name              = "/aws/sagemaker/TrainingJobs"
-  retention_in_days = 30
-  
-  tags = local.common_tags
+  name              = "/aws/retail/api"
+  retention_in_days = 7
 }
 ```
 
@@ -845,31 +814,19 @@ aws logs put-retention-policy \
 # aws/scripts/teardown.sh
 #!/bin/bash
 
-set -e
+echo "Starting teardown..."
 
-echo "Starting teardown of retail-forecast MLOps infrastructure..."
+# Xóa Kubernetes resources
+kubectl delete namespace mlops --ignore-not-found=true
 
-# 1. Xóa các tài nguyên Kubernetes trước
-echo "Deleting Kubernetes resources..."
-kubectl delete namespace retail-forecast --ignore-not-found=true
+# Xóa ECR images
+aws ecr batch-delete-image --repository-name mlops/retail-api --image-ids imageTag=latest imageTag=v2 imageTag=v3
 
-# 2. Xóa SageMaker Endpoints
-echo "Deleting SageMaker endpoints..."
-ENDPOINTS=$(aws sagemaker list-endpoints --name-contains retail-forecast --query "Endpoints[].EndpointName" --output text)
-if [ ! -z "$ENDPOINTS" ]; then
-  for ENDPOINT in $ENDPOINTS; do
-    echo "Deleting endpoint: $ENDPOINT"
-    aws sagemaker delete-endpoint --endpoint-name $ENDPOINT
-  done
-fi
-
-# 3. Thực hiện terraform destroy
-echo "Running Terraform destroy..."
+# Terraform destroy
 cd ../infra
-terraform init
 terraform destroy -auto-approve
 
-echo "Teardown completed successfully!"
+echo "Teardown completed!"
 ```
 
 ### 7.2. Thêm vào GitHub Actions Workflow
@@ -978,23 +935,21 @@ gantt
 
 | Thành phần | Trước tối ưu | Sau tối ưu | Tiết kiệm (%) |
 |------------|--------------|------------|---------------|
-| EKS NodeGroup | 0.04 USD/h × 24h × 30d = 28.80 USD | 0.012 USD/h × 10h × 20d = 2.40 USD | 92% |
-| SageMaker Training | 0.30 USD/job × 30 = 9.00 USD | 0.09 USD/job × 30 = 2.70 USD | 70% |
-| S3 Storage (50GB) | 0.023 USD/GB × 50 = 1.15 USD | 0.0125 USD/GB × 50 = 0.625 USD | 46% |
-| CloudWatch Logs (5GB) | 0.50 USD/GB × 5 = 2.50 USD | 0.50 USD/GB × 1.5 = 0.75 USD | 70% |
-| ALB | 0.027 USD/h × 24h × 30d = 19.44 USD | 0.027 USD/h × 10h × 20d = 5.40 USD | 72% |
-| ECR Storage (5GB) | 0.10 USD/GB × 5 = 0.50 USD | 0.10 USD/GB × 2 = 0.20 USD | 60% |
-| **Tổng chi phí (1 tháng)** | **~61.39 USD** | **~12.08 USD** | **80%** |
+| EKS NodeGroup | 28.80 USD | 2.40 USD | 92% |
+| S3 Storage | 1.15 USD | 0.63 USD | 45% |
+| CloudWatch Logs | 2.50 USD | 0.75 USD | 70% |
+| LoadBalancer | 19.44 USD | 5.40 USD | 72% |
+| ECR Storage | 0.50 USD | 0.20 USD | 60% |
+| **Tổng chi phí** | **52.39 USD** | **9.38 USD** | **82%** |
 
 ### Chi phí hàng tháng
 
 {{< mermaid >}}
-pie title Chi phí hàng tháng sau tối ưu
+pie title Chi phí hàng tháng sau tối ưu (~9.38 USD)
+    "LoadBalancer" : 5.40
     "EKS NodeGroup" : 2.40
-    "SageMaker Training" : 2.70
-    "S3 Storage" : 0.63
     "CloudWatch Logs" : 0.75
-    "ALB" : 5.40
+    "S3 Storage" : 0.63
     "ECR Storage" : 0.20
 {{< /mermaid >}}
 
@@ -1054,11 +1009,11 @@ Quản lý chi phí hiệu quả là một trong những khía cạnh quan trọ
 Các biện pháp tối ưu chi phí này không chỉ giúp tiết kiệm ngân sách mà còn giúp hệ thống MLOps hoạt động hiệu quả hơn thông qua việc tự động hóa quản lý tài nguyên, giám sát chi phí, và thực hiện các best practices trong quản lý vòng đời của dữ liệu và container images.
 
 **Kết quả chính:**
-- Tiết kiệm 80% chi phí vận hành (~12.08 USD/tháng so với ~61.39 USD/tháng)
-- Tự động hóa việc quản lý tài nguyên theo lịch trình
-- Chiến lược lưu trữ dữ liệu tối ưu với lifecycle policies
-- Hệ thống giám sát và cảnh báo chi phí chủ động
-- Khả năng xóa hoàn toàn tài nguyên khi không sử dụng
+- Tiết kiệm 82% chi phí vận hành (~9.38 USD/tháng so với ~52.39 USD/tháng)
+- Tự động schedule start/stop resources
+- S3 lifecycle policies tiết kiệm storage
+- CloudWatch logs retention 7 ngày
+- Complete teardown script
 
 ---
 
