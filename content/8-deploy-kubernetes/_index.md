@@ -33,18 +33,19 @@ Client → ALB → EKS Service → API Pods → S3 Models
 ```
 
 **Components:**
-- **Namespace**: `retail-prediction` 
-- **Deployment**: API pods với IRSA
-- **Service**: Internal load balancing
+- **Namespace**: `mlops` 
+- **ServiceAccount**: IRSA cho SageMaker access
+- **Deployment**: API pods với ECR Singapore image
+- **Service**: LoadBalancer service
 - **HPA**: Auto-scaling dựa trên CPU
-- **ConfigMap**: Environment variables
 
 ## 2. Kubernetes Manifests
 
-**Cần tạo 4 file chính:**
-- `namespace.yaml` - Tạo namespace
-- `deployment.yaml` - API application 
-- `service.yaml` - Internal load balancer
+**Cần tạo 5 file chính:**
+- `namespace.yaml` - Tạo namespace mlops
+- `serviceaccount.yaml` - IRSA service account
+- `deployment.yaml` - API application với SageMaker Registry
+- `service.yaml` - LoadBalancer service
 - `hpa.yaml` - Auto-scaling
 
 ### 2.1 Namespace Configuration
@@ -54,60 +55,27 @@ Client → ALB → EKS Service → API Pods → S3 Models
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: retail-prediction
+  name: mlops
   labels:
-    name: retail-prediction
-    environment: production
+    app.kubernetes.io/name: retail-api
 ---
 ```
 
-### 2.2 ConfigMap cho Environment Variables
-
-```yaml
-# configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: retail-api-config
-  namespace: retail-prediction
-data:
-  # S3 Configuration
-  MODEL_BUCKET: "mlops-retail-forecast-models"
-  MODEL_KEY: "models/retail-price-sensitivity/model.joblib"
-  AWS_REGION: "ap-southeast-1"
-  
-  # API Configuration
-  PORT: "8000"
-  HOST: "0.0.0.0"
-  WORKERS: "1"
-  
-  # Logging Configuration
-  LOG_LEVEL: "INFO"
-  LOG_FORMAT: "json"
----
-```
-
-### 2.3 ServiceAccount với IRSA (IAM Role for Service Account)
+### 2.2 ServiceAccount với IRSA
 
 ```yaml
 # serviceaccount.yaml
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: s3-access
-  namespace: retail-prediction
+  name: retail-api-sa
+  namespace: mlops
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/RetailAPIModelAccess
+    eks.amazonaws.com/role-arn: arn:aws:iam::842676018087:role/eks-sagemaker-access-role
 ---
 ```
 
-{{% notice info %}}
-**IRSA đã được cấu hình trong Task 7** - Sử dụng service account `s3-access-sa` đã tạo.
-{{% /notice %}}
-
-## 3. Basic Deployment
-
-### 3.1 Simple API Deployment
+### 2.3 Deployment Configuration
 
 ```yaml
 # deployment.yaml
@@ -115,7 +83,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: retail-api
-  namespace: retail-prediction
+  namespace: mlops
+  labels:
+    app: retail-api
 spec:
   replicas: 2
   selector:
@@ -126,17 +96,19 @@ spec:
       labels:
         app: retail-api
     spec:
-      serviceAccountName: s3-access-sa  # From Task 7
+      serviceAccountName: retail-api-sa
       containers:
       - name: retail-api
-        image: <ACCOUNT-ID>.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+        image: 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
         ports:
         - containerPort: 8000
         env:
-        - name: MODEL_BUCKET
-          value: "mlops-retail-forecast-models"
-        - name: AWS_REGION
+        - name: PORT
+          value: "8000"
+        - name: AWS_DEFAULT_REGION
           value: "ap-southeast-1"
+        - name: MODEL_PACKAGE_GROUP
+          value: "retail-price-sensitivity-models"
         resources:
           requests:
             memory: "512Mi"
@@ -149,55 +121,17 @@ spec:
             path: /health
             port: 8000
           initialDelaySeconds: 30
+          periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
           initialDelaySeconds: 10
-        
-        # Environment Variables
-        env:
-        - name: MODEL_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: retail-api-config
-              key: MODEL_BUCKET
-        - name: MODEL_KEY
-          valueFrom:
-            configMapKeyRef:
-              name: retail-api-config
-              key: MODEL_KEY
-        - name: AWS_DEFAULT_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: retail-api-config
-              key: AWS_REGION
-        - name: PORT
-          valueFrom:
-            configMapKeyRef:
-              name: retail-api-config
-              key: PORT
-        - name: WORKERS
-          valueFrom:
-            configMapKeyRef:
-              name: retail-api-config
-              key: WORKERS
-        - name: LOG_LEVEL
-          valueFrom:
-            configMapKeyRef:
-              name: retail-api-config
-              key: LOG_LEVEL
-        
-        # Health Checks
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          periodSeconds: 5
+---
 ```
 
-## 4. Service (Load Balancer)
+## 3. Service (Load Balancer)
 
 ```yaml
 # service.yaml
@@ -205,17 +139,20 @@ apiVersion: v1
 kind: Service
 metadata:
   name: retail-api-service
-  namespace: retail-prediction
+  namespace: mlops
+  labels:
+    app: retail-api
 spec:
-  type: LoadBalancer  # Creates AWS NLB automatically
-  ports:
-  - port: 80
-    targetPort: 8000
   selector:
     app: retail-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8000
+  type: LoadBalancer
 ```
 
-## 5. Auto-scaling (HPA)
+## 4. Auto-scaling (HPA)
 
 ```yaml
 # hpa.yaml
@@ -223,170 +160,174 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: retail-api-hpa
-  namespace: retail-prediction
+  namespace: mlops
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: retail-api
-  
   minReplicas: 2
-  maxReplicas: 10
-  
+  maxReplicas: 5
   metrics:
-  # CPU-based scaling
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 70
-  
-  behavior:
-    scaleUp:
-      stabilizationWindowSeconds: 30
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 30
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Percent
-        value: 10
-        periodSeconds: 60
----
+        averageUtilization: 60
 ```
 
-{{% notice tip %}}
-HPA (Horizontal Pod Autoscaler) giúp tự động scale số lượng Pod dựa trên mức sử dụng CPU. Khi CPU usage vượt quá 70%, HPA sẽ tự động tăng số lượng Pod (tối đa 10) để đảm bảo hiệu năng ổn định.
-{{% /notice %}}
+## 5. Deploy to EKS
 
-
-
-## 6. Deploy to EKS
-
-### 6.1 Apply Manifests
+### 5.1 Apply Manifests
 
 ```bash
-# Create namespace
-kubectl create namespace retail-prediction
-
-# Apply all manifests
+# Deploy all manifests in order
+kubectl apply -f namespace.yaml
+kubectl apply -f serviceaccount.yaml
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 kubectl apply -f hpa.yaml
-kubectl apply -f aws/k8s/hpa.yaml
 ```
 
-### 7.2 Kiểm tra Trạng thái Deployment
+### 5.2 Kiểm tra Trạng thái Deployment
 
 ```bash
 # Kiểm tra trạng thái pods
-kubectl get pods -n retail-prediction
+kubectl get pods -n mlops
 
 # Kiểm tra service và load balancer
-kubectl get svc -n retail-prediction
+kubectl get svc -n mlops
 
-# Kiểm tra horizontal pod autoscaler
-kubectl get hpa -n retail-prediction
+# Kiểm tra horizontal pod autoscaler  
+kubectl get hpa -n mlops
 
 # Kiểm tra logs của pod
-kubectl logs -f deployment/retail-api -n retail-prediction
+kubectl logs -l app=retail-api -n mlops --tail=50
 ```
 
-### 7.3 Kiểm tra API Endpoint
+### 5.3 Lấy LoadBalancer URL và Test API
 
 ```bash
 # Lấy URL của LoadBalancer
-export API_URL=$(kubectl get svc retail-api-service -n retail-prediction -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+kubectl get svc retail-api-service -n mlops -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 
-# Test health check endpoint
-curl http://$API_URL/health
+# Test health check endpoint  
+curl http://[LOAD_BALANCER_URL]/health
 
 # Test API documentation
-curl http://$API_URL/docs
+curl http://[LOAD_BALANCER_URL]/docs
 
-# Test prediction endpoint
-curl -X POST http://$API_URL/predict \
+# Test prediction endpoint với data format thật
+curl -X POST http://[LOAD_BALANCER_URL]/predict \
   -H "Content-Type: application/json" \
   -d '{
-    "basket_items": {
-      "P1001": {"product_id": "P1001", "quantity": 2, "price": 10.99, "category": "grocery"},
-      "P2002": {"product_id": "P2002", "quantity": 1, "price": 25.50, "category": "electronics"}
-    },
-    "customer_id": "CUST123"
+    "BASKET_SIZE": "M",
+    "BASKET_TYPE": "MIXED", 
+    "STORE_REGION": "LONDON",
+    "STORE_FORMAT": "LS",
+    "SPEND": 125.50,
+    "QUANTITY": 3,
+    "PROD_CODE_20": "FOOD",
+    "PROD_CODE_30": "FRESH"
   }'
 ```
 
-## 8. Testing và Load Testing
+## 6. Kiểm tra qua AWS Console
 
-### 8.1 Local Testing với Port Forward
+### 6.1 EKS Console - Kiểm tra Cluster Status
 
-Để test API locally mà không cần LoadBalancer:
+1. **Truy cập EKS Console:**
+```
+   AWS Console → EKS → Clusters → mlops-retail-cluster
+```
+   
+![](../images/08-deploy-kubernetes/01.png)
 
-```bash
-# Port forward service đến localhost
-kubectl port-forward service/retail-api-service 8080:80 -n retail-prediction
+2. **Kiểm tra Resources Tab:**
+   ```
+   mlops-retail-cluster → Resources → All namespaces → Filter: mlops
+   ```
+![](../images/08-deploy-kubernetes/02.png)
+
+### 6.2 EKS Workloads - Chi tiết Deployment
+
+1. **Kiểm tra Deployment:**
+```
+   Resources → Deployments → retail-api
 ```
 
-### 8.2 Test API Endpoints
+![](../images/08-deploy-kubernetes/03.png)
+
+2. **Kiểm tra Pods:**
+   - Click vào Deployment → Pods tab
+   - **Pod status:** Running (nếu Pending thì có vấn đề về resources)
+   - **Restart count:** 0 (nếu > 0 thì có crash)
+
+![](../images/08-deploy-kubernetes/04.png)
+
+### 6.3 Debug khi Pods Pending
+
+1. **Nếu Pods ở trạng thái Pending:**
+   - Check Events section để xem lỗi:
+     - **Insufficient CPU/Memory:** Cần scale nodes
+     - **Image pull error:** ECR permissions issue
+     - **PodSecurityPolicy:** IAM role issue
+
+2. **Nếu LoadBalancer timeout/connection refused:**
+   - **Target Groups unhealthy:** Pods chưa pass health check (/health endpoint)  
+   - **Security Groups:** EKS worker nodes phải allow inbound từ Load Balancer
+   - **Subnets:** Load Balancer cần ít nhất 2 public subnets
+
+3. **Kiểm tra Events trong EKS Console:**
+   ```
+   Resources → Events → Filter namespace: mlops
+   ```
+   - Tìm Warning/Error events liên quan đến deployment
+
+## 7. Testing và Load Testing
+
+### 7.1 Local Testing với Port Forward
 
 ```bash
-# Test health endpoint
+# Port forward service đến localhost (nếu LoadBalancer chưa ready)
+kubectl port-forward service/retail-api-service 8080:80 -n mlops
+
+# Test qua port forward
 curl http://localhost:8080/health
-
-# Test API documentation
-curl http://localhost:8080/docs
-
-# Test prediction endpoint
-curl -X POST http://localhost:8080/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "basket_items": {
-      "P1001": {"product_id": "P1001", "quantity": 2, "price": 10.99, "category": "grocery"},
-      "P2002": {"product_id": "P2002", "quantity": 1, "price": 25.50, "category": "electronics"}
-    },
-    "customer_id": "CUST123"
-  }'
 ```
 
-### 8.3 Load Testing
-
-Để kích hoạt autoscaling và kiểm tra khả năng scale của hệ thống:
+### 7.2 Test SageMaker Model Registry Integration
 
 ```bash
-# Cài đặt hey (tool để load testing)
-# Linux/MacOS: wget https://hey-release.s3.us-east-2.amazonaws.com/hey_linux_amd64
-# Windows: Sử dụng WSL hoặc download từ https://hey-release.s3.us-east-2.amazonaws.com/hey_windows_amd64.exe
+# Kiểm tra model info endpoint
+curl http://[LOAD_BALANCER_URL]/model/info
 
-# Thực hiện load test trên API endpoint
-hey -n 1000 -c 50 -m POST -H "Content-Type: application/json" \
-  -d '{"basket_items":{"P1001":{"product_id":"P1001","quantity":2,"price":10.99,"category":"grocery"}}}' \
-  http://$API_URL/predict
+# Kiểm tra model metrics từ SageMaker Registry  
+curl http://[LOAD_BALANCER_URL]/model/metrics
 
-# Theo dõi HPA trong quá trình load test
-kubectl get hpa retail-api-hpa -n retail-prediction -w
-
-# Theo dõi pods được tạo mới
-kubectl get pods -n retail-prediction -w
+# Expected response: Accuracy 84.7%, F1-Score 83.2% từ Registry
 ```
-{{% notice success %}}
-**🎯 Task 9 Complete - API Deployment on EKS**
 
-✅ **Kubernetes manifests** ready 
-✅ **EKS deployment** configured với IRSA
-✅ **Load Balancer service** cho external access
-✅ **Auto-scaling** với HPA
+### 7.3 Load Testing để Test Auto-scaling
 
-**API đã sẵn sàng để access qua Load Balancer!**
-{{% /notice %}}
+```bash
+# Load test với data format đúng
+for i in {1..100}; do
+  curl -X POST http://[LOAD_BALANCER_URL]/predict \
+    -H "Content-Type: application/json" \
+    -d '{"BASKET_SIZE":"M","BASKET_TYPE":"MIXED","STORE_REGION":"LONDON","STORE_FORMAT":"LS","SPEND":125.50,"QUANTITY":3,"PROD_CODE_20":"FOOD","PROD_CODE_30":"FRESH"}' &
+done
 
----
+# Theo dõi HPA scaling
+kubectl get hpa retail-api-hpa -n mlops -w
 
-**Next Step**: [Task 10: Load Balancing](../10-elastic-load-balancing/)
+# Theo dõi pods được scale up (từ 2 → max 5)
+kubectl get pods -n mlops -w
+```
 
-## 9. Chi phí ước tính
+
+## 8. Chi phí ước tính
 
 | Thành phần | Ước tính | Ghi chú |
 |------------|----------|---------|
@@ -398,66 +339,64 @@ kubectl get pods -n retail-prediction -w
 Chi phí tính toán dựa trên Spot instances t3.medium và NLB tại region ap-southeast-1. Chi phí thực tế có thể thay đổi tùy theo cấu hình và thời gian sử dụng.
 {{% /notice %}}
 
-### 📊 Kiểm tra xác nhận
+{{% notice success %}}
+**🎯 Task 9 Complete - API Deployment on EKS**
+- **Kubernetes manifests** ready
+- **EKS deployment** configured với IRSA
+- **Load Balancer service** cho external access
+- **Auto-scaling** với HPA
+{{% /notice %}}
 
-1. **Pod ở trạng thái Running trong namespace Kubernetes**
-   ```bash
-   kubectl get pods -n retail-prediction
-   # Expected: All pods in Running state with STATUS = Running
-   ```
+## 9. Clean Up Resources
 
-2. **Service hoạt động, có thể gọi endpoint /health trả về 200 OK**
-   ```bash
-   export API_URL=$(kubectl get svc retail-api-service -n retail-prediction -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-   curl http://$API_URL/health
-   # Expected: {"status": "healthy"}
-   ```
-
-3. **HPA hiển thị target CPU và có thể scale số pod**
-   ```bash
-   kubectl get hpa retail-api-hpa -n retail-prediction
-   # Expected: Shows current CPU percentage and target of 70%
-   ```
-
-4. **Load balancing hoạt động**
-   ```bash
-   kubectl get endpoints retail-api-service -n retail-prediction
-   # Expected: Multiple IP addresses listed
-   ```
-
-### 🔍 Monitoring & Maintenance
+### 9.1 Xóa Deployment và Resources
 
 ```bash
-# Theo dõi trạng thái pods
-kubectl get pods -n retail-prediction -w
+# Xóa tất cả resources trong namespace mlops
+kubectl delete namespace mlops
 
-# Monitoring HPA
-kubectl get hpa retail-api-hpa -n retail-prediction -w
+# Hoặc xóa từng resource riêng lẻ
+kubectl delete deployment retail-api -n mlops
+kubectl delete service retail-api-service -n mlops
+kubectl delete hpa retail-api-hpa -n mlops
+kubectl delete serviceaccount retail-api-sa -n mlops
 
-# Kiểm tra resource usage
-kubectl top pods -n retail-prediction
-
-# Kiểm tra logs
-kubectl logs -l app=retail-api -n retail-prediction --tail=100
-
-# Kiểm tra events
-kubectl get events -n retail-prediction --sort-by='.lastTimestamp'
+# Kiểm tra LoadBalancer đã bị xóa
+aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(LoadBalancerName, `k8s-mlops`)].LoadBalancerArn'
 ```
 
-## 13. Tổng kết
+### 9.2 Xóa ECR Images (Optional)
 
-Trong task này, chúng ta đã triển khai thành công API dự đoán đã được containerize lên EKS cluster. Với cấu hình này, API có thể:
+```bash
+# List images trong repository
+aws ecr describe-images --repository-name mlops/retail-api --region ap-southeast-1
 
-✅ **Truy cập an toàn đến model trong S3** sử dụng IRSA
+# Xóa specific image tag
+aws ecr batch-delete-image \
+  --repository-name mlops/retail-api \
+  --image-ids imageTag=v3 \
+  --region ap-southeast-1
 
-✅ **Tự động scale** dựa trên CPU utilization
+# Xóa tất cả images
+aws ecr batch-delete-image \
+  --repository-name mlops/retail-api \
+  --image-ids "$(aws ecr describe-images --repository-name mlops/retail-api --region ap-southeast-1 --query 'imageDetails[].imageDigest' --output text | tr '\t' '\n' | sed 's/.*/imageDigest=&/')" \
+  --region ap-southeast-1
+```
 
-✅ **Public endpoint** qua AWS Load Balancer
+### 9.3 Kiểm tra Clean Up
 
-✅ **Tối ưu chi phí** với Spot instances
+```bash
+# Kiểm tra không còn pods nào
+kubectl get pods -n mlops
 
-Kiến trúc này đảm bảo high availability, scalability và cost-effectiveness cho ML serving layer trong MLOps pipeline.
+# Kiểm tra không còn services nào
+kubectl get svc -n mlops
+
+# Kiểm tra LoadBalancer đã bị terminate
+aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(LoadBalancerName, `k8s-mlops`)]'
+```
 
 ---
 
-**Next Step**: [Task 11: Elastic Load Balancing](../11-elastic-load-balancing/)
+**Next Step**: [Task 09: Elastic Load Balancing](../09-elastic-load-balancing/)
