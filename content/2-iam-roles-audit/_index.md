@@ -1,5 +1,5 @@
 ---
-title: "IAM Roles & Audit"
+title: "IAM Roles & Audit For MLops"
 date: 2025-08-30T12:00:00+07:00
 weight: 2
 chapter: false
@@ -454,7 +454,6 @@ Role CloudTrail_CloudWatchLogs sẽ được tự động tạo với các quy�
    Role name: mlops-retail-prediction-dev-eks-cluster-role
    Description: EKS cluster service role for retail prediction MLOps platform
    ```
-   ![EKS Cluster Service Role - Trust relationship and policies](/images/2-iam-roles-audit/02-eks-cluster-role-trust-policies.png "EKS Cluster Service Role")
 
 ### 2.2. EKS Node Group Role
 - Tương tự
@@ -527,7 +526,7 @@ Role CloudTrail_CloudWatchLogs sẽ được tự động tạo với các quy�
    Description: SageMaker execution role for retail prediction training jobs and model deployment
    ```
 
-### 2.4. ⚠️ BẮT BUỘC: Thêm EC2 Permissions
+### 2.4. BẮT BUỘC: Thêm EC2 Permissions
 
 **Vì SageMaker Projects là bắt buộc**, cần thêm EC2 permissions ngay:
 
@@ -565,11 +564,8 @@ Role CloudTrail_CloudWatchLogs sẽ được tự động tạo với các quy�
 - `CloudWatchLogsFullAccess` (AWS managed)
 - `SageMakerEC2Access` (inline policy vừa tạo)
 {{% /notice %}}
-   ![SageMaker Execution Role - Trust relationship and attached policies](/images/2-iam-roles-audit/04-sagemaker-execution-role.png "SageMaker execution role trust relationship and attached policies")
 
 {{% notice warning %}}
-**⚠️ QUAN TRỌNG - Projects là BẮT BUỘC:**
-
 **SageMaker Unified Studio (2024+) yêu cầu:**
 - ✅ **Projects là bắt buộc** - không thể bỏ qua
 - ✅ **EC2 permissions là BẮT BUỘC** - phải thêm inline policy
@@ -682,6 +678,130 @@ Ghi chú ngắn:
 - Lifecycle chuyển objects sang IA/Glacier/Deep Archive là chìa khoá giảm chi phí dài hạn.
 - Data events và Insights tăng theo số events — tối ưu sampling / chỉ log cần thiết để tiết kiệm.
 - Kiểm tra thực tế bằng billing/Cost Explorer để hiệu chỉnh các giả định trên.  
+
+## 5. Clean Up Resources (Hướng dẫn xoá tài nguyên)
+
+> Cảnh báo: Các lệnh bên dưới sẽ xóa tài nguyên thực tế. Kiểm tra tên tài nguyên (bucket, role, trail, key) trước khi chạy.
+
+### 5.1 Xóa CloudTrail
+
+PowerShell (AWS CLI):
+
+```powershell
+# Xóa trail (nếu tên chính xác)
+aws cloudtrail delete-trail --name mlops-retail-prediction-audit-trail
+
+# Nếu muốn tắt ghi sang CloudWatch Logs trước
+aws cloudtrail update-trail --name mlops-retail-prediction-audit-trail --cloud-watch-logs-log-group-arn "" --cloud-watch-logs-role-arn ""
+```
+
+### 5.2 Xóa S3 CloudTrail Bucket và nội dung
+
+Lưu ý: Bucket có thể nằm ở `us-east-1` theo cấu hình trên. Kiểm tra `aws s3 ls`/console trước khi xóa.
+
+```powershell
+# Xóa tất cả objects (recursive)
+aws s3 rm s3://mlops-cloudtrail-logs-ap-southeast-1 --recursive
+
+# Xóa bucket
+aws s3api delete-bucket --bucket mlops-cloudtrail-logs-ap-southeast-1 --region us-east-1
+```
+
+### 5.3 Hủy KMS Key (schedule delete)
+
+KMS keys không thể bị xóa ngay lập tức nếu đang được sử dụng. Ta nên lên lịch xóa an toàn (ví dụ 7 ngày):
+
+```powershell
+# Tìm KeyId từ alias
+$keyId = aws kms list-aliases --query "Aliases[?AliasName=='alias/mlops-retail-prediction-dev-cloudtrail-key'].TargetKeyId" --output text
+
+# Lên lịch xóa key (pending days: 7 - 30)
+aws kms schedule-key-deletion --key-id $keyId --pending-window-in-days 7
+```
+
+### 5.4 Gỡ IAM Roles & Policies (EKS / SageMaker / CloudTrail)
+
+Quy trình an toàn: 1) Detach managed policies 2) Xóa inline policies 3) Xóa role.
+
+```powershell
+# Ví dụ: xóa SageMaker execution role
+$roleName = 'mlops-retail-prediction-dev-sagemaker-execution'
+
+# 1) Liệt kê và detach managed policies
+aws iam list-attached-role-policies --role-name $roleName --query 'AttachedPolicies[].PolicyArn' --output text | ForEach-Object { aws iam detach-role-policy --role-name $roleName --policy-arn $_ }
+
+# 2) Xóa inline policies
+aws iam list-role-policies --role-name $roleName --query 'PolicyNames' --output text | ForEach-Object { aws iam delete-role-policy --role-name $roleName --policy-name $_ }
+
+# 3) Xóa role
+aws iam delete-role --role-name $roleName
+
+# Lặp lại cho các role khác (EKS cluster/nodegroup, CloudTrail_CloudWatchLogs_Role, GitHub/CI roles, v.v.)
+```
+
+### 5.5 Gỡ Container Insights / CloudWatch integration
+
+```powershell
+# Xóa CloudWatch log group (nếu có)
+aws logs delete-log-group --log-group-name "/aws/containerinsights/mlops-retail-cluster/application" || Write-Host 'Log group not found'
+
+# Xóa CloudWatch log group cho CloudTrail integration
+aws logs delete-log-group --log-group-name "mlops-cloudtrail-log-group" || Write-Host 'Log group not found'
+
+# Disable Container Insights addon from EKS (nếu áp dụng)
+aws eks delete-addon --cluster-name mlops-retail-cluster --addon-name amazon-cloudwatch-observability
+```
+
+### 5.6 Xóa ECR images (nếu muốn dọn sạch images dev/staging)
+
+```powershell
+# Xóa images theo tag
+aws ecr batch-delete-image --repository-name mlops/retail-api --image-ids imageTag=dev,imageTag=staging || Write-Host 'No matching images or already deleted'
+
+# Xóa untagged images (thận trọng)
+aws ecr describe-images --repository-name mlops/retail-api --filter tagStatus=UNTAGGED --query 'imageDetails[].imageDigest' --output text | ForEach-Object { aws ecr batch-delete-image --repository-name mlops/retail-api --image-ids imageDigest=$_ }
+```
+
+### 5.7 Dừng / Xóa SageMaker training jobs, endpoints, model packages
+
+```powershell
+# Stop in-progress training jobs with name pattern
+aws sagemaker list-training-jobs --name-contains "retail-" --status-equals InProgress --query 'TrainingJobSummaries[].TrainingJobName' --output text | ForEach-Object { aws sagemaker stop-training-job --training-job-name $_ }
+
+# Delete failed endpoints
+aws sagemaker list-endpoints --name-contains "retail-" --query 'Endpoints[?EndpointStatus==`Failed`].EndpointName' --output text | ForEach-Object { aws sagemaker delete-endpoint --endpoint-name $_ }
+
+# Delete pending model packages in model group (thận trọng: giữ các approved)
+aws sagemaker list-model-packages --model-package-group-name "retail-forecast-models" --model-approval-status PendingManualApproval --query 'ModelPackageSummaryList[].ModelPackageArn' --output text | ForEach-Object { aws sagemaker delete-model-package --model-package-name $_ }
+```
+
+### 5.8 Kiểm tra và xác nhận (Verification)
+
+```powershell
+# Kiểm tra trail đã bị xóa
+aws cloudtrail describe-trails --query 'trailList[?Name==`mlops-retail-prediction-audit-trail`]' || Write-Host 'Trail removed or not found'
+
+# Kiểm tra bucket
+aws s3 ls s3://mlops-cloudtrail-logs-ap-southeast-1 2>$null || Write-Host 'Bucket removed or empty'
+
+# Kiểm tra IAM role
+aws iam get-role --role-name mlops-retail-prediction-dev-sagemaker-execution 2>$null || Write-Host 'Role removed'
+
+# Kiểm tra KMS key scheduled deletion
+aws kms list-keys --query 'Keys[?KeyId==`'$keyId'`]' || Write-Host 'Check key deletion schedule manually in KMS console'
+```
+
+---
+
+Nếu bạn muốn, tôi có thể: 
+- thêm phiên bản PowerShell script tự động hóa toàn bộ bước cleanup (cần confirm tên tài nguyên) hoặc
+- thay thế các lệnh `ForEach-Object` bằng các script an toàn hơn để preview danh sách tài nguyên trước khi xóa.
+
+### Video thực hiện
+
+<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;">
+  <iframe src="https://www.youtube-nocookie.com/embed/Gj-jmBi0aK8?rel=0&modestbranding=1&iv_load_policy=3" style="position:absolute;top:0;left:0;width:100%;height:100%;" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen title="YouTube video"></iframe>
+</div>
 
 ## 👉 Kết quả Task 2
 

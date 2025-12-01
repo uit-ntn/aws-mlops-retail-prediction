@@ -682,8 +682,6 @@ spec:
     app: retail-api
 ```
 
-![FastAPI Deployment Configuration](../images/07-eks-cluster/14-fastapi-deployment.png)
-
 ### 5.2. Deploy Application with IRSA
 
 ```bash
@@ -699,8 +697,6 @@ kubectl get services -n mlops-retail-forecast
 # Check logs to verify IRSA working
 kubectl logs -l app=retail-api -n mlops-retail-forecast
 ```
-
-![Application Deployment Verification](../images/07-eks-cluster/15-deployment-verification.png)
 
 ### 5.3. Test IRSA S3 Access
 
@@ -739,8 +735,6 @@ kubectl logs test-irsa-s3 -n mlops-retail-forecast
                            PRE training-data/
 ```
 
-![IRSA S3 Access Test](../images/07-eks-cluster/16-irsa-s3-test.png)
-
 ## 6. Cluster Verification
 
 ### 6.1. Control Plane Health Check
@@ -755,8 +749,6 @@ kubectl get --raw='/healthz'
 # View cluster events
 kubectl get events --sort-by=.metadata.creationTimestamp
 ```
-
-![Control Plane Health Check](../images/07-eks-cluster/17-control-plane-health.png)
 
 ### 6.2. Add-ons Verification
 
@@ -787,8 +779,6 @@ kubectl api-resources
 kubectl get clusterroles | grep eks
 ```
 
-![RBAC and Permissions](../images/07-eks-cluster/18-rbac-permissions.png)
-
 ### 6.4. IRSA Verification
 
 ```bash
@@ -817,8 +807,6 @@ kubectl exec -it test-irsa-s3-access -- aws cloudwatch list-metrics --namespace 
 kubectl delete pod test-irsa-s3-access
 ```
 
-![IRSA Verification Results](../images/07-eks-cluster/19-irsa-verification.png)
-
 ## 7. Monitoring và Logging
 
 ### 7.1. CloudWatch Integration
@@ -834,7 +822,6 @@ aws logs describe-log-groups \
   --log-group-name-prefix /aws/eks/mlops-retail-forecast-dev-cluster
 ```
 
-![CloudWatch Logs Integration](../images/07-eks-cluster/20-cloudwatch-logs.png)
 
 ### 7.2. Setup CloudWatch Container Insights
 
@@ -906,8 +893,6 @@ spec:
             path: /var/lib/docker
 ```
 
-![CloudWatch Container Insights Dashboard](../images/07-eks-cluster/21-container-insights.png)
-
 ## 8. Security Hardening
 
 ### 8.1. Network Security
@@ -923,8 +908,6 @@ aws eks describe-cluster \
   --name mlops-retail-forecast-dev-cluster \
   --query 'cluster.resourcesVpcConfig'
 ```
-
-![Network Security Configuration](../images/07-eks-cluster/22-network-security.png)
 
 ### 8.2. RBAC Configuration
 
@@ -964,8 +947,6 @@ roleRef:
   name: mlops-admin-role
   apiGroup: rbac.authorization.k8s.io
 ```
-
-![RBAC Configuration](../images/07-eks-cluster/23-rbac-configuration.png)
 
 ## Outputs
 
@@ -1116,4 +1097,4 @@ EKS cluster foundation đã sẵn sàng để deploy:
 - **Backup**: Consider EKS cluster backup strategy cho disaster recovery
   {{% /notice %}}
 
-![EKS Cluster Overview Dashboard](../images/07-eks-cluster/24-eks-cluster-overview.png)
+**Next Step**: [Task 08: Deploy Kubernetes](../8-deploy-kubernetes)

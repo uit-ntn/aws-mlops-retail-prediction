@@ -111,8 +111,6 @@ Versioning: (khuyến nghị) Enabled
 Default encryption: ✅ SSE-S3
 ```
 
-_Minh họa:_ `../images/s3-data-storage/01-create-bucket.png`
-
 <!-- IMAGE PLACEHOLDER: Create-bucket - paste screenshot here -->
 
 ![Placeholder - Create bucket](../images/s3-data-storage/placeholder-create-bucket.png)
@@ -476,7 +474,7 @@ python local_benchmark.py
 - CSV full 4.59 GB: vẫn xử lý được nhờ đọc theo chunks, throughput ~90–95 MB/s.
 - Parquet (sample 1 tuần, 6.48 MB): thời gian đọc ~0.05–0.09s → latency cực thấp.
 - Với nhiều file Parquet nhỏ (partition theo `shop_week`), query theo tuần/tháng sẽ rất nhanh.
-
+````
 ---
 
 ## 7. IAM – Quyền tối thiểu cho Glue Job (tóm tắt)
@@ -552,11 +550,115 @@ Ví dụ policy:
 - Intelligent-Tiering giúp tự động hạ tầng lớp lưu trữ cho dữ liệu cũ.
 - Glue Visual ETL giúp không cần code nhiều, dễ show trong báo cáo.
 
+## 9. Clean Up Resources (AWS CLI)
+
+### 9.1. Xóa tất cả objects trong S3 bucket
+
+```bash
+# Xóa tất cả files trong bucket
+aws s3 rm s3://mlops-retail-prediction-dev-842676018087 --recursive
+
+# Kiểm tra bucket đã trống
+aws s3 ls s3://mlops-retail-prediction-dev-842676018087 --recursive
+```
+
+### 9.2. Xóa S3 bucket
+
+```bash
+# Xóa bucket (chỉ khi đã trống)
+aws s3 rb s3://mlops-retail-prediction-dev-842676018087
+
+# Kiểm tra bucket đã bị xóa
+aws s3 ls | grep mlops-retail-prediction-dev
+```
+
+### 9.3. Xóa Glue Job
+
+```bash
+# Liệt kê Glue jobs
+aws glue get-jobs --query 'Jobs[?contains(Name, `csv-to-parquet`)].Name'
+
+# Xóa Glue job
+aws glue delete-job --job-name csv-to-parquet-converter
+
+# Kiểm tra job đã bị xóa
+aws glue get-job --job-name csv-to-parquet-converter
+```
+
+### 9.4. Xóa IAM Role (nếu tạo riêng cho Glue)
+
+```bash
+# Detach policies khỏi role
+aws iam detach-role-policy --role-name GlueETLRole --policy-arn arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+
+# Xóa inline policies (nếu có)
+aws iam delete-role-policy --role-name GlueETLRole --policy-name S3AccessPolicy
+
+# Xóa role
+aws iam delete-role --role-name GlueETLRole
+```
+
+---
+
+## 10. Bảng giá S3 Storage (ap-southeast-1)
+
+### 10.1. Chi phí lưu trữ theo class
+
+| Storage Class | Giá (USD/GB/tháng) | Minimum Duration | Ghi chú |
+|---------------|-------------------|------------------|---------|
+| **S3 Standard** | $0.025 | None | Frequent access |
+| **S3 Standard-IA** | $0.0138 | 30 days | Infrequent access |
+| **S3 One Zone-IA** | $0.011 | 30 days | Single AZ |
+| **S3 Glacier Instant** | $0.005 | 90 days | Archive, instant retrieval |
+| **S3 Glacier Flexible** | $0.0045 | 90 days | Archive, 1-12 hours retrieval |
+| **S3 Deep Archive** | $0.002 | 180 days | Long-term archive, 12+ hours |
+
+### 10.2. Chi phí requests
+
+| Request Type | Giá (USD/1000 requests) | Ghi chú |
+|--------------|-------------------------|---------|
+| **PUT/POST/LIST** | $0.0055 | Write operations |
+| **GET/SELECT** | $0.00044 | Read operations |
+| **Data Transfer OUT** | $0.12/GB | First 1GB free/month |
+
+### 10.3. Ước tính chi phí cho project
+
+**Dữ liệu hiện tại:**
+- Raw CSV: 4.59 GB
+- Silver Parquet: 0.46 GB  
+- **Tổng:** ~5 GB
+
+**Chi phí hàng tháng (S3 Standard):**
+
+| Component | Size | Price/GB | Monthly Cost |
+|-----------|------|----------|--------------|
+| Raw data (CSV) | 4.59 GB | $0.025 | $0.11 |
+| Silver data (Parquet) | 0.46 GB | $0.025 | $0.01 |
+| Gold + artifacts | ~0.5 GB | $0.025 | $0.01 |
+| **Total Storage** | **~5.5 GB** | | **$0.14** |
+| Requests (ước tính) | ~1000 req | $0.0055 | $0.006 |
+| **Grand Total** | | | **≈ $0.15/month** |
+
+**Với Intelligent Tiering:**
+- Sau 30 ngày: Raw data chuyển Standard-IA → tiết kiệm ~45%
+- Sau 90 ngày: Old artifacts chuyển Glacier → tiết kiệm ~80%
+- **Ước tính tiết kiệm:** ~$0.05-0.08/month
+
+{{% notice info %}}
+**💰 Chi phí Storage tối ưu**
+- **Hiện tại:** ~$0.15/month cho 5.5GB
+- **Với Intelligent Tiering:** ~$0.07-0.10/month  
+- **Parquet format:** Giảm 90% dung lượng so với CSV
+{{% /notice %}}
+
+---
+
 {{% notice success %}}
 **🎯 Task 3 hoàn thành**
 
 - Kiến trúc S3 rõ ràng, chuẩn MLOps.
 - CSV → Parquet bằng Glue Studio (Visual, có hình minh họa).
 - Có benchmark thực tế trên **CloudShell** và **local**, có số liệu cụ thể.
+- **Clean up commands** và **pricing breakdown** chi tiết.
 - Dễ trình bày trong báo cáo & demo cho GV.
   {{% /notice %}}

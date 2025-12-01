@@ -372,6 +372,208 @@ ECR registry đã được thiết lập và tích hợp với EKS cluster `mlop
 - **CI/CD**: Automated on every commit
   {{% /notice %}}
 
+## 3. Clean Up Resources (AWS CLI)
+
+### 3.1. Xóa Images từ ECR Repository
+
+```bash
+# Liệt kê images trong repository
+aws ecr describe-images --repository-name mlops/retail-api --region ap-southeast-1 --query 'imageDetails[*].[imageDigest,imageTags[0],imagePushedAt]' --output table
+
+# Xóa specific image tag
+aws ecr batch-delete-image \
+  --repository-name mlops/retail-api \
+  --image-ids imageTag=latest \
+  --region ap-southeast-1
+
+# Xóa tất cả images trong repository
+aws ecr batch-delete-image \
+  --repository-name mlops/retail-api \
+  --image-ids "$(aws ecr describe-images --repository-name mlops/retail-api --region ap-southeast-1 --query 'imageDetails[*].{imageDigest:imageDigest}' --output json)" \
+  --region ap-southeast-1
+```
+
+### 3.2. Xóa ECR Repositories
+
+```bash
+# Xóa repository (phải trống trước)
+aws ecr delete-repository --repository-name mlops/retail-api --region ap-southeast-1 --force
+
+# Verify repository đã bị xóa
+aws ecr describe-repositories --region ap-southeast-1 --query 'repositories[?repositoryName==`mlops/retail-api`]'
+```
+
+### 3.3. Xóa Lifecycle Policies
+
+```bash
+# Xóa lifecycle policy (tự động xóa khi xóa repository)
+aws ecr delete-lifecycle-policy --repository-name mlops/retail-api --region ap-southeast-1
+
+# List remaining repositories
+aws ecr describe-repositories --region ap-southeast-1 --query 'repositories[*].[repositoryName,repositoryUri]' --output table
+```
+
+### 3.4. Clean Up Local Docker Images
+
+```bash
+# Remove local Docker images
+docker rmi mlops/retail-api:latest
+docker rmi 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+
+# Clean up Docker build cache
+docker system prune -f
+
+# Remove unused images
+docker image prune -a -f
+```
+
+### 3.5. ECR Cleanup Helper Script
+
+```bash
+#!/bin/bash
+# ecr-cleanup.sh
+
+REPOSITORY_NAME="mlops/retail-api"
+REGION="ap-southeast-1"
+
+echo "🧹 Cleaning up ECR repository: $REPOSITORY_NAME..."
+
+# 1. Delete all images
+echo "Deleting all images..."
+IMAGE_IDS=$(aws ecr describe-images --repository-name $REPOSITORY_NAME --region $REGION --query 'imageDetails[*].{imageDigest:imageDigest}' --output json)
+
+if [ "$IMAGE_IDS" != "[]" ]; then
+    aws ecr batch-delete-image \
+        --repository-name $REPOSITORY_NAME \
+        --image-ids "$IMAGE_IDS" \
+        --region $REGION
+    echo "Images deleted"
+else
+    echo "No images to delete"
+fi
+
+# 2. Delete repository
+echo "Deleting repository..."
+aws ecr delete-repository \
+    --repository-name $REPOSITORY_NAME \
+    --region $REGION \
+    --force
+
+# 3. Clean up local Docker
+echo "Cleaning up local Docker images..."
+docker rmi mlops/retail-api:latest 2>/dev/null || true
+docker rmi 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/$REPOSITORY_NAME:latest 2>/dev/null || true
+
+echo "✅ ECR cleanup completed"
+```
+
+---
+
+## 4. Bảng giá ECR (ap-southeast-1)
+
+### 4.1. Chi phí ECR Storage
+
+| Storage Type | Giá (USD/GB/tháng) | Ghi chú |
+|--------------|-------------------|---------|
+| **ECR Storage** | $0.10 | Compressed image size |
+| **Free Tier** | 500MB free | First 12 months |
+| **Data Transfer IN** | Free | Push images to ECR |
+| **Data Transfer OUT** | $0.12/GB | Pull từ Internet |
+| **Data Transfer VPC** | Free | Pull qua VPC Endpoints |
+
+### 4.2. Chi phí Image Scanning
+
+| Scan Type | Giá (USD) | Ghi chú |
+|-----------|-----------|---------|
+| **Basic Scanning** | Free | CVE database scanning |
+| **Enhanced Scanning** | $0.09/image/month | Inspector integration |
+| **OS Package Scanning** | Free | Basic vulnerability detection |
+| **Language Package Scanning** | $0.09/image/month | Enhanced scanning only |
+
+### 4.3. Ước tính chi phí cho Task 6
+
+**Container Images:**
+- FastAPI image: ~500MB (compressed)
+- Total storage: ~0.5GB
+
+**Monthly Costs:**
+
+| Component | Size | Price | Monthly Cost |
+|-----------|------|-------|--------------|
+| **ECR Storage** | 0.5GB | $0.10/GB | $0.05 |
+| **Basic Scanning** | 1 image | Free | $0.00 |
+| **VPC Endpoint Transfer** | ~1GB/month | Free | $0.00 |
+| **Total** | | | **$0.05** |
+
+### 4.4. Cost Comparison với Alternatives
+
+**ECR vs Docker Hub:**
+
+| Feature | ECR | Docker Hub | Winner |
+|---------|-----|------------|--------|
+| **Storage (500MB)** | $0.05/month | Free (public) | Docker Hub |
+| **Private repos** | ✅ Native | $5/month | **ECR** |
+| **AWS Integration** | ✅ Native | Manual setup | **ECR** |
+| **VPC Endpoints** | ✅ Free transfer | ❌ Internet only | **ECR** |
+| **IAM Integration** | ✅ Native | ❌ Token-based | **ECR** |
+| **Vulnerability Scanning** | ✅ Built-in | ❌ Extra cost | **ECR** |
+
+### 4.5. Data Transfer Costs
+
+**ECR Pull Scenarios:**
+
+| Pull Location | Cost | Use Case |
+|---------------|------|----------|
+| **Same Region (VPC)** | Free | EKS production |
+| **Same Region (Internet)** | $0.12/GB | CI/CD outside AWS |
+| **Cross Region** | $0.12/GB + transfer | Multi-region deployment |
+| **Internet (outside AWS)** | $0.12/GB | Local development |
+
+### 4.6. Lifecycle Policy Cost Savings
+
+**Without Lifecycle Policies:**
+- 50 images × 500MB = 25GB storage
+- Cost: 25GB × $0.10 = $2.50/month
+
+**With Lifecycle Policies (Task 6):**
+- Keep 10 production images = 5GB
+- Keep 5 development images = 2.5GB  
+- Total: 7.5GB × $0.10 = $0.75/month
+- **Savings: $1.75/month (70%)**
+
+### 4.7. Cost Optimization Tips
+
+**Storage Optimization:**
+```bash
+# Multi-stage builds giảm image size
+FROM node:16 as builder
+# ... build steps
+FROM node:16-alpine as production  # Smaller base image
+COPY --from=builder /app/dist ./dist
+```
+
+**Registry Management:**
+```bash
+# Automated cleanup with lifecycle policies
+aws ecr put-lifecycle-policy \
+  --repository-name mlops/retail-api \
+  --lifecycle-policy-text file://lifecycle-policy.json
+```
+
+**Free Tier Usage:**
+- Sử dụng 500MB free tier cho development
+- Production images trong repositories riêng biệt
+- VPC Endpoints để tránh data transfer charges
+
+{{% notice info %}}
+**💰 Cost Summary cho Task 6:**
+- **Storage:** $0.05/month (500MB images)
+- **Scanning:** Free (basic vulnerability detection)
+- **Data Transfer:** Free (VPC Endpoints to EKS)
+- **Total:** **$0.05/month** (vs $5/month Docker Hub private)
+- **Savings:** $4.95/month với ECR + lifecycle policies
+{{% /notice %}}
+
 ---
 
 **Next Step**: [Task 7: EKS Cluster Setup](../7-eks-cluster/) 

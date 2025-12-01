@@ -8,6 +8,7 @@ pre: "<b>11. </b>"
 
 {{% notice info %}}
 **🎯 Mục tiêu Task 13:**
+{{% /notice %}}
 
 Thiết lập pipeline CI/CD tự động cho toàn bộ vòng đời dự án MLOps Retail Prediction:
 
@@ -16,81 +17,16 @@ Thiết lập pipeline CI/CD tự động cho toàn bộ vòng đời dự án M
 - Monitoring hook: rollback khi API hoặc model có lỗi (CloudWatch trigger)
 
 → Đảm bảo triển khai liên tục, giảm lỗi thủ công, tiết kiệm thời gian và chi phí.
-{{% /notice %}}
 
 📥 **Input từ các Task trước:**
-- **Task 6 (ECR Container Registry):** Docker images & repository URIs to push built images
-- **Task 9 (API Deployment on EKS):** Kubernetes manifests and deployment steps used by CD stage
-- **Task 11 (CloudWatch):** Monitoring and alarms used for deployment verification and auto-rollback
-- **Task 2 (IAM Roles & Audit):** IAM roles and OIDC/permissions for CI runners (GitHub Actions / Jenkins)
+- **Task 6 (ECR Container Registry):** Repository URIs, lifecycle policies, image scanning and push commands; credentials and ECR access for CI runners
+- **Task 8 (API Deployment on EKS):** Kubernetes manifests, service & deployment names, healthcheck endpoints, HPA and ServiceAccount/IRSA details used by CD stage
+- **Task 10 (CloudWatch Monitoring):** Log groups, alarms, dashboards and Container Insights configuration used for deployment verification and automated rollback triggers
+- **Task 2 (IAM Roles & Audit):** IAM roles, OIDC provider configuration and least-privilege policies for CI/CD runners (GitHub Actions / Jenkins) and SageMaker execution
 
 ## 1. Cấu trúc pipeline tổng quát
 
 Pipeline CI/CD của dự án Retail Prediction sẽ tự động hóa toàn bộ quy trình từ commit code đến deploy lên production, bao gồm cả việc huấn luyện lại model khi cần thiết.
-
-{{< mermaid >}}
-graph TD
-    subgraph "Triggers"
-        A1[Code Push] --> B
-        A2[Data Change] --> B
-        A3[Manual Trigger] --> B
-    end
-    
-    B[GitHub Actions Workflow] --> C{Environment?}
-    
-    C -->|DEV| D1[CI]
-    C -->|STAGING| D2[CI + Train]
-    C -->|PROD| D3[CI + Train + CD]
-    
-    subgraph "CI Process"
-        D1 --> E1[Test & Validate]
-        D2 --> E1
-        D3 --> E1
-        E1 --> F1[Build Container]
-        F1 --> G1[Push to ECR]
-    end
-    
-    subgraph "Training Process"
-        D2 --> E2[Prepare Data]
-        D3 --> E2
-        E2 --> F2[Train Model - SageMaker]
-        F2 --> G2[Evaluate Model]
-        G2 --> H2{Model Better?}
-        H2 -->|Yes| I2[Register in Model Registry]
-        H2 -->|No| J2[Keep Previous Model]
-    end
-    
-    subgraph "Deployment Process"
-        D3 --> E3[Update K8s Manifests]
-        I2 --> E3
-        G1 --> E3
-        E3 --> F3[Deploy to EKS]
-        F3 --> G3[Health Check]
-        G3 --> H3{Healthy?}
-        H3 -->|Yes| I3[Complete]
-        H3 -->|No| J3[Rollback]
-    end
-    
-    subgraph "Monitoring"
-        F3 --> M1[CloudWatch Metrics]
-        M1 --> M2{Alert Triggered?}
-        M2 -->|Yes| J3
-    end
-    
-    classDef trigger fill:#f9f,stroke:#333,stroke-width:1px
-    classDef primary fill:#bbf,stroke:#333,stroke-width:2px
-    classDef secondary fill:#ddf,stroke:#333,stroke-width:1px
-    classDef success fill:#bfb,stroke:#333,stroke-width:1px
-    classDef warning fill:#ffb,stroke:#333,stroke-width:1px
-    classDef danger fill:#fbb,stroke:#333,stroke-width:1px
-    
-    class A1,A2,A3 trigger
-    class B,C,D3 primary
-    class E1,E2,E3,F2,F3 secondary
-    class I2,I3 success
-    class H2,H3,M2 warning
-    class J3 danger
-{{< /mermaid >}}
 
 Pipeline chia thành 3 môi trường:
 - **DEV**: Build, test và validate code
@@ -2412,18 +2348,18 @@ if __name__ == "__main__":
 
 ### 6.1 Checklist Hoàn thành
 
-✅ Các thành phần chính đã triển khai:
+Các thành phần chính đã triển khai:
 
-- [x] **Pipeline GitHub Actions**: Workflow đã được cấu hình với các job đầy đủ
-- [x] **IAM Role & Permissions**: Role cho GitHub Actions với OIDC xác thực
-- [x] **Automated Testing**: Unit tests, code quality check, data validation
-- [x] **Model Training**: Tự động trigger SageMaker training jobs 
-- [x] **Model Evaluation & Registry**: Đánh giá model và đăng ký vào Model Registry
-- [x] **Docker Build**: Tự động build và push image lên ECR
-- [x] **EKS Deployment**: Tự động cập nhật Kubernetes deployment
-- [x] **Health Check**: Kiểm tra và xác nhận API hoạt động sau deployment
-- [x] **CloudWatch Alarms**: Tự động cấu hình alert cho deployment mới
-- [x] **Notifications**: Thông báo kết quả deployment qua SNS
+- **Pipeline GitHub Actions**: Workflow đã được cấu hình với các job đầy đủ
+- **IAM Role & Permissions**: Role cho GitHub Actions với OIDC xác thực
+- **Automated Testing**: Unit tests, code quality check, data validation
+- **Model Training**: Tự động trigger SageMaker training jobs 
+- **Model Evaluation & Registry**: Đánh giá model và đăng ký vào Model Registry
+- **Docker Build**: Tự động build và push image lên ECR
+- **EKS Deployment**: Tự động cập nhật Kubernetes deployment
+- **Health Check**: Kiểm tra và xác nhận API hoạt động sau deployment
+- **CloudWatch Alarms**: Tự động cấu hình alert cho deployment mới
+- **Notifications**: Thông báo kết quả deployment qua SNS
 
 ### 6.2 Kiểm tra Pipeline
 
@@ -2596,10 +2532,488 @@ CI/CD pipeline đã được thiết lập đầy đủ sử dụng GitHub Actio
 
 Pipeline này đảm bảo quy trình MLOps đáng tin cậy, tự động, và có khả năng mở rộng, giúp team có thể tập trung vào việc cải thiện model và tính năng thay vì công việc vận hành thủ công.
 
+{{% notice success %}}
+**🎯 Task 11 Complete - CI/CD Pipeline**
+- **GitHub Actions workflow** configured với đầy đủ CI/CD stages
+- **IAM Role & OIDC** setup cho secure authentication
+- **Automated testing** và quality gates
+- **SageMaker integration** cho model training & registry
+- **EKS deployment** automation với health checks
+- **CloudWatch monitoring** và notifications
+{{% /notice %}}
+
+## 8. Clean Up CI/CD Resources
+
+### 8.1 Xóa GitHub Actions Workflow
+
+```bash
+# Disable GitHub Actions workflows
+# Thực hiện trực tiếp trên GitHub repository hoặc qua GitHub CLI
+
+# Nếu sử dụng GitHub CLI
+gh workflow disable mlops-pipeline.yml
+
+# List tất cả workflow runs
+gh run list --limit 50
+
+# Cancel running workflows
+gh run list --status in_progress --json databaseId --jq '.[].databaseId' | xargs -I {} gh run cancel {}
+
+# Xóa workflow artifacts (có thể tốn phí storage)
+gh api repos/:owner/:repo/actions/artifacts --paginate | jq -r '.artifacts[] | select(.expired == false) | .id' | xargs -I {} gh api --method DELETE repos/:owner/:repo/actions/artifacts/{}
+```
+
+### 8.2 Xóa IAM Roles và Policies
+
+```bash
+# List tất cả IAM roles liên quan đến CI/CD
+aws iam list-roles \
+  --query 'Roles[?contains(RoleName, `GitHub`) || contains(RoleName, `CICD`) || contains(RoleName, `RetailForecast`)].RoleName' \
+  --output table
+
+# Detach policies trước khi xóa role
+aws iam list-attached-role-policies \
+  --role-name GitHubActionsRole \
+  --query 'AttachedPolicies[].PolicyArn' \
+  --output text | tr '\t' '\n' | while read policy_arn; do
+    echo "Detaching policy: $policy_arn"
+    aws iam detach-role-policy --role-name GitHubActionsRole --policy-arn "$policy_arn"
+done
+
+# Xóa custom policies
+aws iam delete-policy \
+  --policy-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):policy/GitHubActionsPolicy
+
+aws iam delete-policy \
+  --policy-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):policy/RetailForecastCICDPolicy
+
+# Xóa roles
+aws iam delete-role --role-name GitHubActionsRole
+aws iam delete-role --role-name RetailForecastCICDRole
+
+# Xóa instance profiles (nếu có)
+aws iam remove-role-from-instance-profile \
+  --instance-profile-name JenkinsInstanceProfile \
+  --role-name JenkinsRole || true
+
+aws iam delete-instance-profile \
+  --instance-profile-name JenkinsInstanceProfile || true
+
+aws iam delete-role --role-name JenkinsRole || true
+```
+
+### 8.3 Xóa Jenkins Infrastructure (nếu sử dụng)
+
+```bash
+# Terminate Jenkins EC2 instances
+aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=Jenkins-Server" "Name=instance-state-name,Values=running" \
+  --query 'Reservations[].Instances[].InstanceId' \
+  --output text | tr '\t' '\n' | while read instance_id; do
+    echo "Terminating Jenkins instance: $instance_id"
+    aws ec2 terminate-instances --instance-ids "$instance_id"
+done
+
+# Xóa Jenkins security group
+JENKINS_SG_ID=$(aws ec2 describe-security-groups \
+  --filters "Name=group-name,Values=sg-jenkins" \
+  --query 'SecurityGroups[0].GroupId' \
+  --output text)
+
+if [ "$JENKINS_SG_ID" != "None" ]; then
+    aws ec2 delete-security-group --group-id "$JENKINS_SG_ID"
+fi
+
+# Xóa Jenkins key pair
+aws ec2 delete-key-pair --key-name jenkins-key-pair || true
+```
+
+### 8.4 Xóa SNS Topics và Subscriptions
+
+```bash
+# List tất cả SNS topics liên quan
+aws sns list-topics \
+  --query 'Topics[?contains(TopicArn, `retail-forecast`) || contains(TopicArn, `mlops`)].TopicArn' \
+  --output table
+
+# Xóa subscriptions trước
+SNS_TOPIC_ARN=$(aws sns list-topics \
+  --query 'Topics[?contains(TopicArn, `retail-forecast-alerts`)].TopicArn' \
+  --output text)
+
+if [ "$SNS_TOPIC_ARN" != "" ]; then
+    # List và xóa subscriptions
+    aws sns list-subscriptions-by-topic \
+      --topic-arn "$SNS_TOPIC_ARN" \
+      --query 'Subscriptions[].SubscriptionArn' \
+      --output text | tr '\t' '\n' | while read sub_arn; do
+        if [ "$sub_arn" != "PendingConfirmation" ]; then
+            echo "Unsubscribing: $sub_arn"
+            aws sns unsubscribe --subscription-arn "$sub_arn"
+        fi
+    done
+    
+    # Xóa topic
+    aws sns delete-topic --topic-arn "$SNS_TOPIC_ARN"
+fi
+```
+
+### 8.5 Xóa CloudWatch Resources cho CI/CD
+
+```bash
+# Xóa CloudWatch dashboard cho CI/CD
+aws cloudwatch delete-dashboards \
+  --dashboard-names "RetailForecast-CI-CD-Pipeline" || true
+
+# Xóa custom metrics namespace
+aws cloudwatch list-metrics \
+  --namespace "RetailForecast/Pipeline" \
+  --query 'Metrics[].MetricName' \
+  --output text | tr '\t' '\n' | while read metric; do
+    echo "Found pipeline metric: $metric"
+    # Note: CloudWatch metrics tự động expire sau 15 tháng
+done
+
+# Xóa alarms liên quan đến CI/CD
+aws cloudwatch describe-alarms \
+  --alarm-name-prefix "Pipeline-" \
+  --query 'MetricAlarms[].AlarmName' \
+  --output text | tr '\t' '\n' | while read alarm; do
+    echo "Deleting pipeline alarm: $alarm"
+    aws cloudwatch delete-alarms --alarm-names "$alarm"
+done
+
+# Xóa log groups cho CI/CD
+aws logs delete-log-group \
+  --log-group-name "/aws/codebuild/retail-forecast-build" || true
+
+aws logs delete-log-group \
+  --log-group-name "/aws/codepipeline/retail-forecast-pipeline" || true
+```
+
+### 8.6 Xóa ECR Images và Tags
+
+```bash
+# List tất cả images trong ECR repository
+aws ecr describe-images \
+  --repository-name mlops/retail-api \
+  --region ap-southeast-1 \
+  --query 'imageDetails[].imageTags[]' \
+  --output table
+
+# Xóa specific CI/CD tags (giữ lại production tags)
+aws ecr batch-delete-image \
+  --repository-name mlops/retail-api \
+  --region ap-southeast-1 \
+  --image-ids imageTag=dev imageTag=staging imageTag=feature-* || true
+
+# Xóa untagged images
+aws ecr describe-images \
+  --repository-name mlops/retail-api \
+  --region ap-southeast-1 \
+  --filter tagStatus=UNTAGGED \
+  --query 'imageDetails[].imageDigest' \
+  --output text | tr '\t' '\n' | while read digest; do
+    echo "Deleting untagged image: $digest"
+    aws ecr batch-delete-image \
+      --repository-name mlops/retail-api \
+      --region ap-southeast-1 \
+      --image-ids imageDigest="$digest"
+done
+```
+
+### 8.7 Clean Up SageMaker Resources
+
+```bash
+# List training jobs created by CI/CD
+aws sagemaker list-training-jobs \
+  --name-contains "retail-forecast" \
+  --max-results 50 \
+  --query 'TrainingJobSummaries[].TrainingJobName' \
+  --output table
+
+# Stop running training jobs
+aws sagemaker list-training-jobs \
+  --status-equals InProgress \
+  --name-contains "retail-forecast" \
+  --query 'TrainingJobSummaries[].TrainingJobName' \
+  --output text | tr '\t' '\n' | while read job_name; do
+    echo "Stopping training job: $job_name"
+    aws sagemaker stop-training-job --training-job-name "$job_name"
+done
+
+# Xóa model versions trong Model Registry (giữ approved models)
+aws sagemaker list-model-packages \
+  --model-package-group-name "retail-forecast-models" \
+  --model-approval-status PendingManualApproval \
+  --query 'ModelPackageSummaryList[].ModelPackageArn' \
+  --output text | tr '\t' '\n' | while read package_arn; do
+    echo "Deleting pending model package: $package_arn"
+    aws sagemaker delete-model-package --model-package-name "$package_arn"
+done
+
+# Xóa endpoints từ failed deployments
+aws sagemaker list-endpoints \
+  --name-contains "retail-forecast-dev" \
+  --query 'Endpoints[?EndpointStatus==`Failed`].EndpointName' \
+  --output text | tr '\t' '\n' | while read endpoint; do
+    echo "Deleting failed endpoint: $endpoint"
+    aws sagemaker delete-endpoint --endpoint-name "$endpoint"
+done
+```
+
+### 8.8 Verification
+
+```bash
+# Verify IAM resources đã bị xóa
+aws iam get-role --role-name GitHubActionsRole 2>/dev/null || echo "GitHubActionsRole deleted"
+
+# Verify SNS topics đã bị xóa
+aws sns list-topics \
+  --query 'Topics[?contains(TopicArn, `retail-forecast-alerts`)]' || echo "SNS topics cleaned"
+
+# Verify CloudWatch resources
+aws cloudwatch describe-dashboards \
+  --dashboard-name-prefix "RetailForecast-CI-CD" || echo "Dashboards cleaned"
+
+# Verify no running training jobs
+aws sagemaker list-training-jobs \
+  --status-equals InProgress \
+  --name-contains "retail-forecast" \
+  --query 'TrainingJobSummaries' || echo "No running training jobs"
+
+# Check GitHub Actions status
+gh run list --limit 5 --status completed
+```
+
+## 9. Bảng giá CI/CD Pipeline (ap-southeast-1)
+
+### 9.1. GitHub Actions Pricing
+
+| Plan | Included Minutes | Price per minute | Storage |
+|------|------------------|------------------|---------|
+| **Free (Public repos)** | Unlimited | $0 | 500MB |
+| **Free (Private repos)** | 2,000 min/month | $0.008 | 500MB |
+| **Pro** | 3,000 min/month | $0.008 | 1GB |
+| **Team** | 10,000 min/month | $0.008 | 2GB |
+| **Enterprise** | 50,000 min/month | $0.008 | 50GB |
+
+**Runner costs:**
+- Ubuntu: Standard rate
+- macOS: 10x Standard rate  
+- Windows: 2x Standard rate
+- Self-hosted: Free compute, infrastructure cost only
+
+### 9.2. AWS IAM và Security Costs
+
+| Service | Cost | Description |
+|---------|------|-------------|
+| **IAM Roles & Policies** | Free | Unlimited roles and policies |
+| **STS AssumeRole calls** | $0.002/1000 calls | OIDC authentication |
+| **AWS Config (compliance)** | $0.003/configuration item | Policy compliance tracking |
+
+**Example calculation:**
+- 100 CI/CD runs/month × 5 STS calls = 500 calls = $0.001/month
+
+### 9.3. SageMaker Training Costs trong CI/CD
+
+| Instance Type | Cost per Hour | Typical Job Duration | Cost per Run |
+|---------------|---------------|---------------------|--------------|
+| **ml.m5.large** | $0.134 | 15 minutes | $0.034 |
+| **ml.m5.xlarge** | $0.269 | 10 minutes | $0.045 |
+| **ml.c5.xlarge** | $0.238 | 8 minutes | $0.032 |
+| **ml.p3.2xlarge** | $4.284 | 5 minutes | $0.357 |
+
+**Monthly costs by frequency:**
+- Daily training: 30 runs × $0.045 = $1.35
+- Weekly training: 4 runs × $0.045 = $0.18  
+- On-demand training: 2 runs × $0.045 = $0.09
+
+### 9.4. ECR Storage và Transfer Costs
+
+| Component | Cost | Volume | Monthly Cost |
+|-----------|------|---------|--------------|
+| **Storage** | $0.10/GB/month | 5GB images | $0.50 |
+| **Data Transfer IN** | Free | Upload images | $0 |
+| **Data Transfer OUT** | $0.12/GB | Download to EKS | Variable |
+
+**Image management costs:**
+```bash
+# Example: 10 images × 500MB each = 5GB storage
+# Monthly cost: 5GB × $0.10 = $0.50
+# Transfer to EKS: 5GB × $0.12 = $0.60 (one-time per deployment)
+```
+
+### 9.5. CloudWatch Monitoring cho CI/CD
+
+| Metric Type | Quantity | Unit Cost | Monthly Cost |
+|-------------|----------|-----------|--------------|
+| **Custom Metrics** | 20 metrics | $0.30/metric | $6.00 |
+| **API Calls** | 100K calls | $0.01/1K calls | $1.00 |
+| **Alarms** | 10 alarms | $0.10/alarm | $1.00 |
+| **Dashboard** | 1 dashboard | $3.00/dashboard | $3.00 |
+| **Total Monitoring** | | | **$11.00** |
+
+### 9.6. SNS Notification Costs
+
+| Notification Type | Volume | Cost per Message | Monthly Cost |
+|-------------------|---------|------------------|--------------|
+| **Email** | 200 notifications | $0.75/million | $0.0002 |
+| **SMS** | 50 notifications | $0.8/message | $40.00 |
+| **Slack Webhook** | 200 notifications | $0.75/million | $0.0002 |
+| **Push Mobile** | 100 notifications | $0.75/million | $0.0001 |
+
+### 9.7. Jenkins Infrastructure Costs (nếu self-hosted)
+
+| Component | Instance Type | Monthly Hours | Monthly Cost |
+|-----------|---------------|---------------|--------------|
+| **Jenkins Master** | t3.medium | 730 hours | $30.37 |
+| **Build Agents** | t3.large (2 agents) | 100 hours | $13.25 |
+| **EBS Storage** | 100GB gp3 | - | $8.00 |
+| **Data Transfer** | 50GB/month | $0.12/GB | $6.00 |
+| **Total Jenkins** | | | **$57.62** |
+
+### 9.8. CI/CD Pipeline Scenarios
+
+**Scenario 1: Small Team (GitHub Actions)**
+
+| Component | Usage | Monthly Cost |
+|-----------|-------|--------------|
+| GitHub Actions (private) | 2,000 min included | $0 |
+| SageMaker training | 4 runs/month | $0.18 |
+| ECR storage | 2GB images | $0.20 |
+| CloudWatch basic | 5 metrics, 3 alarms | $1.80 |
+| SNS notifications | Email only | $0.0002 |
+| **Total Small Team** | | **$2.18/month** |
+
+**Scenario 2: Medium Team (GitHub Actions Pro)**
+
+| Component | Usage | Monthly Cost |
+|-----------|-------|--------------|
+| GitHub Actions Pro | 3,000 min + 500 extra | $4.00 |
+| SageMaker training | 12 runs/month | $0.54 |
+| ECR storage | 8GB images | $0.80 |
+| CloudWatch full | 15 metrics, 8 alarms | $5.30 |
+| SNS notifications | Email + Slack | $0.0004 |
+| **Total Medium Team** | | **$10.64/month** |
+
+**Scenario 3: Enterprise (Self-hosted Jenkins)**
+
+| Component | Usage | Monthly Cost |
+|-----------|-------|--------------|
+| Jenkins infrastructure | t3.medium + agents | $57.62 |
+| SageMaker training | 60 runs/month | $2.70 |
+| ECR storage | 20GB images | $2.00 |
+| CloudWatch enterprise | 50 metrics, 25 alarms | $17.50 |
+| SNS notifications | Multi-channel | $40.50 |
+| **Total Enterprise** | | **$120.32/month** |
+
+### 9.9. Cost Optimization Strategies
+
+**GitHub Actions Optimization:**
+```yaml
+# Use matrix strategy để giảm runtime
+strategy:
+  matrix:
+    python-version: [3.8, 3.9, 3.10]
+    
+# Cache dependencies
+- uses: actions/cache@v3
+  with:
+    path: ~/.cache/pip
+    key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+    
+# Conditional jobs
+if: github.ref == 'refs/heads/main'
+```
+
+**SageMaker Training Optimization:**
+```python
+# Sử dụng Spot instances cho training
+training_params = {
+    'TrainingJobName': job_name,
+    'ResourceConfig': {
+        'InstanceType': 'ml.m5.large',
+        'InstanceCount': 1,
+        'VolumeSizeInGB': 30,
+        'UseSpotInstances': True,  # 90% cost savings
+        'MaxRuntimeInSeconds': 3600
+    }
+}
+```
+
+**ECR Cost Optimization:**
+```bash
+# Lifecycle policy để tự động xóa old images
+aws ecr put-lifecycle-policy \
+  --repository-name mlops/retail-api \
+  --lifecycle-policy-text '{
+    "rules": [
+      {
+        "rulePriority": 1,
+        "selection": {
+          "tagStatus": "untagged",
+          "countType": "sinceImagePushed",
+          "countUnit": "days",
+          "countNumber": 7
+        },
+        "action": {
+          "type": "expire"
+        }
+      }
+    ]
+  }'
+```
+
+### 9.10. ROI Analysis cho CI/CD Investment
+
+| Benefit | Manual Process | Automated CI/CD | Time Saved | Cost Benefit |
+|---------|----------------|-----------------|------------|--------------|
+| **Code Testing** | 2 hours/week | 5 minutes | 1.9 hours | $95/week |
+| **Model Training** | 30 min setup | Automatic | 2 hours/month | $100/month |
+| **Deployment** | 1 hour/deploy | 5 minutes | 55 min/deploy | $45/deploy |
+| **Rollback** | 2 hours | 5 minutes | 1.9 hours | $95/incident |
+
+**Annual ROI calculation:**
+- **Investment:** $127.68/month × 12 = $1,532
+- **Savings:** (2 hours/week × 52 weeks + 2 hours/month × 12) × $50/hour = $6,400
+- **ROI:** 322% return on investment
+
+### 9.11. Monitoring CI/CD Costs
+
+```bash
+# Track GitHub Actions usage
+gh api /repos/:owner/:repo/actions/billing/usage
+
+# Monitor SageMaker training costs
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=DIMENSION,Key=SERVICE \
+  --filter '{"Dimensions":{"Key":"SERVICE","Values":["Amazon SageMaker"]}}'
+
+# ECR storage costs
+aws ecr describe-registry-statistics --region ap-southeast-1
+
+# CloudWatch costs
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=DIMENSION,Key=SERVICE \
+  --filter '{"Dimensions":{"Key":"SERVICE","Values":["Amazon CloudWatch"]}}'
+```
+
+{{% notice info %}}
+**💰 Cost Summary cho Task 11:**
+- **Small Team (GitHub Free):** $2.18/month
+- **Medium Team (GitHub Pro):** $10.64/month  
+- **Enterprise (Self-hosted):** $120.32/month
+- **ROI:** 322% với automation benefits
+- **Break-even point:** ~3 months cho medium team setup
+{{% /notice %}}
+
 ---
 
-**Next Step**: [Task 14: Audit & Security](../14-security-audit/)
-
----
-
-**Next Step**: [Task 15: DataOps - Data Upload & Versioning](../15-dataops-upload-versioning/)
+**Next Step**: [Task 12: Cost Optimization & Teardown](../12-cost-&-teardown/)

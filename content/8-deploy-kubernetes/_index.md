@@ -397,6 +397,199 @@ kubectl get svc -n mlops
 aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(LoadBalancerName, `k8s-mlops`)]'
 ```
 
+## 10. Bảng giá Kubernetes Deployment (ap-southeast-1)
+
+### 10.1. Chi phí Pod Resources
+
+| Resource Type | Request | Limit | Cost Impact |
+|---------------|---------|-------|--------------|
+| **CPU** | 250m | 500m | ~25% of node CPU |
+| **Memory** | 512Mi | 1Gi | ~25% of node memory |
+| **Storage (EBS)** | - | - | From EBS pricing |
+
+**Với t2.micro node (1 vCPU, 1GB RAM):**
+- 1 API pod sử dụng ~50% resources
+- Có thể chạy 2 pods với resource requests
+- Scaling bị giới hạn bởi node capacity
+
+### 10.2. Chi phí Load Balancer
+
+| Load Balancer Type | Giá (USD/hour) | Giá (USD/month) | Data Processing |
+|-------------------|----------------|-----------------|------------------|
+| **Classic LB** | $0.025 | $18.25 | $0.008/GB |
+| **Application LB** | $0.0225 | $16.43 | $0.008/LCU-hour |
+| **Network LB** | $0.0225 | $16.43 | $0.006/NLCU-hour |
+
+### 10.3. Chi phí Service Types
+
+| Service Type | AWS Resource | Monthly Cost | Use Case |
+|--------------|--------------|--------------|----------|
+| **ClusterIP** | None | $0 | Internal communication |
+| **NodePort** | EC2 Security Groups | $0 | Development testing |
+| **LoadBalancer** | ELB/ALB/NLB | $16.43+ | Production external access |
+| **ExternalName** | None | $0 | External service mapping |
+
+### 10.4. Auto-scaling Costs
+
+**Horizontal Pod Autoscaler (HPA):**
+- HPA controller: Free (part of EKS)
+- Additional pods: EC2 instance costs
+- Scaling triggers: CPU/Memory metrics (free)
+
+**Cluster Autoscaler:**
+- Controller: Free 
+- New nodes: Full EC2 instance pricing
+- Scale-down: Automatic cost reduction
+
+### 10.5. Ước tính chi phí Task 8
+
+**Basic Deployment (2 replicas):**
+
+| Component | Quantity | Resource Usage | Monthly Cost |
+|-----------|----------|----------------|---------------|
+| **API Pods** | 2 replicas | 500m CPU, 1Gi RAM | Included in node cost |
+| **LoadBalancer Service** | 1 ALB | Base + LCU usage | $16.43 + usage |
+| **HPA** | 1 autoscaler | Controller only | $0 |
+| **Ingress** | Optional | Same ALB | $0 additional |
+| **Total** | | | **~$16.43 + LCU** |
+
+**With Auto-scaling (2-5 replicas):**
+
+| Scenario | Pods | Node Requirements | Additional Cost |
+|----------|------|-------------------|----------------|
+| **Low load** | 2 pods | 2x t2.micro (free) | $0 |
+| **Medium load** | 3-4 pods | 1x t3.small | $15.18 |
+| **High load** | 5 pods | 1x t3.medium | $30.37 |
+
+### 10.6. Data Transfer Costs
+
+| Transfer Type | Cost | Use Case |
+|---------------|------|----------|
+| **Pod-to-Pod (same AZ)** | Free | Internal communication |
+| **Pod-to-Pod (cross-AZ)** | $0.01/GB | Multi-AZ deployment |
+| **LoadBalancer to Internet** | $0.12/GB | API responses to clients |
+| **VPC Endpoints** | Free | S3/ECR access |
+
+### 10.7. Storage Costs cho Persistent Volumes
+
+```yaml
+# Example PVC for model storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-storage
+  namespace: mlops
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: gp3
+```
+
+**Storage pricing:**
+- 10GB gp3: $0.80/month
+- Snapshots: $0.50/month (10GB)
+- IOPS (if > 3000): $0.065/IOPS/month
+
+### 10.8. Cost Optimization cho Deployments
+
+**Resource Right-sizing:**
+```yaml
+resources:
+  requests:
+    memory: "256Mi"    # Start smaller
+    cpu: "100m"        # Minimal CPU request
+  limits:
+    memory: "512Mi"    # Reasonable limit
+    cpu: "250m"        # Allow bursting
+```
+
+**Efficient Pod Scheduling:**
+```yaml
+# Node affinity for cost optimization
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      preference:
+        matchExpressions:
+        - key: kubernetes.io/instance-type
+          operator: In
+          values: ["t3.micro", "t3.small"]  # Prefer cheaper instances
+```
+
+**LoadBalancer Optimization:**
+```yaml
+# Use single ALB for multiple services
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shared-alb
+  annotations:
+    kubernetes.io/ingress.class: alb
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /api/v1/*
+        backend:
+          service:
+            name: retail-api-service
+            port:
+              number: 80
+      - path: /admin/*
+        backend:
+          service:
+            name: admin-service
+            port:
+              number: 80
+```
+
+### 10.9. Monitoring Costs
+
+```bash
+# Monitor pod resource usage
+kubectl top pods -n mlops
+
+# Check actual vs requested resources
+kubectl describe pod <pod-name> -n mlops
+
+# Monitor HPA behavior
+kubectl get hpa -w -n mlops
+
+# Check LoadBalancer usage
+aws elbv2 describe-load-balancers --names <alb-name>
+```
+
+**Cost tracking commands:**
+```bash
+# ELB costs
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=DIMENSION,Key=SERVICE \
+  --filter '{"Dimensions":{"Key":"SERVICE","Values":["Amazon Elastic Load Balancing"]}}'
+
+# EC2 costs for nodes
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=DIMENSION,Key=INSTANCE_TYPE
+```
+
+{{% notice info %}}
+**💰 Cost Summary cho Task 8:**
+- **Pods:** Included in node cost (no additional charge)
+- **LoadBalancer:** $16.43/month base + usage
+- **Auto-scaling:** $0-30.37/month depending on load
+- **Storage:** $0.80/month per 10GB PVC
+- **Total:** $17-47/month depending on scaling
+{{% /notice %}}
+
 ---
 
-**Next Step**: [Task 09: Elastic Load Balancing](../09-elastic-load-balancing/)
+**Next Step**: [Task 09: Elastic Load Balancing](../9-elastic-load-balancing/)

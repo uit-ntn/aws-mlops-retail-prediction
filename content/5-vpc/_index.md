@@ -29,8 +29,6 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 - ✅ **Public Subnets**: ALB only (public API demo access)
 - ✅ **Internal Communication**: EKS ↔ S3 qua VPC Endpoints
 - ✅ **Demo Ready**: Public API endpoint qua ALB với SSL/health checks
-
-**Focus**: Production-grade networking cho Kubernetes deployment
 {{% /notice %}}
 
 📥 **Input**
@@ -39,88 +37,8 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 - CIDR planning: `10.0.0.0/16` (production EKS VPC)
 - Demo requirements: Public API access qua ALB
 - Task 4 completed: SageMaker training chạy trong VPC mặc định
-
 - **Input từ Task 4:** Task 4 (SageMaker training) — training VPC choices and requirements
 - **Input từ Task 2:** Task 2 (IAM Roles & Audit) — roles and policies required for VPC, EKS and ECR access
-
-✅ **Deliverables**
-
-- Multi-AZ Production VPC: Public (ALB) + Private (EKS)
-- Application Load Balancer ready cho public API demo
-- VPC Endpoints: S3 (FREE), ECR (high-speed internal)
-- Security Groups: Layered access control (Internet → ALB → EKS → S3)
-
-📊 **Acceptance Criteria**
-
-- API demo accessible qua ALB public endpoint
-- Private subnets secure: no direct Internet access
-- Internal EKS ↔ S3 latency < 50ms qua VPC Endpoints
-- Cost optimized: ~$0.02/hour ALB (chỉ khi demo)
-
-⚠️ **Gotchas**
-
-- ALB Target Groups cần health check configuration cho EKS Pods
-- VPC Endpoints require HTTPS 443 from VPC CIDR trong Security Groups
-- Private DNS must be enabled cho Interface Endpoints
-- SSL certificate setup nếu muốn HTTPS demo endpoint
-
-## Kiến trúc Hybrid VPC Layout
-
-### Network Design Overview
-
-```
-Production VPC: 10.0.0.0/16 (EKS + Public API Demo)
-├── ap-southeast-1a (AZ-1)
-│   ├── Public Subnet: 10.0.1.0/24
-│   │   ├── ALB (Application Load Balancer)
-│   │   └── Internet Gateway access
-│   └── Private Subnet: 10.0.101.0/24
-│       ├── EKS Worker Nodes (API Pods)
-│       └── VPC Endpoints access (no Internet)
-└── ap-southeast-1b (AZ-2)
-    ├── Public Subnet: 10.0.2.0/24
-    │   ├── ALB (Multi-AZ)
-    │   └── Internet Gateway access
-    └── Private Subnet: 10.0.102.0/24
-        ├── EKS Worker Nodes (API Pods)
-        ├── SageMaker Training Jobs
-        └── VPC Endpoints access (no Internet)
-
-Traffic Flow (Production API):
-Internet → ALB (Public) → EKS Pods (Private) → S3 (VPC Endpoints)
-
-VPC Endpoints (High-Speed Internal):
-├── S3 Gateway Endpoint (FREE) - Model artifacts, datasets  
-├── ECR Interface Endpoint ($7.2/month) - Container images
-└── CloudWatch Logs Interface Endpoint ($7.2/month) - Monitoring
-
-Note: SageMaker training vẫn chạy riêng trong VPC mặc định (Task 4)
-
-Security Layers:
-Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints SG (443)
-```
-
-{{% notice success %}}
-**🎯 Hybrid Architecture Benefits**
-
-**Public Demo Access:**
-
-- ALB provides public endpoint cho API `/predict`
-- SSL/TLS support cho secure HTTPS demo
-- Health checks ensure reliable API availability
-
-**Private Security:**
-
-- EKS Pods trong private subnets (no direct Internet)
-- SageMaker training jobs completely isolated
-- Data transfer qua VPC Endpoints only
-
-**Performance:**
-
-- EKS ↔ S3 latency < 50ms (internal network)
-- No NAT Gateway bottleneck
-- Direct VPC Endpoint access untuk model serving
-  {{% /notice %}}
 
 ### Cost Analysis: Demo-Ready Setup
 
@@ -160,51 +78,51 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 ![VPC Configuration](../images/05-vpc-networking/02-vpc-configuration.png)
 
-### 1.2. Tạo Subnets (Hybrid Layout)
+### 1.2. Tạo Subnets
 
 1. **Public Subnets (ALB Only):**
 
    - Navigate to "Subnets" → "Create subnet"
 
-   **Public Subnet 1 (ap-southeast-1a):**
+**Public Subnet 1 (ap-southeast-1a):**
 
-   ```
+```
    Name: mlops-hybrid-public-alb-ap-southeast-1a
    Availability Zone: ap-southeast-1a
    IPv4 CIDR: 10.0.1.0/24
    Purpose: ALB + Internet Gateway access
-   ```
+```
 
-   **Public Subnet 2 (ap-southeast-1b):**
+**Public Subnet 2 (ap-southeast-1b):**
 
-   ```
+```
    Name: mlops-hybrid-public-alb-ap-southeast-1b
    Availability Zone: ap-southeast-1b
    IPv4 CIDR: 10.0.2.0/24
    Purpose: ALB + Internet Gateway access
-   ```
+```
 
 ![Create Public Subnets](../images/05-vpc-networking/03.1-create-subnets.png)
 
 2. **Private Subnets (EKS Production):**
 
-   **Private Subnet 1 (ap-southeast-1a):**
+**Private Subnet 1 (ap-southeast-1a):**
 
-   ```
+```
    Name: mlops-eks-private-workloads-ap-southeast-1a
    Availability Zone: ap-southeast-1a
    IPv4 CIDR: 10.0.101.0/24
    Purpose: EKS API Pods
-   ```
+```
 
-   **Private Subnet 2 (ap-southeast-1b):**
+**Private Subnet 2 (ap-southeast-1b):**
 
-   ```
+```
    Name: mlops-eks-private-workloads-ap-southeast-1b
    Availability Zone: ap-southeast-1b
    IPv4 CIDR: 10.0.102.0/24
    Purpose: EKS API Pods
-   ```
+```
 
 ![Create Private Subnets](../images/05-vpc-networking/03.2-create-subnets.png)
 
@@ -460,7 +378,7 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 
 **Purpose:** Docker layer downloads cho EKS container runtime
 
-### 2.4. CloudWatch Logs Interface Endpoint (Optional - Monitoring)
+### 2.4. CloudWatch Logs Interface Endpoint
 
 1. **Create CloudWatch Logs Endpoint:**
    ```
@@ -488,7 +406,6 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 - **3x Interface Endpoints**: ENI created in each private subnet
 - **Private DNS**: All endpoints resolvable via internal DNS
 
-{{% notice success %}}
 **🎯 VPC Endpoints Complete!**
 
 **High-Performance Internal Network:**
@@ -499,7 +416,6 @@ Internet (0.0.0.0/0) → ALB SG (80/443) → EKS SG (internal) → VPC Endpoints
 - No Internet dependency for AWS services
 
 **Cost Optimized:** ~$7.2/month tiết kiệm (không cần SageMaker VPC Endpoint)
-{{% /notice %}}
 
 ## 3. Application Load Balancer Setup (Public API Demo)
 
@@ -604,7 +520,7 @@ Example: mlops-hybrid-api-demo-alb-1234567890.ap-southeast-1.elb.amazonaws.com
 
 ## 4. Advanced Configuration & Integration
 
-### 4.1. VPC Flow Logs (Optional - Monitoring)
+### 4.1. VPC Flow Logs
 
 ```bash
 # Enable VPC Flow Logs for security monitoring
@@ -658,7 +574,7 @@ aws cloudwatch put-metric-alarm \
   --dimensions Name=Currency,Value=USD Name=ServiceName,Value=AmazonVPC
 ```
 
-## 5. Terraform Outputs (Optional - Infrastructure as Code)
+## 5. Terraform Outputs
 
 {{% notice info %}}
 **💡 Khi nào cần Terraform outputs:**
@@ -851,8 +767,7 @@ output "api_demo_config" {
 }
 ```
 
-### 5.3. Deploy Terraform Outputs (Optional)
-
+### 5.3. Deploy Terraform Outputs
 ```bash
 # Navigate to infrastructure directory
 cd aws/infra
@@ -1134,6 +1049,245 @@ curl https://your-alb-dns/health
 - **Task 5**: EKS managed node groups trong cost-optimized private subnets
   {{% /notice %}}
 
+## 8. Clean Up Resources (AWS CLI)
+
+### 8.1. Xóa Application Load Balancer và Target Groups
+
+```bash
+# Liệt kê ALB
+aws elbv2 describe-load-balancers --names mlops-hybrid-api-demo-alb --query 'LoadBalancers[*].[LoadBalancerArn,DNSName]' --output table
+
+# Xóa ALB (tự động xóa listeners)
+aws elbv2 delete-load-balancer --load-balancer-arn <alb-arn>
+
+# Xóa Target Groups
+aws elbv2 describe-target-groups --names mlops-hybrid-eks-api-tg --query 'TargetGroups[*].TargetGroupArn' --output text | xargs -I {} aws elbv2 delete-target-group --target-group-arn {}
+```
+
+### 8.2. Xóa VPC Endpoints
+
+```bash
+# Liệt kê VPC Endpoints
+aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=<vpc-id>" --query 'VpcEndpoints[*].[VpcEndpointId,ServiceName]' --output table
+
+# Xóa Interface Endpoints (ECR, CloudWatch Logs)
+aws ec2 delete-vpc-endpoints --vpc-endpoint-ids <ecr-api-endpoint-id> <ecr-dkr-endpoint-id> <logs-endpoint-id>
+
+# Xóa Gateway Endpoint (S3)
+aws ec2 delete-vpc-endpoints --vpc-endpoint-ids <s3-gateway-endpoint-id>
+```
+
+### 8.3. Xóa Security Groups
+
+```bash
+# Liệt kê Security Groups (trừ default)
+aws ec2 describe-security-groups --filters "Name=vpc-id,Values=<vpc-id>" --query 'SecurityGroups[?GroupName!=`default`].[GroupId,GroupName]' --output table
+
+# Xóa Security Groups (theo thứ tự ngược dependency)
+aws ec2 delete-security-group --group-id <vpc-endpoints-sg-id>
+aws ec2 delete-security-group --group-id <eks-control-plane-sg-id>
+aws ec2 delete-security-group --group-id <eks-nodes-sg-id>
+aws ec2 delete-security-group --group-id <alb-sg-id>
+```
+
+### 8.4. Xóa Subnets và Route Tables
+
+```bash
+# Liệt kê Route Tables (trừ main)
+aws ec2 describe-route-tables --filters "Name=vpc-id,Values=<vpc-id>" --query 'RouteTables[?Associations[0].Main!=`true`].[RouteTableId,Tags[0].Value]' --output table
+
+# Xóa Route Tables
+aws ec2 delete-route-table --route-table-id <public-rt-id>
+aws ec2 delete-route-table --route-table-id <private-rt-id>
+
+# Liệt kê Subnets
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=<vpc-id>" --query 'Subnets[*].[SubnetId,Tags[0].Value,CidrBlock]' --output table
+
+# Xóa Subnets
+aws ec2 delete-subnet --subnet-id <public-subnet-1a-id>
+aws ec2 delete-subnet --subnet-id <public-subnet-1b-id>
+aws ec2 delete-subnet --subnet-id <private-subnet-1a-id>
+aws ec2 delete-subnet --subnet-id <private-subnet-1b-id>
+```
+
+### 8.5. Xóa Internet Gateway và VPC
+
+```bash
+# Detach và xóa Internet Gateway
+aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=<vpc-id>" --query 'InternetGateways[*].InternetGatewayId' --output text | xargs -I {} aws ec2 detach-internet-gateway --internet-gateway-id {} --vpc-id <vpc-id>
+
+aws ec2 delete-internet-gateway --internet-gateway-id <igw-id>
+
+# Xóa VPC (cuối cùng)
+aws ec2 delete-vpc --vpc-id <vpc-id>
+
+# Verify clean up
+aws ec2 describe-vpcs --vpc-ids <vpc-id>
+```
+
+### 8.6. Clean Up Helper Script
+
+```bash
+#!/bin/bash
+# vpc-cleanup.sh
+
+VPC_ID="vpc-xxxxxxxxx"  # Thay bằng VPC ID thực tế
+
+echo "🧹 Cleaning up VPC resources for $VPC_ID..."
+
+# 1. Xóa ALB và Target Groups
+echo "Deleting ALB..."
+ALB_ARN=$(aws elbv2 describe-load-balancers --names mlops-hybrid-api-demo-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null)
+if [ "$ALB_ARN" != "None" ] && [ ! -z "$ALB_ARN" ]; then
+    aws elbv2 delete-load-balancer --load-balancer-arn $ALB_ARN
+    echo "ALB deleted: $ALB_ARN"
+fi
+
+# 2. Xóa VPC Endpoints
+echo "Deleting VPC Endpoints..."
+ENDPOINTS=$(aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_ID" --query 'VpcEndpoints[*].VpcEndpointId' --output text)
+for endpoint in $ENDPOINTS; do
+    aws ec2 delete-vpc-endpoints --vpc-endpoint-ids $endpoint
+    echo "VPC Endpoint deleted: $endpoint"
+done
+
+# 3. Đợi resources được xóa
+echo "Waiting for resources to be deleted..."
+sleep 60
+
+# 4. Xóa Security Groups
+echo "Deleting Security Groups..."
+SECURITY_GROUPS=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text)
+for sg in $SECURITY_GROUPS; do
+    aws ec2 delete-security-group --group-id $sg 2>/dev/null
+    echo "Security Group deleted: $sg"
+done
+
+echo "✅ VPC cleanup completed for $VPC_ID"
+```
+
+---
+
+## 9. Bảng giá VPC và Networking (ap-southeast-1)
+
+### 9.1. Chi phí VPC Core Components
+
+| Component | Giá (USD) | Ghi chú |
+|-----------|-----------|---------|
+| **VPC** | Free | Unlimited VPCs |
+| **Subnets** | Free | Unlimited subnets |
+| **Route Tables** | Free | Routing configuration |
+| **Internet Gateway** | Free | One per VPC |
+| **Security Groups** | Free | Firewall rules |
+
+### 9.2. Chi phí VPC Endpoints
+
+| Endpoint Type | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
+|---------------|----------------|-----------------|---------------|
+| **Gateway Endpoint (S3)** | Free | Free | Free |
+| **Interface Endpoint** | $0.01 | $7.2 | $0.01/GB |
+| **PrivateLink Endpoint** | $0.01 | $7.2 | $0.01/GB |
+
+**Chi phí VPC Endpoints cho Task 5:**
+- S3 Gateway: Free
+- ECR API Interface: $7.2/month
+- ECR DKR Interface: $7.2/month  
+- CloudWatch Logs Interface: $7.2/month
+- **Tổng:** $21.6/month
+
+### 9.3. Chi phí Application Load Balancer
+
+| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
+|-----------|----------------|-----------------|---------|
+| **ALB Fixed Cost** | $0.0225 | $16.2 | Always running |
+| **LCU (Load Balancer Capacity Unit)** | $0.008 | $5.76 | Per LCU-hour |
+| **Rule Evaluations** | $0.008 | $5.76 | Per million requests |
+
+**Ước tính ALB chi phí:**
+- Base ALB: $16.2/month
+- 1 LCU (basic usage): $5.76/month
+- **Total ALB:** ~$22/month continuous
+
+### 9.4. Chi phí NAT Gateway (Không dùng trong Task 5)
+
+| Component | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
+|-----------|----------------|-----------------|---------------|
+| **NAT Gateway** | $0.045 | $32.4 | $0.045/GB |
+| **Data Processing** | | | $0.045/GB |
+
+**Tiết kiệm:** $32.4/month bằng cách dùng VPC Endpoints thay NAT Gateway
+
+### 9.5. Data Transfer Pricing
+
+| Transfer Type | Giá (USD/GB) | Ghi chú |
+|---------------|--------------|---------|
+| **VPC Internal** | Free | Same AZ |
+| **Cross-AZ** | $0.01 | Different AZ trong region |
+| **VPC Endpoints** | $0.01 | Interface endpoints |
+| **Internet OUT** | $0.12 | First 1GB free/month |
+| **S3 Transfer** | Free | Via Gateway endpoint |
+
+### 9.6. Ước tính tổng chi phí Task 5
+
+**Monthly Baseline Cost:**
+
+| Component | Monthly Cost | Purpose |
+|-----------|--------------|---------|
+| VPC + Subnets + IGW | $0 | Core networking |
+| VPC Endpoints (3x Interface) | $21.6 | ECR + CloudWatch |
+| S3 Gateway Endpoint | $0 | Model access |
+| **Subtotal** | **$21.6** | Always running |
+
+**Demo Usage Cost:**
+
+| Usage Pattern | ALB Cost | Total Cost | Use Case |
+|---------------|----------|------------|----------|
+| **Development (8h/day)** | $5.4/month | $27/month | Daily development |
+| **Demo only (3h/day)** | $2.0/month | $23.6/month | Presentation demos |
+| **Production (24/7)** | $22/month | $43.6/month | Live production |
+| **Testing (1h/day)** | $0.7/month | $22.3/month | Occasional testing |
+
+### 9.7. Cost Comparison với Traditional Setup
+
+**Task 5 (VPC Endpoints)** vs **Traditional (NAT Gateway)**:
+
+| Architecture | Monthly Cost | Performance | Security |
+|--------------|--------------|-------------|----------|
+| **VPC Endpoints** | $21.6 | < 50ms latency | Private network |
+| **NAT Gateway** | $32.4 + data | Variable | Internet routing |
+| **Savings** | **-$10.8** | **Better** | **Higher** |
+
+### 9.8. Cost Optimization Tips
+
+**Immediate Savings:**
+- ✅ Use S3 Gateway Endpoint (Free thay vì $7.2/month Interface)
+- ✅ Skip NAT Gateway (-$32.4/month)
+- ✅ Turn off ALB khi không demo (-$22/month)
+
+**Long-term Optimization:**
+- Use Spot instances cho EKS nodes (60-70% savings)
+- S3 Intelligent Tiering cho model storage
+- CloudWatch Logs retention policy (7-30 days)
+
+**Demo Cost Management:**
+```bash
+# Bật ALB chỉ khi demo
+aws elbv2 create-load-balancer --name demo-alb --type application
+
+# Tắt ALB sau demo  
+aws elbv2 delete-load-balancer --load-balancer-arn <arn>
+```
+
+{{% notice info %}}
+**💰 Cost Summary cho Task 5:**
+- **Baseline:** $21.6/month (VPC Endpoints, always on)
+- **Demo usage:** $0.02/hour ALB (chỉ khi cần)
+- **Savings:** $10.8/month so với NAT Gateway approach
+- **Performance:** < 50ms internal latency guaranteed
+{{% /notice %}}
+
+---
+
 {{% notice info %}}
 
 **_Console-created resources_** sẵn sàng cho subsequent tasks:
@@ -1143,3 +1297,7 @@ curl https://your-alb-dns/health
 - VPC Endpoint IDs cho cost-optimized AWS services access
 
 {{% /notice %}}
+
+---
+
+**Next Step**: [Task 06: ERC Registry](../6-erc-registry)
