@@ -30,46 +30,6 @@ Load Balancing là một thành phần thiết yếu trong kiến trúc microser
 - **Endpoint nhất quán**: Cung cấp một endpoint duy nhất để client (web/mobile app) kết nối tới dịch vụ dự đoán
 - **Khả năng quan sát (Observability)**: Thu thập metrics về lưu lượng, latency và errors cho việc theo dõi hiệu suất API
 
-### Kiến trúc Load Balancing trên EKS
-
-{{< mermaid >}}
-graph TB
-    subgraph "Internet"
-        CLIENT[External Clients]
-    end
-    
-    subgraph "AWS Cloud"
-        ALB[Application Load Balancer]
-        SG[Security Group]
-        
-        subgraph "EKS Cluster"
-            subgraph "Public Subnet"
-                INGRESS[AWS Load Balancer Controller]
-            end
-            
-            subgraph "Private Subnet"
-                POD1[API Pod 1]
-                POD2[API Pod 2]
-                POD3[API Pod 3]
-                SVC[Kubernetes Service]
-            end
-        end
-    end
-    
-    CLIENT -- HTTPS --> ALB
-    ALB -- Health Check --> POD1
-    ALB -- Health Check --> POD2
-    ALB -- Health Check --> POD3
-    SG -- Firewall --> ALB
-    
-    ALB -- HTTP --> SVC
-    SVC --> POD1
-    SVC --> POD2
-    SVC --> POD3
-    
-    class ALB,INGRESS highlight
-{{< /mermaid >}}
-
 ## 2. Thiết lập Application Load Balancer (ALB)
 
 AWS Application Load Balancer (ALB) là lựa chọn tốt cho Retail Prediction API vì:
@@ -344,58 +304,7 @@ spec:
             name: retail-api-service
             port:
               number: 80
----
-```
 
-{{< mermaid >}}
-graph TD
-    subgraph "Client Requests"
-        C1[Web Client]
-        C2[Mobile App]
-        C3[Backend Services]
-    end
-    
-    subgraph "ALB (Application Load Balancer)"
-        LB[Load Balancer]
-        WAF[AWS WAF]
-        SSL[SSL Termination]
-        LOGS[Access Logging]
-    end
-    
-    subgraph "EKS Cluster"
-        ING[Ingress Resource]
-        SVC[Retail API Service]
-        P1[Pod 1]
-        P2[Pod 2]
-        P3[Pod 3]
-        HC[Health Check]
-    end
-    
-    C1 --> LB
-    C2 --> LB
-    C3 --> LB
-    
-    LB --> WAF
-    WAF --> SSL
-    SSL --> LOGS
-    LOGS --> ING
-    
-    ING -- "/docs" --> SVC
-    ING -- "/predict" --> SVC
-    ING -- "/health" --> SVC
-    
-    SVC --> P1
-    SVC --> P2
-    SVC --> P3
-    
-    HC --> P1
-    HC --> P2
-    HC --> P3
-    
-    style LB fill:#f9f,stroke:#333,stroke-width:2px
-    style WAF fill:#bbf,stroke:#333,stroke-width:1px
-    style ING fill:#bfb,stroke:#333,stroke-width:2px
-{{< /mermaid >}}
 ```
 
 #### 3.3 Advanced ALB with Multiple Paths
@@ -1121,6 +1030,326 @@ aws cloudwatch get-metric-statistics \
   --statistics Average
 ```
 
+## 11. Clean Up Resources (AWS CLI)
+
+### 11.1. Xóa Load Balancers
+
+```bash
+# Liệt kê ALBs
+aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(LoadBalancerName, `retail`)].{Name:LoadBalancerName,ARN:LoadBalancerArn}' --output table
+
+# Xóa ALB (tự động xóa listeners)
+aws elbv2 delete-load-balancer --load-balancer-arn <alb-arn>
+
+# Liệt kê Target Groups
+aws elbv2 describe-target-groups --query 'TargetGroups[?contains(TargetGroupName, `retail`)].{Name:TargetGroupName,ARN:TargetGroupArn}' --output table
+
+# Xóa Target Groups
+aws elbv2 delete-target-group --target-group-arn <target-group-arn>
+```
+
+### 11.2. Xóa AWS Load Balancer Controller
+
+```bash
+# Uninstall AWS Load Balancer Controller
+helm uninstall aws-load-balancer-controller -n kube-system
+
+# Xóa IRSA role cho load balancer controller
+aws iam detach-role-policy \
+  --role-name AmazonEKSLoadBalancerControllerRole \
+  --policy-arn arn:aws:iam::<account-id>:policy/AWSLoadBalancerControllerIAMPolicy
+
+aws iam delete-role --role-name AmazonEKSLoadBalancerControllerRole
+
+# Xóa IAM policy
+aws iam delete-policy --policy-arn arn:aws:iam::<account-id>:policy/AWSLoadBalancerControllerIAMPolicy
+```
+
+### 11.3. Xóa Ingress Resources
+
+```bash
+# Xóa Ingress resources
+kubectl delete ingress --all -n mlops
+
+# Xóa IngressClass
+kubectl delete ingressclass alb
+
+# Verify cleanup
+kubectl get ingress -A
+kubectl get ingressclass
+```
+
+### 11.4. Xóa WAF và Security Configurations
+
+```bash
+# Liệt kê WAF Web ACLs
+aws wafv2 list-web-acls --scope REGIONAL --region ap-southeast-1
+
+# Xóa WAF rules trước
+aws wafv2 update-web-acl \
+  --scope REGIONAL \
+  --id <web-acl-id> \
+  --lock-token <lock-token> \
+  --rules '[]' \
+  --default-action Allow={}
+
+# Xóa WAF Web ACL
+aws wafv2 delete-web-acl \
+  --scope REGIONAL \
+  --id <web-acl-id> \
+  --lock-token <lock-token>
+```
+
+### 11.5. Clean Up SSL Certificates
+
+```bash
+# Liệt kê ACM certificates
+aws acm list-certificates --region ap-southeast-1 --query 'CertificateSummaryList[*].{Domain:DomainName,ARN:CertificateArn}'
+
+# Xóa certificate (chỉ khi không còn sử dụng)
+aws acm delete-certificate --certificate-arn <certificate-arn> --region ap-southeast-1
+
+# Xóa Route53 records
+aws route53 change-resource-record-sets \
+  --hosted-zone-id <zone-id> \
+  --change-batch '{
+    "Changes": [{
+      "Action": "DELETE",
+      "ResourceRecordSet": {
+        "Name": "api.retail-prediction.example.com",
+        "Type": "A",
+        "AliasTarget": {
+          "DNSName": "<alb-dns-name>",
+          "EvaluateTargetHealth": false,
+          "HostedZoneId": "<alb-zone-id>"
+        }
+      }
+    }]
+  }'
+```
+
+### 11.6. Load Balancing Cleanup Script
+
+```bash
+#!/bin/bash
+# loadbalancer-cleanup.sh
+
+NAMESPACE="mlops"
+CLUSTER_NAME="retail-prediction-cluster"
+REGION="ap-southeast-1"
+
+echo "🧹 Cleaning up Load Balancer resources..."
+
+# 1. Delete Kubernetes resources
+echo "Deleting Ingress resources..."
+kubectl delete ingress --all -n $NAMESPACE
+kubectl delete service --selector=app=retail-api -n $NAMESPACE
+
+# 2. Wait for ALB deletion
+echo "Waiting for ALB deletion..."
+sleep 60
+
+# 3. Clean up AWS resources
+echo "Cleaning up AWS Load Balancer Controller..."
+helm uninstall aws-load-balancer-controller -n kube-system 2>/dev/null || true
+
+# 4. Delete remaining target groups
+echo "Cleaning up target groups..."
+TARGET_GROUPS=$(aws elbv2 describe-target-groups --query 'TargetGroups[?contains(TargetGroupName, `k8s-`)].TargetGroupArn' --output text)
+for tg in $TARGET_GROUPS; do
+    aws elbv2 delete-target-group --target-group-arn $tg 2>/dev/null || true
+done
+
+echo "✅ Load Balancer cleanup completed"
+```
+
 ---
 
-**Next Step**: [Task 12: CloudWatch Monitoring & Alerting](../12-cloudwatch/)
+## 12. Bảng giá Load Balancing (ap-southeast-1)
+
+### 12.1. Chi phí Application Load Balancer (ALB)
+
+| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
+|-----------|----------------|-----------------|----------|
+| **ALB Base Cost** | $0.0225 | $16.43 | Per ALB instance |
+| **LCU (Load Balancer Capacity Unit)** | $0.008 | $5.84 | Per LCU-hour |
+| **New connections** | Included | Included | Up to 25/second per LCU |
+| **Active connections** | Included | Included | Up to 3,000 per LCU |
+| **Data processed** | Included | Included | Up to 1GB per LCU |
+| **Rule evaluations** | Included | Included | Up to 1,000 per LCU |
+
+### 12.2. Chi phí Network Load Balancer (NLB)
+
+| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
+|-----------|----------------|-----------------|----------|
+| **NLB Base Cost** | $0.0225 | $16.43 | Per NLB instance |
+| **NLCU (Network LCU)** | $0.006 | $4.38 | Per NLCU-hour |
+| **New connections/flows** | Included | Included | Up to 800/second per NLCU |
+| **Active connections/flows** | Included | Included | Up to 100,000 per NLCU |
+| **Data processed** | Included | Included | Up to 1GB per NLCU |
+
+### 12.3. Chi phí Classic Load Balancer (CLB)
+
+| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
+|-----------|----------------|-----------------|----------|
+| **CLB Base Cost** | $0.025 | $18.25 | Per CLB instance |
+| **Data Transfer** | $0.008/GB | Variable | Data processed |
+
+### 12.4. So sánh các loại Load Balancer
+
+| Feature | ALB | NLB | CLB | Best For |
+|---------|-----|-----|-----|----------|
+| **Layer** | Layer 7 (HTTP/HTTPS) | Layer 4 (TCP/UDP) | Layer 4/7 | ALB: Web apps, NLB: High performance |
+| **Base Cost** | $16.43/month | $16.43/month | $18.25/month | ALB/NLB cheaper |
+| **Capacity Units** | LCU ($5.84) | NLCU ($4.38) | Fixed | NLB most cost-effective |
+| **SSL Termination** | ✅ | ✅ | ✅ | All support |
+| **Path-based Routing** | ✅ | ❌ | ❌ | ALB only |
+| **WebSocket** | ✅ | ✅ | ❌ | ALB/NLB |
+| **Static IP** | ❌ | ✅ | ❌ | NLB only |
+
+### 12.5. AWS Load Balancer Controller Costs
+
+| Component | Cost | Ghi chú |
+|-----------|------|----------|
+| **Controller Pods** | Free | Runs on existing EKS nodes |
+| **IRSA Role** | Free | IAM integration |
+| **Webhook Certificate** | Free | TLS for admission controller |
+| **Target Group Binding** | Free | CRD for pod registration |
+| **Ingress Management** | Free | Kubernetes native |
+
+### 12.6. SSL/TLS Certificate Costs
+
+| Service | Cost | Features |
+|---------|------|----------|
+| **AWS Certificate Manager (ACM)** | Free | Public SSL certificates |
+| **Route 53 DNS** | $0.50/hosted zone | Domain validation |
+| **Third-party Certificates** | $10-100/year | Extended validation options |
+
+### 12.7. WAF (Web Application Firewall) Costs
+
+| Component | Giá (USD/month) | Ghi chú |
+|-----------|-----------------|----------|
+| **WAF Web ACL** | $1 | Per Web ACL |
+| **WAF Rules** | $0.60 | Per rule per month |
+| **WAF Requests** | $0.60 | Per million requests |
+| **Bot Control** | $10 | Advanced bot protection |
+| **Rate Limiting** | $2 | Per rate-based rule |
+
+### 12.8. Ước tính chi phí Task 9
+
+**Basic ALB Setup:**
+
+| Component | Usage | Monthly Cost |
+|-----------|-------|---------------|
+| **ALB Base** | 1 ALB | $16.43 |
+| **LCU Usage** | 1 LCU average | $5.84 |
+| **ACM Certificate** | 1 domain | $0 |
+| **Route 53** | 1 hosted zone | $0.50 |
+| **WAF (optional)** | Basic rules | $3.20 |
+| **Total** | | **$26.00** |
+
+**Production Setup với High Availability:**
+
+| Component | Usage | Monthly Cost |
+|-----------|-------|---------------|
+| **ALB Base** | 1 ALB (Multi-AZ) | $16.43 |
+| **LCU Usage** | 3 LCU average | $17.52 |
+| **ACM Certificate** | 2 domains | $0 |
+| **Route 53** | 2 hosted zones | $1.00 |
+| **WAF** | Advanced rules | $15.20 |
+| **CloudFront** | CDN integration | $8.50 |
+| **Total** | | **$58.65** |
+
+### 12.9. Cost Optimization Strategies
+
+**Single ALB for Multiple Services:**
+```yaml
+# Cost-effective: 1 ALB serves multiple applications
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shared-alb-ingress
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/group.name: shared-alb
+spec:
+  rules:
+  - host: api.retail.com
+    http:
+      paths:
+      - path: /predict
+        backend:
+          service:
+            name: retail-api
+            port:
+              number: 80
+  - host: admin.retail.com
+    http:
+      paths:
+      - path: /
+        backend:
+          service:
+            name: admin-dashboard
+            port:
+              number: 80
+```
+
+**Right-size Load Balancer:**
+- Monitor LCU/NLCU usage với CloudWatch
+- Optimize connection pooling
+- Use appropriate health check intervals
+- Configure proper idle timeouts
+
+### 12.10. Monitoring và Cost Control
+
+```bash
+# Monitor ALB metrics
+aws cloudwatch get-metric-statistics \
+  --namespace AWS/ApplicationELB \
+  --metric-name ConsumedLCUs \
+  --dimensions Name=LoadBalancer,Value=<alb-full-name> \
+  --start-time 2024-01-01T00:00:00Z \
+  --end-time 2024-01-31T23:59:59Z \
+  --period 3600 \
+  --statistics Average,Maximum
+
+# Check ALB costs
+aws ce get-cost-and-usage \
+  --time-period Start=2024-01-01,End=2024-01-31 \
+  --granularity MONTHLY \
+  --metrics BlendedCost \
+  --group-by Type=DIMENSION,Key=SERVICE \
+  --filter '{"Dimensions":{"Key":"SERVICE","Values":["Amazon Elastic Load Balancing"]}}'
+
+# Monitor target health
+aws elbv2 describe-target-health \
+  --target-group-arn <target-group-arn> \
+  --query 'TargetHealthDescriptions[*].{Target:Target.Id,Health:TargetHealth.State}'
+```
+
+**Cost alerts:**
+```bash
+# Create cost alarm for Load Balancing
+aws cloudwatch put-metric-alarm \
+  --alarm-name "LoadBalancer-Cost-Alert" \
+  --alarm-description "Alert when Load Balancer cost > $50/month" \
+  --metric-name EstimatedCharges \
+  --namespace AWS/Billing \
+  --statistic Maximum \
+  --period 86400 \
+  --threshold 50 \
+  --comparison-operator GreaterThanThreshold \
+  --dimensions Name=Currency,Value=USD Name=ServiceName,Value=AmazonELB
+```
+
+{{% notice info %}}
+**💰 Cost Summary cho Task 9:**
+- **Basic ALB:** $26/month (single service)
+- **Shared ALB:** $22/month (multiple services sharing 1 ALB)
+- **Production:** $58.65/month (với WAF, CloudFront)
+- **Optimization:** 15-30% savings với proper resource sharing
+{{% /notice %}}
+
+---
+
+**Next Step**: [Task 10: CloudWatch Monitoring & Alerting](../10-cloudwatch/)

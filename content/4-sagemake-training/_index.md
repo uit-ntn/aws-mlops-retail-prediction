@@ -895,6 +895,149 @@ Một *Model Version* mới sẽ được tạo.
 - ✅ **Spot instances** - Cost optimization với auto-scaling
 - ✅ **Complete notebook** - 4 cells với detailed logging
 
+## 7. Clean Up Resources (AWS CLI)
+
+### 7.1. Xóa SageMaker Training Jobs
+
+```bash
+# Liệt kê training jobs
+aws sagemaker list-training-jobs --name-contains "retail-prediction-training" --query 'TrainingJobSummaries[*].[TrainingJobName,TrainingJobStatus]' --output table
+
+# Dừng training job đang chạy (nếu có)
+aws sagemaker stop-training-job --training-job-name <job-name>
+
+# Training jobs tự động cleanup sau khi hoàn thành (không cần xóa manual)
+```
+
+### 7.2. Xóa Model Registry
+
+```bash
+# Liệt kê model packages
+aws sagemaker list-model-packages --model-package-group-name retail-price-sensitivity-models --query 'ModelPackageSummaryList[*].[ModelPackageArn,ModelPackageStatus]' --output table
+
+# Xóa từng model package version
+aws sagemaker delete-model-package --model-package-name <model-package-arn>
+
+# Xóa model package group
+aws sagemaker delete-model-package-group --model-package-group-name retail-price-sensitivity-models
+```
+
+### 7.3. Xóa SageMaker Domain và Project
+
+```bash
+# Liệt kê domains
+aws sagemaker list-domains --query 'Domains[*].[DomainId,DomainName,Status]' --output table
+
+# Xóa user profiles trước
+aws sagemaker list-user-profiles --domain-id <domain-id> --query 'UserProfiles[*].UserProfileName' --output text
+
+# Xóa từng user profile
+aws sagemaker delete-user-profile --domain-id <domain-id> --user-profile-name <user-profile-name>
+
+# Xóa domain (sau khi xóa hết user profiles)
+aws sagemaker delete-domain --domain-id <domain-id>
+```
+
+### 7.4. Clean Up S3 Artifacts
+
+```bash
+# Xóa model artifacts
+aws s3 rm s3://amazon-sagemaker-<account-id>-<region>-<random-id>/artifacts/ --recursive
+
+# Xóa gold datasets
+aws s3 rm s3://amazon-sagemaker-<account-id>-<region>-<random-id>/gold/ --recursive
+
+# Kiểm tra project bucket còn gì
+aws s3 ls s3://amazon-sagemaker-<account-id>-<region>-<random-id>/ --recursive
+```
+
+### 7.5. Xóa CloudWatch Logs
+
+```bash
+# Liệt kê log groups của SageMaker
+aws logs describe-log-groups --log-group-name-prefix "/aws/sagemaker/TrainingJobs" --query 'logGroups[*].logGroupName'
+
+# Xóa training job logs
+aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training-<timestamp>"
+```
+
+---
+
+## 8. Bảng giá SageMaker
+
+### 8.1. Chi phí Training Instances
+
+| Instance Type | vCPU | RAM | Giá (USD/hour) | Phù hợp cho |
+|---------------|------|-----|----------------|-------------|
+| **ml.m5.large** | 2 | 8 GB | $0.138 | Small datasets, prototyping |
+| **ml.m5.xlarge** | 4 | 16 GB | $0.276 | Medium datasets (đã dùng) |
+| **ml.m5.2xlarge** | 8 | 32 GB | $0.552 | Large datasets |
+| **ml.c5.xlarge** | 4 | 8 GB | $0.238 | CPU-intensive training |
+| **ml.p3.2xlarge** | 8 | 61 GB | $4.284 | GPU deep learning |
+
+### 8.2. Chi phí SageMaker Studio
+
+| Component | Giá (USD) | Ghi chú |
+|-----------|-----------|---------|
+| **Studio Notebooks** | $0.0582/hour | ml.t3.medium default |
+| **Domain Setup** | Free | One-time setup |
+| **Data Wrangler** | $0.42/hour | Visual data prep |
+| **Processing Jobs** | Instance pricing | Same as training |
+
+### 8.3. Chi phí Model Registry & Endpoints
+
+| Service | Giá (USD) | Ghi chú |
+|---------|-----------|---------|
+| **Model Registry** | Free | Model versioning |
+| **Real-time Endpoint** | $0.076/hour | ml.t2.medium |
+| **Batch Transform** | Instance pricing | Pay per job |
+| **Multi-model Endpoint** | $0.076/hour + storage | Cost optimization |
+
+### 8.4. Ước tính chi phí cho Task 4
+
+**Training Job thực tế:**
+- Instance: ml.m5.xlarge
+- Duration: ~10-15 minutes  
+- **Training cost:** $0.276 × 0.25h = **$0.07**
+
+**SageMaker Studio:**
+- Notebook development: ~2 hours
+- Instance: ml.t3.medium
+- **Studio cost:** $0.0582 × 2h = **$0.12**
+
+**Storage & Model Registry:**
+- Model artifacts: ~50MB
+- S3 storage: ~$0.001
+- Model Registry: Free
+
+**Total chi phí Task 4:**
+
+| Component | Duration | Cost |
+|-----------|----------|------|
+| Training (ml.m5.xlarge) | 15 mins | $0.07 |
+| Studio Notebooks | 2 hours | $0.12 |
+| S3 Storage | Monthly | $0.001 |
+| **Total** | | **≈ $0.19** |
+
+**So sánh với các options:**
+
+| Approach | Instance | Duration | Cost | Performance |
+|----------|----------|----------|------|-------------|
+| **Current (ml.m5.xlarge)** | 4 vCPU, 16GB | 15 min | $0.07 | ✅ Balanced |
+| Smaller (ml.m5.large) | 2 vCPU, 8GB | 25 min | $0.06 | Slower |
+| Larger (ml.m5.2xlarge) | 8 vCPU, 32GB | 8 min | $0.07 | Faster, same cost |
+| Spot instance | Same specs | 15 min | $0.02-0.05 | 60-70% savings |
+
+{{% notice info %}}
+**💰 Cost Optimization Tips:**
+- **Spot instances:** 60-70% cheaper cho non-critical training
+- **Smaller instances:** OK cho datasets < 1GB  
+- **Studio auto-shutdown:** Tự động tắt notebooks sau 1h idle
+- **Batch jobs:** Thay vì real-time endpoints cho inference
+{{% /notice %}}
+
+---
+
 {{% notice info %}}
 **📊 SageMaker Unified Studio Benefits:**
 - **Integrated Workspace**: Project-based collaboration với shared resources

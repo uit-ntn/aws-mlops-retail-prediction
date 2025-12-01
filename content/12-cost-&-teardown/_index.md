@@ -18,16 +18,6 @@ pre: "<b>12. </b>"
 
 Khi triển khai hệ thống MLOps đầy đủ như Retail Prediction API, chi phí vận hành có thể nhanh chóng tăng cao nếu không được quản lý hợp lý. Các thành phần chính góp phần vào chi phí bao gồm:
 
-{{< mermaid >}}
-pie title Chi phí vận hành MLOps theo dịch vụ (ước tính)
-    "EKS (EC2 + Control Plane)" : 40
-    "SageMaker" : 25
-    "S3 Storage" : 15
-    "ALB & Network" : 10
-    "CloudWatch & Logs" : 5
-    "ECR & Khác" : 5
-{{< /mermaid >}}
-
 ### 1.1. Phân tích chi phí theo thành phần
 
 | Dịch vụ | Chi phí không tối ưu | Nguyên nhân | Giải pháp |
@@ -915,24 +905,6 @@ jobs:
 
 Dưới đây là chi phí dự kiến sau khi áp dụng các biện pháp tối ưu:
 
-{{< mermaid >}}
-gantt
-    title Chi phí MLOps - Trước và Sau Tối ưu
-    dateFormat  YYYY-MM-DD
-    section EKS NodeGroup
-    Trước tối ưu      :done, 2023-01-01, 30d
-    Sau tối ưu (Spot)   :active, 2023-01-01, 30d
-    section SageMaker Training
-    Trước tối ưu      :done, 2023-01-01, 30d
-    Sau tối ưu (Spot)   :active, 2023-01-01, 30d
-    section S3 Storage
-    Trước tối ưu      :done, 2023-01-01, 30d
-    Sau tối ưu (Tiering)   :active, 2023-01-01, 30d
-    section CloudWatch
-    Trước tối ưu      :done, 2023-01-01, 30d
-    Sau tối ưu (Retention)   :active, 2023-01-01, 30d
-{{< /mermaid >}}
-
 | Thành phần | Trước tối ưu | Sau tối ưu | Tiết kiệm (%) |
 |------------|--------------|------------|---------------|
 | EKS NodeGroup | 28.80 USD | 2.40 USD | 92% |
@@ -942,28 +914,17 @@ gantt
 | ECR Storage | 0.50 USD | 0.20 USD | 60% |
 | **Tổng chi phí** | **52.39 USD** | **9.38 USD** | **82%** |
 
-### Chi phí hàng tháng
-
-{{< mermaid >}}
-pie title Chi phí hàng tháng sau tối ưu (~9.38 USD)
-    "LoadBalancer" : 5.40
-    "EKS NodeGroup" : 2.40
-    "CloudWatch Logs" : 0.75
-    "S3 Storage" : 0.63
-    "ECR Storage" : 0.20
-{{< /mermaid >}}
-
 ## 9. Kết quả kỳ vọng
 
 ### ✅ Checklist Hoàn thành
 
-- [ ] **EC2 Spot Instance**: Cấu hình EKS NodeGroup và SageMaker sử dụng Spot
-- [ ] **S3 Lifecycle**: Triển khai lifecycle policies cho data và artifacts
-- [ ] **Auto Schedule**: Lambda + EventBridge để tự động dừng/khởi động tài nguyên
-- [ ] **Budget Alert**: Thiết lập giám sát chi phí và cảnh báo
-- [ ] **ECR Lifecycle**: Chỉ giữ lại 3 phiên bản image mới nhất
-- [ ] **Log Retention**: CloudWatch logs retention policy 30 ngày
-- [ ] **Complete Teardown**: Script để xóa hoàn toàn tài nguyên sau demo
+- **EC2 Spot Instance**: Cấu hình EKS NodeGroup và SageMaker sử dụng Spot
+- **S3 Lifecycle**: Triển khai lifecycle policies cho data và artifacts
+- **Auto Schedule**: Lambda + EventBridge để tự động dừng/khởi động tài nguyên
+- **Budget Alert**: Thiết lập giám sát chi phí và cảnh báo
+- **ECR Lifecycle**: Chỉ giữ lại 3 phiên bản image mới nhất
+- **Log Retention**: CloudWatch logs retention policy 30 ngày
+- **Complete Teardown**: Script để xóa hoàn toàn tài nguyên sau demo
 
 ### 📊 Verification Steps
 
@@ -1016,5 +977,3 @@ Các biện pháp tối ưu chi phí này không chỉ giúp tiết kiệm ngân
 - Complete teardown script
 
 ---
-
-**Next Step**: Final Review & Submission

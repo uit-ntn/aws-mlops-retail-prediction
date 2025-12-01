@@ -102,7 +102,7 @@ pre: "<b>0. </b>"
 <h2 style="margin: 40px 0 30px 0; font-size: 2.2rem; color: #1e293b; text-align: center;">📚 Retail Prediction MLOps Workshop</h2>
 
 <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px dashed #cbd5e1; padding: 30px; border-radius: 16px; margin: 30px 0; text-align: center;">
-  <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">13 Tasks MLOps hoàn chỉnh cho Retail Prediction</h3>
+  <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">12 Tasks MLOps hoàn chỉnh cho Retail Prediction</h3>
   <p style="color: #64748b; font-size: 16px; margin: 0 0 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
     End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization cho Retail Prediction
   </p>
