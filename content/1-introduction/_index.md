@@ -17,6 +17,7 @@ pre: "<b>1. </b>"
 ### 1.1 Mục tiêu dự án
 
 **Tự động hóa hoàn toàn quy trình MLOps:**
+
 - 🏗️ **Infrastructure as Code**: Xây dựng hạ tầng tự động bằng Terraform (VPC, EKS, IAM, EC2, ECR, S3)
 - 🤖 **ML Training**: Huấn luyện mô hình phân tán trên SageMaker với model registry
 - 🚀 **Container Deployment**: Đóng gói & triển khai inference API trên EKS với autoscaling
@@ -65,13 +66,13 @@ pre: "<b>1. </b>"
 
 #### 2.1.2 Nhóm features theo nghiệp vụ
 
-| **Nhóm**    | **Cột**                                          | **Ý nghĩa**                       |
-| ----------- | ------------------------------------------------- | --------------------------------- |
+| **Nhóm**    | **Cột**                                                 | **Ý nghĩa**                        |
+| ----------- | ------------------------------------------------------- | ---------------------------------- |
 | 🛒 Giỏ hàng | `BASKET_SIZE`, `BASKET_TYPE`, `BASKET_DOMINANT_MISSION` | Kích cỡ, loại và mục đích giỏ hàng |
-| 💸 Chi tiêu | `SPEND`, `QUANTITY`                               | Số tiền và số lượng mua           |
-| 🏬 Cửa hàng | `STORE_REGION`, `STORE_FORMAT`                    | Khu vực và loại cửa hàng          |
-| 📦 Sản phẩm | `PROD_CODE_20`, `PROD_CODE_30`                    | Nhóm sản phẩm chính               |
-| 🎯 Nhãn     | `BASKET_PRICE_SENSITIVITY`                       | Độ nhạy giá – Low / Medium / High |
+| 💸 Chi tiêu | `SPEND`, `QUANTITY`                                     | Số tiền và số lượng mua            |
+| 🏬 Cửa hàng | `STORE_REGION`, `STORE_FORMAT`                          | Khu vực và loại cửa hàng           |
+| 📦 Sản phẩm | `PROD_CODE_20`, `PROD_CODE_30`                          | Nhóm sản phẩm chính                |
+| 🎯 Nhãn     | `BASKET_PRICE_SENSITIVITY`                              | Độ nhạy giá – Low / Medium / High  |
 
 ### 2.2 Mục tiêu bài toán
 
@@ -85,27 +86,28 @@ pre: "<b>1. </b>"
 
 **Mô hình dự kiến**:
 
-| **Mô hình**                    | **Lý do**                              |
-| ------------------------------ | -------------------------------------- |
-| Decision Tree                  | Dễ giải thích feature impact           |
-| Random Forest                  | Độ chính xác cao, giảm overfitting     |
-| Logistic Regression (multi-class) | Baseline so sánh                       |
-| XGBoost                        | Hiệu quả với tabular data              |
+| **Mô hình**                       | **Lý do**                          |
+| --------------------------------- | ---------------------------------- |
+| Decision Tree                     | Dễ giải thích feature impact       |
+| Random Forest                     | Độ chính xác cao, giảm overfitting |
+| Logistic Regression (multi-class) | Baseline so sánh                   |
+| XGBoost                           | Hiệu quả với tabular data          |
 
 **Đánh giá**: Accuracy, Precision, Recall, F1-score, Confusion Matrix
 
 ### 2.4 Kiến trúc tổng thể (AWS MLOps)
 
 **Luồng xử lý**:
+
 ```
-Dữ liệu gốc (CSV) 
-→ S3 raw zone 
-→ ETL (Glue/EKS Job) 
-→ S3 silver/gold zone 
-→ SageMaker Feature Store 
-→ Training (SageMaker Training Job) 
-→ Model Registry 
-→ Deployment (EKS FastAPI + ALB) 
+Dữ liệu gốc (CSV)
+→ S3 raw zone
+→ ETL (Glue/EKS Job)
+→ S3 silver/gold zone
+→ SageMaker Feature Store
+→ Training (SageMaker Training Job)
+→ Model Registry
+→ Deployment (EKS FastAPI + ALB)
 → CloudWatch Monitoring
 ```
 
@@ -120,15 +122,15 @@ Dữ liệu gốc (CSV)
 
 ### 2.5 KPI và kết quả kỳ vọng
 
-| **Nhóm**  | **Chỉ số**              | **Mục tiêu** |
-| --------- | ------------------------ | ------------ |
-| ML        | Accuracy                 | ≥ 0.75       |
-| ML        | Macro F1                 | ≥ 0.70       |
-| ML        | Precision (per class)    | ≥ 0.65       |
-| Ops       | P95 latency (API)        | < 200 ms     |
-| Ops       | Throughput (requests/s)  | ≥ 100        |
-| Business  | Giảm sai sót định giá    | ≥ 10%        |
-| Cost      | Infrastructure cost/month | < $500       |
+| **Nhóm** | **Chỉ số**                | **Mục tiêu** |
+| -------- | ------------------------- | ------------ |
+| ML       | Accuracy                  | ≥ 0.75       |
+| ML       | Macro F1                  | ≥ 0.70       |
+| ML       | Precision (per class)     | ≥ 0.65       |
+| Ops      | P95 latency (API)         | < 200 ms     |
+| Ops      | Throughput (requests/s)   | ≥ 100        |
+| Business | Giảm sai sót định giá     | ≥ 10%        |
+| Cost     | Infrastructure cost/month | < $500       |
 
 ## 3. Project Structure
 
@@ -180,27 +182,32 @@ retail-forecast/
 ### 3.1 Cấu trúc thư mục chi tiết
 
 **📂 `aws/` - AWS Implementation**
+
 - `infra/`: Terraform Infrastructure as Code
 - `k8s/`: Kubernetes manifests cho EKS deployment
 - `script/`: Python scripts cho SageMaker automation
 - CI/CD configurations (Jenkins, Travis)
 
-**📂 `azure/` - Azure Implementation** 
+**📂 `azure/` - Azure Implementation**
+
 - `infra/`: Bicep templates cho Azure resources
 - `aml/`: Azure ML configurations
 - `k8s/`: AKS manifests
 - Azure DevOps pipeline
 
 **📂 `core/` - Shared Components**
+
 - Common ML utilities và libraries
 - Shared dependencies và configurations
 
 **📂 `server/` - Inference API**
+
 - FastAPI application
 - Docker containerization
 - API documentation
 
 **📂 `tests/` - Testing Framework**
+
 - Unit tests cho ML pipeline
 - Integration tests cho infrastructure
 - End-to-end testing scenarios
@@ -208,13 +215,15 @@ retail-forecast/
 ## 4. Công nghệ sử dụng
 
 ### 4.1 Infrastructure & Platform Stack
+
 - **Infrastructure as Code**: Terraform cho automated provisioning
 - **Container Platform**: Amazon EKS (Kubernetes) với managed node groups
-- **Container Registry**: Amazon ECR với vulnerability scanning  
+- **Container Registry**: Amazon ECR với vulnerability scanning
 - **Networking**: VPC multi-AZ, NAT gateways, security groups
 - **Load Balancing**: Application Load Balancer với health checks
 
 ### 4.2 ML & Data Platform Stack
+
 - **ML Training**: Amazon SageMaker với distributed training
 - **Data Storage**: Amazon S3 data lake với versioning
 - **Model Registry**: SageMaker Model Registry cho version control
@@ -222,6 +231,7 @@ retail-forecast/
 - **ML Framework**: TensorFlow/PyTorch trên SageMaker training jobs
 
 ### 4.3 DevOps & Security Stack
+
 - **CI/CD Platform**: Jenkins hoặc Travis CI cho automated pipelines
 - **Monitoring**: CloudWatch (logs, metrics, dashboards, alarms)
 - **Security**: KMS encryption, CloudTrail audit, IAM với IRSA
@@ -232,6 +242,7 @@ retail-forecast/
 ### 5.1 Phase 1: Infrastructure Foundation
 
 **Terraform Infrastructure as Code**
+
 - VPC với multi-AZ public/private subnets
 - EKS cluster với managed node groups (auto-scaling)
 - IAM roles với IRSA (IAM Roles for Service Accounts)
@@ -239,6 +250,7 @@ retail-forecast/
 - ECR repositories cho container images
 
 **Network Architecture**
+
 - Public subnets: NAT Gateway, Load Balancer
 - Private subnets: EKS worker nodes, SageMaker
 - VPC endpoints: S3, ECR, CloudWatch (giảm data transfer cost)
@@ -246,12 +258,14 @@ retail-forecast/
 ### 5.2 Phase 2: ML Training & Model Management
 
 **SageMaker Training Pipeline**
+
 - **Data Ingestion**: S3 data lake với automated validation
 - **Distributed Training**: SageMaker training jobs với spot instances
 - **Model Registry**: Versioned model artifacts với metadata tracking
 - **Experiment Tracking**: Performance metrics và hyperparameter tuning
 
 **Data Management Strategy**
+
 - Raw data → Processed data → Feature store → Model artifacts
 - S3 intelligent tiering cho cost optimization
 - Data lineage tracking và version control
@@ -259,13 +273,15 @@ retail-forecast/
 ### 5.3 Phase 3: Containerized Inference Platform
 
 **EKS Deployment Architecture**
+
 - **Docker Containers**: FastAPI inference service
-- **Kubernetes Deployment**: Rolling updates với zero downtime  
+- **Kubernetes Deployment**: Rolling updates với zero downtime
 - **Horizontal Pod Autoscaler**: Dynamic scaling dựa trên CPU/memory
 - **Service Discovery**: Internal service communication
 - **Application Load Balancer**: External access với SSL termination
 
 **Monitoring & Observability**
+
 - **CloudWatch Logs**: Centralized logging từ tất cả components
 - **Custom Metrics**: Model performance, latency, throughput
 - **Alarms & Notifications**: Automated alerting khi có issues
@@ -274,16 +290,18 @@ retail-forecast/
 ### 5.4 Phase 4: CI/CD & Automation
 
 **Automated Pipeline Flow**
+
 ```bash
 1. Code/Data Change → Git Webhook
 2. Jenkins/Travis Build → Run Tests
-3. SageMaker Training → Model Validation  
+3. SageMaker Training → Model Validation
 4. Docker Build → Push to ECR
 5. Kubernetes Deploy → Rolling Update
 6. Health Check → Monitor Performance
 ```
 
 **DataOps Workflow**
+
 - **Data Versioning**: S3 với metadata tracking
 - **Data Quality**: Automated validation và testing
 - **Feature Engineering**: Reproducible pipelines
@@ -292,26 +310,29 @@ retail-forecast/
 ## 6. Scope & Expected Outcomes
 
 ### 6.1 In Scope
+
 ✅ **Complete Infrastructure**: Terraform IaC cho toàn bộ AWS resources  
 ✅ **ML Training**: SageMaker distributed training với hyperparameter tuning  
 ✅ **Container Deployment**: EKS với autoscaling và load balancing  
 ✅ **Security Best Practices**: KMS encryption, CloudTrail audit, IAM least privilege  
 ✅ **Monitoring & Alerting**: CloudWatch comprehensive monitoring  
 ✅ **CI/CD Automation**: End-to-end pipeline từ code đến production  
-✅ **Cost Optimization**: Auto-scaling, spot instances, lifecycle policies  
+✅ **Cost Optimization**: Auto-scaling, spot instances, lifecycle policies
 
 ### 6.2 Out of Scope
+
 ❌ Multi-region deployment (focus on ap-southeast-1)  
 ❌ Advanced ML features (A/B testing, canary deployments)  
 ❌ Real-time streaming inference (batch-focused)  
-❌ Custom monitoring solutions (CloudWatch-only)  
+❌ Custom monitoring solutions (CloudWatch-only)
 
 ### 6.3 Expected Outcomes
+
 🎯 **Production-Ready MLOps Platform**: Scalable, reliable, cost-effective  
 🎯 **Automated ML Lifecycle**: Từ data ingestion đến model deployment  
 🎯 **Infrastructure Reproducibility**: Terraform state management  
 🎯 **Operational Excellence**: Comprehensive monitoring và alerting  
-🎯 **Cost Efficiency**: Optimized resource usage với auto-scaling  
+🎯 **Cost Efficiency**: Optimized resource usage với auto-scaling
 
 {{% notice info %}}
 Kiến trúc này được thiết kế để support enterprise-grade ML workloads với khả năng scale từ proof-of-concept đến production với hàng triệu requests/day.
