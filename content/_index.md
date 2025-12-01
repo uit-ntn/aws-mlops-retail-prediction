@@ -1,15 +1,20 @@
 ---
-title: "AWS MLOps Retail Forecast Platform"
+title: "AWS MLOps Retail Prediction Platform"
 date: 2025-08-30T00:00:00+00:00
 weight: 0
 draft: false
-type: "page"
+t    <div style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🏗️ Infrastructure</div>
+    <div style="background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🤖 ML Training</div>
+    <div style="background: #8b5cf6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🚀 Deployment</div>
+    <div style="background: #ef4444; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">📊 Monitoring</div>
+    <div style="background: #06b6d4; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🔄 CI/CD</div>
+    <div style="background: #f59e0b; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">💰 Cost Optimization</div>page"
 pre: "<b>0. </b>"
 ---
 
-<h2 style="margin: 20px 0 30px 0; font-size: 2.5rem; color: #131314ff; text-align: center;">AWS MLOps Retail Forecast Platform</h2>
+<h2 style="margin: 20px 0 30px 0; font-size: 2.5rem; color: #131314ff; text-align: center;">AWS MLOps Retail Prediction Platform</h2>
 
-<p style="text-align: center; font-style: italic; color: #64748b; font-size: 1.1rem; margin-bottom: 40px;">End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment</p>
+<p style="text-align: center; font-style: italic; color: #64748b; font-size: 1.1rem; margin-bottom: 40px;">End-to-end MLOps pipeline cho Retail Prediction với Infrastructure as Code và Model Deployment</p>
 
 <!-- Authors Section -->
 <div class="authors-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 800px; margin: 40px auto; padding: 0 20px;">
@@ -64,7 +69,7 @@ pre: "<b>0. </b>"
 
 <div style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 30px; border-radius: 16px; margin: 30px 0; box-shadow: 0 8px 25px rgba(30, 60, 114, 0.4);">
   <h2 style="margin-top: 0; color: white; font-size: 1.8rem; display: flex; align-items: center; gap: 10px;">
-    MLOps Technology Stack & Architecture
+    🛒 Retail Prediction MLOps Technology Stack
   </h2>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px;">
     <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; backdrop-filter: blur(10px);">
@@ -84,8 +89,8 @@ pre: "<b>0. </b>"
       <div>S3 Data Lake + Versioning + Lifecycle</div>
     </div>
     <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; backdrop-filter: blur(10px);">
-      <div style="color: #a78bfa; font-weight: bold; margin-bottom: 8px;">🚀 CI/CD & DataOps</div>
-      <div>Jenkins + Travis + Pipeline Automation</div>
+      <div style="color: #a78bfa; font-weight: bold; margin-bottom: 8px;">🚀 CI/CD & Automation</div>
+      <div>Jenkins + Pipeline Automation</div>
     </div>
     <div style="background: rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; backdrop-filter: blur(10px);">
       <div style="color: #fb7185; font-weight: bold; margin-bottom: 8px;">📊 Monitoring & Security</div>
@@ -94,12 +99,12 @@ pre: "<b>0. </b>"
   </div>
 </div>
 
-<h2 style="margin: 40px 0 30px 0; font-size: 2.2rem; color: #1e293b; text-align: center;">📚 MLOps Workshop Steps</h2>
+<h2 style="margin: 40px 0 30px 0; font-size: 2.2rem; color: #1e293b; text-align: center;">📚 Retail Prediction MLOps Workshop</h2>
 
 <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 2px dashed #cbd5e1; padding: 30px; border-radius: 16px; margin: 30px 0; text-align: center;">
-  <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">16 Task MLOps Hoàn Chỉnh</h3>
+  <h3 style="margin: 0 0 15px 0; color: #1e293b; font-size: 1.5rem;">13 Tasks MLOps hoàn chỉnh cho Retail Prediction</h3>
   <p style="color: #64748b; font-size: 16px; margin: 0 0 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
-    End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization
+    End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization cho Retail Prediction
   </p>
   
 
@@ -121,7 +126,7 @@ pre: "<b>0. </b>"
       Infrastructure Foundation
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/1-introduction/" style="color: #1e40af; text-decoration: none;">MLOps architecture overview & objectives</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/1-introduction/" style="color: #1e40af; text-decoration: none;">Retail prediction architecture & objectives</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/2-vpc-networking/" style="color: #1e40af; text-decoration: none;">VPC, subnets, NAT, security groups</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/3-iam-roles-irsa/" style="color: #1e40af; text-decoration: none;">IAM roles & IRSA configuration</a></li>
       <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #3b82f6;">▸</span><a href="/4-eks-cluster/" style="color: #1e40af; text-decoration: none;">EKS control plane setup</a></li>
@@ -135,10 +140,8 @@ pre: "<b>0. </b>"
       ML Training & Registry
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/6-ecr-registry/" style="color: #047857; text-decoration: none;">ECR container registry setup</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/7-docker-build/" style="color: #047857; text-decoration: none;">Build & push inference API</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/8-s3-data-storage/" style="color: #047857; text-decoration: none;">S3 data lake & model artifacts</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/9-sagemaker-training/" style="color: #047857; text-decoration: none;">SageMaker training & model registry</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/3-s3-data-storage/" style="color: #047857; text-decoration: none;">S3 data lake & model artifacts</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #10b981;">▸</span><a href="/4-sagemake-training/" style="color: #047857; text-decoration: none;">SageMaker retail prediction training & model registry</a></li>
     </ul>
   </div>
   
@@ -148,9 +151,11 @@ pre: "<b>0. </b>"
       Container Deployment
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/10-kubernetes-deploy/" style="color: #6d28d9; text-decoration: none;">Kubernetes Deployment/Service/HPA</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/11-load-balancer/" style="color: #6d28d9; text-decoration: none;">Application Load Balancer setup</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/12-cloudwatch/" style="color: #6d28d9; text-decoration: none;">Monitoring, logs, and metrics</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/6-ecr-registry/" style="color: #6d28d9; text-decoration: none;">ECR container registry</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/7-eks-cluster/" style="color: #6d28d9; text-decoration: none;">EKS Cluster setup</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/8-docker-build/" style="color: #6d28d9; text-decoration: none;">API Containerization</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/9-deploy-kubernetes/" style="color: #6d28d9; text-decoration: none;">Deploy to Kubernetes</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #8b5cf6;">▸</span><a href="/10-elastic-load-balancing/" style="color: #6d28d9; text-decoration: none;">Load Balancing</a></li>
     </ul>
   </div>
   
@@ -160,9 +165,8 @@ pre: "<b>0. </b>"
       Security & Audit
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/13-security-audit/" style="color: #b91c1c; text-decoration: none;">KMS encryption & CloudTrail</a></li>
-      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/14-cicd-pipeline/" style="color: #b91c1c; text-decoration: none;">Jenkins/Travis CI/CD setup</a></li>
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/15-dataops/" style="color: #b91c1c; text-decoration: none;">Data versioning & lifecycle</a></li>
+      <li style="margin-bottom: 8px; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/11-cloudwatch/" style="color: #b91c1c; text-decoration: none;">CloudWatch Monitoring & Logs</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #ef4444;">▸</span><a href="/12-cicd-jenkins-travis/" style="color: #b91c1c; text-decoration: none;">CI/CD Pipeline</a></li>
     </ul>
   </div>
   
@@ -172,7 +176,7 @@ pre: "<b>0. </b>"
       Cost & Optimization
     </h3>
     <ul style="margin: 0; padding-left: 0; list-style: none;">
-      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #06b6d4;">▸</span><a href="/16-cost-teardown/" style="color: #0891b2; text-decoration: none;">Cost optimization & teardown</a></li>
+      <li style="margin-bottom: 0; padding-left: 20px; position: relative;"><span style="position: absolute; left: 0; color: #06b6d4;">▸</span><a href="/13-cost-&-teardown/" style="color: #0891b2; text-decoration: none;">Cost optimization & teardown</a></li>
     </ul>
   </div>
   
@@ -181,7 +185,7 @@ pre: "<b>0. </b>"
 <div style="background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%); border: 1px solid #cbd5e1; border-left: 6px solid #3b82f6; padding: 30px; margin: 40px 0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);">
   <h3 style="margin: 0 0 20px 0; color: #1e293b; display: flex; align-items: center; gap: 12px; font-size: 1.5rem;">
     <span style="background: #3b82f6; color: white; padding: 10px; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">🚀</span>
-    Bắt đầu MLOps Workshop
+    Bắt đầu Retail Prediction MLOps Workshop
   </h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px;">
     <div>
@@ -190,7 +194,7 @@ pre: "<b>0. </b>"
     </div>
     <div>
       <div style="color: #64748b; font-weight: 600; margin-bottom: 8px;">⏱️ Thời gian</div>
-      <div style="color: #475569;">20-25 giờ (MLOps end-to-end)</div>
+      <div style="color: #475569;">12-15 giờ (MLOps end-to-end)</div>
     </div>
     <div>
       <div style="color: #64748b; font-weight: 600; margin-bottom: 8px;">📈 Level</div>
@@ -198,13 +202,13 @@ pre: "<b>0. </b>"
     </div>
   </div>
   <a href="/1-introduction/" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; padding: 16px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); transition: all 0.3s ease;">
-    <span>🎯</span> Bắt đầu với Task 1: MLOps Architecture Overview
+    <span>🎯</span> Bắt đầu với Task 1: Retail Prediction Architecture Overview
     <span style="font-size: 16px;">→</span>
   </a>
 </div>
 
 <div style="margin-top: 50px; padding: 30px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 16px; border: 1px solid #e2e8f0;">
-  <h3 style="margin: 0 0 25px 0; color: #1e293b; text-align: center; font-size: 1.6rem;">✨ Điểm nổi bật của MLOps Workshop</h3>
+  <h3 style="margin: 0 0 25px 0; color: #1e293b; text-align: center; font-size: 1.6rem;">✨ Điểm nổi bật của Retail Prediction MLOps Workshop</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">
     <div style="text-align: center; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
       <div style="font-size: 2rem; margin-bottom: 10px;">🏗️</div>
@@ -214,12 +218,12 @@ pre: "<b>0. </b>"
     <div style="text-align: center; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
       <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
       <div style="font-weight: 600; color: #1e293b; margin-bottom: 5px;">SageMaker Training</div>
-      <div style="color: #64748b; font-size: 14px;">Distributed ML training với model registry</div>
+      <div style="color: #64748b; font-size: 14px;">Distributed ML training cho retail prediction</div>
     </div>
     <div style="text-align: center; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
       <div style="font-size: 2rem; margin-bottom: 10px;">�</div>
       <div style="font-weight: 600; color: #1e293b; margin-bottom: 5px;">EKS Deployment</div>
-      <div style="color: #64748b; font-size: 14px;">Kubernetes với autoscaling</div>
+      <div style="color: #64748b; font-size: 14px;">Kubernetes cho retail prediction API</div>
     </div>
     <div style="text-align: center; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);">
       <div style="font-size: 2rem; margin-bottom: 10px;">🔒</div>
