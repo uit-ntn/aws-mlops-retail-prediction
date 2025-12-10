@@ -1,12 +1,13 @@
 ---
-title: "ECR Container Registry"
-date: 2024-01-01T00:00:00+07:00
-weight: 6
+title: "Amazon ECR Container Registry (MLOps)"
+date: 2024-01-01T00:00:00Z
+weight: 7
 chapter: false
 pre: "<b>6. </b>"
 ---
 
 {{% notice info %}}
+<<<<<<< HEAD
 **🎯 Task 6 Objectives:** Set up Amazon Elastic Container Registry (ECR) for MLOps pipeline:
 1. **Create ECR Repository**: Repository for API container
 2. **Security Configuration**: Image scanning, IAM policy, lifecycle rules  
@@ -24,23 +25,46 @@ pre: "<b>6. </b>"
 ## Overview
 
 **Amazon ECR (Elastic Container Registry)** is a fully managed Docker container registry service by AWS, deeply integrated with EKS and CI/CD pipeline. ECR provides secure storage, management, and deployment capabilities for container images in MLOps workflow.
+=======
+**🎯 Task 6 Goal:** Create a private Amazon ECR repository for the Retail API image, enforce image hygiene (immutability, scan-on-push, lifecycle), and publish a production-ready FastAPI container image to ECR.
+{{% /notice %}}
 
-## 1. ECR Repositories Setup
+## 0) Inputs from previous tasks
 
-### 1.1. Create ECR Repositories
+- Production AWS Region: **ap-southeast-1**
+- AWS Account ID: **842676018087**
+- Source folder: `server/` (FastAPI inference API)
+- Target ECR repository: `mlops/retail-api`
 
+---
+
+## 1) Create the ECR repository (recommended settings)
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+### 1.1 Create repo (CLI)
+
+```bash
+export AWS_REGION="ap-southeast-1"
+export REPO_NAME="mlops/retail-api"
+
+<<<<<<< HEAD
 1. **Navigate to ECR Console:**
    - Login to AWS Console
    - Navigate to Amazon ECR service
    - Region: ap-southeast-1
    - Select "Create repository"
+=======
+aws ecr create-repository   --region "$AWS_REGION"   --repository-name "$REPO_NAME"   --image-tag-mutability IMMUTABLE   --image-scanning-configuration scanOnPush=true
+```
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-![](/images/06-ecr-registry/01.png)
+> If the repo already exists, the command will fail. In that case, just update settings in the console.
 
-2. **API Repository Configuration:**
+### 1.2 Enable scan-on-push and immutability (Console)
 
-![](/images/06-ecr-registry/02.png)
+ECR → Repositories → `mlops/retail-api` → **Edit**:
 
+<<<<<<< HEAD
 3. **Repository Created Successfully:**
    
    After creating the repository, you will see the interface as shown below with information:
@@ -49,9 +73,14 @@ pre: "<b>6. </b>"
    - Repository URI: `<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api`
    - Status: "No active images" (no images have been pushed yet)
    - Tabs: Summary, Images, Permissions, Lifecycle policy, Repository tags
+=======
+- **Image tag mutability:** Immutable
+- **Scan on push:** Enabled
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-![](/images/06-ecr-registry/03.1.png)
+---
 
+<<<<<<< HEAD
 4. **Repository Setup Complete:**
    
    API repository is ready for containerized FastAPI application.
@@ -64,24 +93,67 @@ pre: "<b>6. </b>"
    - **Copy URI**: Copy repository URI for use
    - **Scan**: Scan vulnerabilities for images
    - **Delete**: Delete repository when not needed
+=======
+## 2) Add lifecycle policy (keep prod/dev tags, expire untagged)
 
-![](/images/06-ecr-registry/04.png)
+Create `ecr-lifecycle.json`:
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
+```json
+{
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Expire untagged images after 7 days",
+      "selection": {
+        "tagStatus": "untagged",
+        "countType": "sinceImagePushed",
+        "countUnit": "days",
+        "countNumber": 7
+      },
+      "action": { "type": "expire" }
+    },
+    {
+      "rulePriority": 2,
+      "description": "Keep last 10 images for prod/dev tag prefixes",
+      "selection": {
+        "tagStatus": "tagged",
+        "tagPrefixList": ["prod", "dev", "staging", "latest"],
+        "countType": "imageCountMoreThan",
+        "countNumber": 10
+      },
+      "action": { "type": "expire" }
+    }
+  ]
+}
+```
+
+<<<<<<< HEAD
 {{% notice tip %}}
 **Tip:** Enable `tag immutability` for production tags (e.g., `v*`) to avoid accidental overwrite. Use semantic tags (`v1.2.3`, `commit-<sha>`) to help with rollback and audit.
 {{% /notice %}}
+=======
+Apply it:
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-### 1.2. Lifecycle Policy Setup
+```bash
+aws ecr put-lifecycle-policy   --region "$AWS_REGION"   --repository-name "$REPO_NAME"   --lifecycle-policy-text file://ecr-lifecycle.json
+```
 
+<<<<<<< HEAD
 1. **API Repository Lifecycle Policy:**
    - Select repository `mlops/retail-api`
    - Click tab "Lifecycle policy" 
    - Click "Create rule" to create lifecycle policy
+=======
+---
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-![](/images/06-ecr-registry/07.png)
+## 3) Build a production-ready FastAPI container image
 
-2. **Configure API Lifecycle Rules:**
+### 3.1 Multi-stage Dockerfile (non-root + healthcheck)
 
+<<<<<<< HEAD
    **Rule 1 - Keep Latest Production Images:**
 
    ```
@@ -169,75 +241,102 @@ pre: "<b>6. </b>"
 ### 2.1. Dockerfile Configuration
 
 **Create `server/Dockerfile` - Multi-stage build:**
+=======
+Create `server/Dockerfile`:
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```dockerfile
-# Multi-stage build
-FROM python:3.9-slim as builder
+# ---- builder ----
+FROM python:3.11-slim AS builder
 WORKDIR /app
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1     PIP_NO_CACHE_DIR=1     PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends     build-essential  && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --user -r requirements.txt
+RUN python -m venv /opt/venv  && /opt/venv/bin/pip install --upgrade pip  && /opt/venv/bin/pip install -r requirements.txt
 
-# Production stage  
-FROM python:3.9-slim as production
+# ---- runtime ----
+FROM python:3.11-slim AS runtime
 WORKDIR /app
 
-# Copy dependencies
-COPY --from=builder /root/.local /root/.local
+ENV PATH="/opt/venv/bin:$PATH"     PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1
 
 # Create non-root user
-RUN useradd --create-home --shell /bin/bash apiuser
-USER apiuser
+RUN addgroup --system app && adduser --system --ingroup app app
 
-# Copy application
+COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
-# Expose port
+# Healthcheck endpoint should exist in your FastAPI app
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" || exit 1
+
 EXPOSE 8000
+USER app
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Start application
+# Uvicorn entrypoint
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
+<<<<<<< HEAD
 **Create `server/.dockerignore`:**
+=======
+Create `server/.dockerignore`:
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-```
-# Development files
-.git
-.gitignore
+```gitignore
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.pyd
 *.log
-
-# Editor files  
-.idea/
-.vscode/
-
-# Large files (downloaded at runtime)
-*.joblib
-*.pkl
-model/
+.env
+.venv/
+venv/
+tests/
+dist/
+build/
+.git/
+.github/
+*.ipynb
 ```
 
-### 2.2. Local Build & Test
+---
+
+## 4) Authenticate and push to ECR
+
+### 4.1 Bash (Linux/macOS) script
+
+Create `scripts/ecr_push.sh`:
 
 ```bash
-# Navigate to server directory
-cd retail-price-sensitivity-prediction/server
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Build Docker image
-docker build -t mlops/retail-api:latest .
+AWS_REGION="ap-southeast-1"
+AWS_ACCOUNT_ID="842676018087"
+REPO_NAME="mlops/retail-api"
+IMAGE_TAG="${1:-latest}"
 
-# Test locally
-docker run -d --name test -p 8000:8000 mlops/retail-api:latest
-curl http://localhost:8000/health
-docker stop test && docker rm test
+ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}"
+
+echo "[1/4] ECR login..."
+aws ecr get-login-password --region "$AWS_REGION"   | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+echo "[2/4] Build image..."
+docker build -t "${REPO_NAME}:${IMAGE_TAG}" -f server/Dockerfile server/
+
+echo "[3/4] Tag image..."
+docker tag "${REPO_NAME}:${IMAGE_TAG}" "${ECR_URI}:${IMAGE_TAG}"
+
+echo "[4/4] Push image..."
+docker push "${ECR_URI}:${IMAGE_TAG}"
+
+echo "✅ Pushed: ${ECR_URI}:${IMAGE_TAG}"
 ```
 
+<<<<<<< HEAD
 {{% notice warning %}}
 **Warning:** Docker login tokens (ECR auth) have expiration; CI agents should refresh token (`aws ecr get-login-password`) per job. Avoid hardcoding credentials in scripts or environment files.
 {{% /notice %}}
@@ -251,42 +350,62 @@ docker stop test && docker rm test
    - AWS will display commands to build and push
 
 2. **Push commands will be like (Windows PowerShell):**
+=======
+### 4.2 PowerShell (Windows) script
+
+Create `scripts/ecr_push.ps1`:
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```powershell
-# 1. Retrieve an authentication token and authenticate Docker client
-(Get-ECRLoginCommand).Password | docker login --username AWS --password-stdin 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com
+param(
+  [string]$ImageTag = "latest"
+)
 
-# 2. Build your Docker image
-docker build -t mlops/retail-api .
+$AWS_REGION = "ap-southeast-1"
+$AWS_ACCOUNT_ID = "842676018087"
+$REPO_NAME = "mlops/retail-api"
+$ECR_URI = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPO_NAME"
 
-# 3. Tag your image
-docker tag mlops/retail-api:latest 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+Write-Host "[1/4] ECR login..."
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 
-# 4. Push image to ECR
-docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+Write-Host "[2/4] Build image..."
+docker build -t "$REPO_NAME:$ImageTag" -f server/Dockerfile server/
+
+Write-Host "[3/4] Tag image..."
+docker tag "$REPO_NAME:$ImageTag" "$ECR_URI:$ImageTag"
+
+Write-Host "[4/4] Push image..."
+docker push "$ECR_URI:$ImageTag"
+
+Write-Host "✅ Pushed: $ECR_URI:$ImageTag"
 ```
 
+<<<<<<< HEAD
    **Or use AWS CLI:**
+=======
+---
+
+## 5) Verify in console / CLI
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```bash
-# 1. Retrieve an authentication token and authenticate Docker client
-aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com
+aws ecr describe-repositories --region ap-southeast-1 --query 'repositories[?repositoryName==`mlops/retail-api`].repositoryUri' --output text
 
-# 2. Build your Docker image
-docker build -t mlops/retail-api .
-
-# 3. Tag your image  
-docker tag mlops/retail-api:latest 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
-
-# 4. Push image to ECR
-docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+aws ecr describe-images   --region ap-southeast-1   --repository-name mlops/retail-api   --max-items 10
 ```
 
+<<<<<<< HEAD
 {{% notice info %}}
 **Info:** On Windows/PowerShell, prefer using `aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <registry>` in CI to avoid deprecated commands. ECR tokens typically expire after ~12 hours; re-authenticate for long-running sessions.
 {{% /notice %}}
+=======
+---
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
+## 6) Cleanup scripts (optional)
 
+<<<<<<< HEAD
 ### 2.2. Verify ECR Push Success
 
 **Check in AWS Console:**
@@ -321,42 +440,34 @@ docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:l
 ### 2.5. Container Environment & Testing
 
 **Environment Variables:**
+=======
+### 6.1 Delete local build caches (safe)
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```bash
-# Basic configuration
-AWS_DEFAULT_REGION=ap-southeast-1
-MODEL_BUCKET=mlops-retail-forecast-models
-LOG_LEVEL=INFO
-PORT=8000
+docker image prune -f
+docker builder prune -f
 ```
 
-**Test Docker Image Locally:**
+### 6.2 Delete untagged images in ECR (manual)
 
 ```bash
-# Test API container locally
-docker run -d \
-    --name retail-api-test \
-    -p 8000:8000 \
-    -e AWS_DEFAULT_REGION=ap-southeast-1 \
-    -e MODEL_BUCKET=mlops-retail-prediction-dev-842676018087 \
-    842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+aws ecr list-images   --region ap-southeast-1   --repository-name mlops/retail-api   --filter tagStatus=UNTAGGED   --query 'imageIds[*]'   --output json > untagged.json
 
-# Test health endpoint
-curl http://localhost:8000/health
-
-# Test API documentation
-open http://localhost:8000/docs
-
-# Clean up
-docker stop retail-api-test && docker rm retail-api-test
+aws ecr batch-delete-image   --region ap-southeast-1   --repository-name mlops/retail-api   --image-ids file://untagged.json
 ```
 
+<<<<<<< HEAD
 {{% notice warning %}}
 **Warning (Local):** When running image on local machine, avoid mounting secrets or AWS credentials into container. Use environment variables only for non-sensitive values and prefer IAM roles for production environment.
 {{% /notice %}}
+=======
+---
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-- Local container test for retail-api :
+## 7) Rough cost notes (ap-southeast-1)
 
+<<<<<<< HEAD
 ![](/images/06-ecr-registry/11.png)
 
 **Complete!** 🎉
@@ -368,10 +479,16 @@ ECR registry has been set up and integrated with EKS cluster `mlops-retail-clust
 ✅ **ECR Repository** - mlops/retail-api repository  
 ✅ **Container Image** - FastAPI prediction service  
 ✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month  
+=======
+- **ECR storage** is billed per GB-month; lifecycle policies keep it low.
+- **Image scanning** is enabled; costs depend on usage (keep scans on push, but avoid pushing too frequently).
+- **Data transfer to EKS** is typically intra-region; cross-region pulls cost more (avoid by keeping everything in ap-southeast-1).
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 {{% notice success %}}
-**🎯 Task 6 Complete - ECR Registry + API Containerization!**
+**✅ Task 6 Complete (ECR):**
 
+<<<<<<< HEAD
 **✅ ECR Setup**: Repository with lifecycle policies & image scanning  
 **✅ Dockerfile**: Multi-stage build, non-root user, health checks  
 **✅ Build & Push**: Local build → ECR push workflow  
@@ -628,3 +745,10 @@ aws ecr put-lifecycle-policy \
 ---
 
 **Next Step**: [Task 7: EKS Cluster Setup](../7-eks-cluster/) 
+=======
+- Private repo `mlops/retail-api` created in `ap-southeast-1`
+- Scan-on-push + tag immutability enabled
+- Lifecycle policy applied
+- FastAPI image built (multi-stage, non-root, healthcheck) and pushed to ECR
+  {{% /notice %}}
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48

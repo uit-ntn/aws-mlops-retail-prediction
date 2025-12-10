@@ -5,6 +5,7 @@ chapter: false
 pre: "<b>5. </b>"
 ---
 
+<<<<<<< HEAD
 ## 🎯 Task 5 Objectives
 
 Set up **Production VPC** for EKS deployment and public API demo (separate from SageMaker training VPC):
@@ -13,35 +14,66 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 2. **Public API Access** - ALB in public subnets for demo endpoint `/predict`
 3. **High-Performance Internal Networking** - VPC Endpoints for S3/ECR access < 50ms latency
 4. **Cost Optimization** - Remove NAT Gateway, only enable ALB when demo
+=======
+## 🎯 Task 5 Goal
+
+Build a **Production VPC** for your **EKS deployment** and a **public demo API** (separate from the SageMaker training VPC):
+
+1. **Production EKS Infrastructure** — EKS nodes/pods in **private subnets**
+2. **Public Demo Access** — **ALB in public subnets** for `/predict`
+3. **Fast Private Access to AWS Services** — VPC Endpoints for **S3/ECR/CloudWatch Logs**
+4. **Cost Optimization** — **No NAT Gateway**, ALB **enabled only during demos**
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 {{% notice warning %}}
-**⚠️ VPC Separation Strategy:**
+**VPC Separation Strategy**
 
+<<<<<<< HEAD
 - **Task 4**: SageMaker training uses default VPC (Quick setup) - simple, cost-effective
 - **Task 5**: EKS production uses separate VPC - better security, control
 - **No conflict**: 2 independent VPCs, can connect via VPC Peering if needed
+=======
+- **Task 4**: SageMaker training can stay on default / quick setup VPC (simple, fast)
+- **Task 5**: EKS production runs in a **separate VPC** (security + better control)
+- They do **not conflict**. If needed later, connect via VPC Peering / Transit Gateway.
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
   {{% /notice %}}
 
-{{% notice info %}}
-**🎯 Production VPC Architecture:**
+---
 
+<<<<<<< HEAD
 - ✅ **Private Subnets**: EKS Pods (secure, no direct Internet)
 - ✅ **Public Subnets**: ALB only (public API demo access)
 - ✅ **Internal Communication**: EKS ↔ S3 via VPC Endpoints
 - ✅ **Demo Ready**: Public API endpoint via ALB with SSL/health checks
 {{% /notice %}}
+=======
+## ✅ Target Architecture (high-level)
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-📥 **Input**
+- **VPC**: `10.0.0.0/16`
+- **Public subnets (2 AZs)**: ALB only
+- **Private subnets (2 AZs)**: EKS worker nodes + pods
+- **No NAT**: private workloads have **no direct Internet**
+- **VPC Endpoints**:
+  - **S3 Gateway Endpoint** (free hourly) for model/data access
+  - **ECR API + ECR DKR** Interface Endpoints (pull images privately)
+  - **CloudWatch Logs** Interface Endpoint (push logs privately)
 
+<<<<<<< HEAD
 - AWS Account with VPC permissions
 - CIDR planning: `10.0.0.0/16` (production EKS VPC)
 - Demo requirements: Public API access via ALB
 - Task 4 completed: SageMaker training running in default VPC
 - **Input from Task 4:** Task 4 (SageMaker training) — training VPC choices and requirements
 - **Input from Task 2:** Task 2 (IAM Roles & Audit) — roles and policies required for VPC, EKS and ECR access
+=======
+---
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-## 1. Hybrid VPC Infrastructure Setup
+## 1) Production VPC Setup
 
+<<<<<<< HEAD
 ### 1.1. Create VPC
 
 1. **Access VPC Dashboard:**
@@ -68,122 +100,135 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
    - Navigate to "Subnets" → "Create subnet"
 
 **Public Subnet 1 (ap-southeast-1a):**
+=======
+### 1.1 Create the VPC
+
+AWS Console → **VPC** → **Create VPC**
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```
-   Name: mlops-hybrid-public-alb-ap-southeast-1a
-   Availability Zone: ap-southeast-1a
-   IPv4 CIDR: 10.0.1.0/24
-   Purpose: ALB + Internet Gateway access
+VPC Name: mlops-retail-forecast-hybrid-vpc
+IPv4 CIDR: 10.0.0.0/16
+IPv6 CIDR: None
+Tenancy: Default
+Enable DNS hostnames: ✅ (Required for Interface Endpoints Private DNS)
+Enable DNS resolution: ✅
 ```
 
-**Public Subnet 2 (ap-southeast-1b):**
+---
+
+### 1.2 Create Subnets (Multi-AZ)
+
+VPC → **Subnets** → **Create subnet**
+
+#### Public Subnets (ALB only)
+
+**Public Subnet 1 (ap-southeast-1a)**
 
 ```
-   Name: mlops-hybrid-public-alb-ap-southeast-1b
-   Availability Zone: ap-southeast-1b
-   IPv4 CIDR: 10.0.2.0/24
-   Purpose: ALB + Internet Gateway access
+Name: mlops-hybrid-public-alb-ap-southeast-1a
+AZ: ap-southeast-1a
+CIDR: 10.0.1.0/24
 ```
 
-![Create Public Subnets](../images/05-vpc-networking/03.1-create-subnets.png)
-
-2. **Private Subnets (EKS Production):**
-
-**Private Subnet 1 (ap-southeast-1a):**
+**Public Subnet 2 (ap-southeast-1b)**
 
 ```
-   Name: mlops-eks-private-workloads-ap-southeast-1a
-   Availability Zone: ap-southeast-1a
-   IPv4 CIDR: 10.0.101.0/24
-   Purpose: EKS API Pods
+Name: mlops-hybrid-public-alb-ap-southeast-1b
+AZ: ap-southeast-1b
+CIDR: 10.0.2.0/24
 ```
 
-**Private Subnet 2 (ap-southeast-1b):**
+#### Private Subnets (EKS workloads)
+
+**Private Subnet 1 (ap-southeast-1a)**
 
 ```
-   Name: mlops-eks-private-workloads-ap-southeast-1b
-   Availability Zone: ap-southeast-1b
-   IPv4 CIDR: 10.0.102.0/24
-   Purpose: EKS API Pods
+Name: mlops-eks-private-workloads-ap-southeast-1a
+AZ: ap-southeast-1a
+CIDR: 10.0.101.0/24
 ```
 
-![Create Private Subnets](../images/05-vpc-networking/03.2-create-subnets.png)
+**Private Subnet 2 (ap-southeast-1b)**
 
-### 1.3. Internet Gateway Setup
+```
+Name: mlops-eks-private-workloads-ap-southeast-1b
+AZ: ap-southeast-1b
+CIDR: 10.0.102.0/24
+```
 
+<<<<<<< HEAD
 1. **Create Internet Gateway:**
    - "Internet Gateways" → "Create internet gateway"
    ```
    Name: mlops-hybrid-igw
    Purpose: Public access for ALB demo endpoint
    ```
+=======
+---
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-![Internet Gateway Setup](../images/05-vpc-networking/04.1-internet-gateway.png)
+### 1.3 Internet Gateway (for public ALB)
 
-2. **Attach to VPC:**
-   - Select Internet Gateway → "Actions" → "Attach to VPC"
-   - Select: mlops-retail-forecast-hybrid-vpc
+VPC → **Internet Gateways** → **Create internet gateway**
 
-![Attach IGW to VPC](../images/05-vpc-networking/04.2-internet-gateway.png)
+```
+Name: mlops-hybrid-igw
+```
 
-### 1.4. Route Tables Configuration
+Attach it to:
 
-#### 1.4.1. Public Route Table (ALB Traffic)
+```
+VPC: mlops-retail-forecast-hybrid-vpc
+```
 
-1. **Create Public Route Table:**
-   ```
-   Name: mlops-hybrid-public-alb-rt
-   VPC: mlops-retail-forecast-hybrid-vpc
-   Purpose: Route Internet traffic to ALB
-   ```
+---
 
-![Public Route Table](../images/05-vpc-networking/07.1-public-route-table.png)
+### 1.4 Route Tables
 
-2. **Add Internet Gateway Route:**
-   - Add route: `0.0.0.0/0` → Internet Gateway (mlops-hybrid-igw)
+#### Public Route Table (ALB subnets)
 
-![Public Route Configuration](../images/05-vpc-networking/07.2-public-route-table.png)
+Create route table:
 
-3. **Associate Public Subnets:**
-   - Associate both ALB public subnets
+```
+Name: mlops-hybrid-public-alb-rt
+VPC: mlops-retail-forecast-hybrid-vpc
+```
 
-![Associate Public Subnets](../images/05-vpc-networking/07.3-public-route-table.png)
+Add route:
 
-#### 1.4.2. Private Route Table (Secure Workloads)
+```
+0.0.0.0/0  →  mlops-hybrid-igw
+```
 
-1. **Create Private Route Table:**
+Associate **both public subnets** to this route table.
 
-   ```
-   Name: mlops-hybrid-private-workloads-rt
-   VPC: mlops-retail-forecast-hybrid-vpc
-   Purpose: VPC Endpoints access only (no Internet)
-   ```
+#### Private Route Table (workload subnets)
 
-2. **Keep Default Local Routes:**
+Create route table:
 
-   - Only local VPC route: 10.0.0.0/16 → local
-   - NO Internet Gateway route (security)
-   - VPC Endpoints will provide AWS services access
+```
+Name: mlops-hybrid-private-workloads-rt
+VPC: mlops-retail-forecast-hybrid-vpc
+```
 
-3. **Associate Private Subnets:**
-   - Associate both workload private subnets
+Keep only:
 
-![Private Route Table](../images/05-vpc-networking/08-private-route-tables.png)
+```
+10.0.0.0/16 → local
+```
 
-![Private Route Table](../images/05-vpc-networking/08-private-route-tables02.png)
+**Do NOT add** `0.0.0.0/0` (no NAT, no IGW).
 
-### 1.5. Security Groups Setup (Layered Security)
+Associate **both private subnets** to this route table.
 
-#### 1.5.1. ALB Security Group (Public Internet Access)
+---
 
-1. **Basic Details:**
+### 1.5 Enable “Auto-assign public IPv4” for Public Subnets
 
-   ```
-   Security group name: mlops-hybrid-alb-sg
-   Description: Security group for ALB public API demo access
-   VPC: mlops-retail-forecast-hybrid-vpc
-   ```
+VPC → Subnets → select each **public** subnet → Actions → **Modify auto-assign IP settings**
 
+<<<<<<< HEAD
 2. **Inbound Rules (Public Demo Access):**
 
    - **Rule 1**: HTTP (80) from 0.0.0.0/0 (redirect to HTTPS)
@@ -280,31 +325,137 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
    - ✅ Enable auto-assign public IPv4 address
 
 ![Auto-assign Public IP](../images/05-vpc-networking/06-auto-assign-public-ip.png)
+=======
+- ✅ Enable auto-assign public IPv4 address
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 {{% notice warning %}}
-**⚠️ Critical for ALB:** Public subnets must have auto-assign public IP enabled, otherwise ALB creation will fail.
+If this is OFF, your Internet-facing ALB may fail or behave incorrectly.
 {{% /notice %}}
 
-### 1.7. Console Setup Complete
+---
 
-![Security Groups Overview](../images/05-vpc-networking/10-security-groups-overview.png)
-![VPC Resource Map](../images/05-vpc-networking/11-vpc-resource-map.png)
+## 2) Security Groups (Layered Model)
 
-{{% notice success %}}
-**🎯 Hybrid VPC Console Setup Complete!**
+### 2.1 ALB Security Group (Internet → ALB)
 
-**Security Architecture:**
+```
+Name: mlops-hybrid-alb-sg
+VPC: mlops-retail-forecast-hybrid-vpc
+```
 
-- **Layer 1**: Internet → ALB (80/443 from 0.0.0.0/0)
-- **Layer 2**: ALB → EKS Nodes (controlled access)
-- **Layer 3**: EKS → VPC Endpoints (AWS services only)
-- **Layer 4**: Private subnets completely isolated from Internet
+Inbound:
 
-**Demo Ready:** ALB can accept public traffic and route to private EKS API pods
+- TCP 80 from `0.0.0.0/0` (optional; redirect to 443)
+- TCP 443 from `0.0.0.0/0` (recommended)
+
+Outbound:
+
+- TCP 80 → **EKS Nodes SG** (or all traffic to EKS Nodes SG for simplicity in demo)
+
+---
+
+### 2.2 EKS Nodes SG (ALB → Nodes/Pods)
+
+```
+Name: mlops-hybrid-eks-nodes-sg
+VPC: mlops-retail-forecast-hybrid-vpc
+```
+
+Inbound:
+
+- TCP 80 from **ALB SG** (API traffic)
+- TCP 443 from **ALB SG** (if you terminate TLS at pod/service)
+- All traffic from **self** (node-to-node)
+- All traffic from **EKS Control Plane SG** (cluster management)
+
+Outbound:
+
+- TCP 443 to **VPC Endpoints SG** (AWS services over PrivateLink)
+- All traffic to **self**
+
+---
+
+### 2.3 EKS Control Plane SG
+
+```
+Name: mlops-hybrid-eks-control-plane-sg
+VPC: mlops-retail-forecast-hybrid-vpc
+```
+
+Inbound:
+
+- TCP 443 from **EKS Nodes SG**
+
+Outbound:
+
+- All traffic to **EKS Nodes SG**
+
+---
+
+### 2.4 VPC Endpoints SG
+
+```
+Name: mlops-hybrid-vpc-endpoints-sg
+VPC: mlops-retail-forecast-hybrid-vpc
+```
+
+Inbound:
+
+- TCP 443 from **EKS Nodes SG**
+- (Optional) TCP 443 from `10.0.0.0/16` (fallback for debugging)
+
+Outbound:
+
+- All traffic (default ok)
+
+---
+
+## 3) REQUIRED: Subnet Tags (so EKS + Load Balancers work later)
+
+Even if you create subnets via Console, **tagging is critical** for later tasks (EKS + AWS Load Balancer Controller).
+
+### Public subnets (ALB)
+
+Add tag:
+
+```
+kubernetes.io/role/elb = 1
+```
+
+### Private subnets (internal LB / node placement)
+
+Add tag:
+
+```
+kubernetes.io/role/internal-elb = 1
+```
+
+### Cluster ownership tag (add later after cluster name is final)
+
+When your cluster name is known (Task 7), add on **all subnets used by the cluster**:
+
+```
+kubernetes.io/cluster/<your-cluster-name> = shared
+```
+
+Example:
+
+```
+kubernetes.io/cluster/mlops-retail-cluster = shared
+```
+
+---
+
+## 4) VPC Endpoints (No NAT, Private AWS Access)
+
+{{% notice warning %}}
+If you run **private subnets with NO NAT**, then **endpoints are not optional**—without them, nodes/pods will fail to pull images, write logs, call STS, etc.
 {{% /notice %}}
 
-## 2. VPC Endpoints for High-Performance Internal Networking
+### 4.1 S3 Gateway Endpoint (recommended + free hourly)
 
+<<<<<<< HEAD
 **This step is MANDATORY to ensure EKS ↔ S3 ↔ SageMaker latency < 50ms:**
 
 ### 2.1. S3 Gateway Endpoint (FREE - Model/Data Access)
@@ -485,80 +636,71 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 ![ALB Creation Complete](../images/05-vpc-networking/11.6-alb-complete.png)
 
 **ALB DNS Name:** Will be used for public API demo access
+=======
+VPC → **Endpoints** → **Create endpoint**
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```
-Example: mlops-hybrid-api-demo-alb-1234567890.ap-southeast-1.elb.amazonaws.com
+Name: mlops-hybrid-s3-gateway-endpoint
+Service: com.amazonaws.ap-southeast-1.s3
+Type: Gateway
+VPC: mlops-retail-forecast-hybrid-vpc
+Route tables: mlops-hybrid-private-workloads-rt
+Policy: Full access (demo) / least-privilege (prod)
 ```
 
-{{% notice success %}}
-**🎯 ALB Setup Complete!**
+---
 
-**Public Demo Access Ready:**
+### 4.2 Interface Endpoints (ECR + CloudWatch Logs)
 
-- HTTP/HTTPS endpoints configured
-- Target group ready for EKS API pods
-- Health checks configured
-- Multi-AZ availability
-  {{% /notice %}}
+Create these as **Interface** endpoints:
 
-## 4. Advanced Configuration & Integration
+#### ECR API
 
-### 4.1. VPC Flow Logs
-
-```bash
-# Enable VPC Flow Logs for security monitoring
-aws ec2 create-flow-logs \
-  --resource-type VPC \
-  --resource-ids vpc-xxxxxxxxx \
-  --traffic-type ALL \
-  --log-destination-type cloud-watch-logs \
-  --log-group-name VPCFlowLogs \
-  --deliver-logs-permission-arn arn:aws:iam::ACCOUNT:role/flowlogsRole
+```
+Name: mlops-hybrid-ecr-api-endpoint
+Service: com.amazonaws.ap-southeast-1.ecr.api
+Type: Interface
+Subnets: both private subnets
+Security group: mlops-hybrid-vpc-endpoints-sg
+Private DNS: ✅ Enabled
 ```
 
-### 4.2. Network Performance Testing
+#### ECR DKR
 
-**Test EKS ↔ S3 Latency:**
-
-```bash
-# From EKS Pod (after cluster setup)
-kubectl run test-pod --image=amazonlinux --restart=Never -- sleep 3600
-kubectl exec -it test-pod -- bash
-
-# Inside pod
-yum install -y awscli
-time aws s3 ls s3://your-model-bucket/
-# Expected: < 50ms for VPC Endpoint
+```
+Name: mlops-hybrid-ecr-dkr-endpoint
+Service: com.amazonaws.ap-southeast-1.ecr.dkr
+Type: Interface
+Subnets: both private subnets
+Security group: mlops-hybrid-vpc-endpoints-sg
+Private DNS: ✅ Enabled
 ```
 
-**Test ALB ↔ EKS Connectivity:**
+#### CloudWatch Logs
 
-```bash
-# Test from outside VPC
-curl -I http://your-alb-dns-name/health
-# Expected: HTTP 200 OK when EKS API is running
+```
+Name: mlops-hybrid-logs-endpoint
+Service: com.amazonaws.ap-southeast-1.logs
+Type: Interface
+Subnets: both private subnets
+Security group: mlops-hybrid-vpc-endpoints-sg
+Private DNS: ✅ Enabled
 ```
 
-### 4.3. Cost Monitoring Setup
+---
 
-**CloudWatch Cost Alarms:**
+### 4.3 (Strongly Recommended) Add STS Endpoint for IRSA / AWS SDK calls
 
-```bash
-# Create cost alarm for VPC Endpoints
-aws cloudwatch put-metric-alarm \
-  --alarm-name "VPC-Endpoints-Cost-Alert" \
-  --alarm-description "Alert when VPC Endpoints cost > $30/month" \
-  --metric-name EstimatedCharges \
-  --namespace AWS/Billing \
-  --statistic Maximum \
-  --period 86400 \
-  --threshold 30 \
-  --comparison-operator GreaterThanThreshold \
-  --dimensions Name=Currency,Value=USD Name=ServiceName,Value=AmazonVPC
+If your pods use IAM roles (IRSA) and call AWS APIs without NAT, add:
+
+```
+com.amazonaws.ap-southeast-1.sts
 ```
 
-## 5. Terraform Outputs
+This avoids common failures when pods need to call STS but have no Internet path.
 
+<<<<<<< HEAD
 {{% notice info %}}
 **💡 When to use Terraform outputs:**
 
@@ -567,12 +709,82 @@ aws cloudwatch put-metric-alarm \
 - ✅ Want to reference infrastructure programmatically
 
 **If Task 7-10 use Console:** Skip this section completely!
+=======
+---
+
+### 4.4 Verification checklist (Endpoints)
+
+Expected:
+
+- S3 Gateway endpoint adds routes automatically to `mlops-hybrid-private-workloads-rt`
+- Interface endpoints create ENIs in **each private subnet**
+- Private DNS is enabled for interface endpoints
+
+---
+
+## 5) ALB for Demo (Two Valid Approaches)
+
+### Option A (Recommended): Don’t create ALB manually — let EKS create it later
+
+In real EKS workflows, you typically deploy:
+
+- **AWS Load Balancer Controller** (Task 9)
+- An **Ingress** that provisions the ALB automatically
+
+**In Task 5**, you only prepare:
+
+- public subnets + tags
+- security groups
+- IGW + routes
+
+This is cleaner and avoids “ALB exists but no targets yet”.
+
+### Option B (Manual ALB Now): Pre-create ALB + Target Group
+
+(Works, but you still must integrate targets later)
+
+#### 5.1 Create ALB
+
+EC2 → Load Balancers → **Create**
+
+```
+Name: mlops-hybrid-api-demo-alb
+Scheme: Internet-facing
+IP type: IPv4
+VPC: mlops-retail-forecast-hybrid-vpc
+Mappings: both public ALB subnets
+Security Group: mlops-hybrid-alb-sg
+```
+
+#### 5.2 Create Target Group (for EKS later)
+
+EC2 → Target Groups → **Create**
+
+```
+Target type: IP addresses
+Name: mlops-hybrid-eks-api-tg
+Protocol: HTTP
+Port: 80
+VPC: mlops-retail-forecast-hybrid-vpc
+Health check path: /health
+Success codes: 200
+```
+
+#### 5.3 Listener
+
+- HTTP 80 → (optional) redirect to HTTPS 443
+- HTTPS 443 → forward to target group (needs ACM cert if real TLS)
+
+{{% notice tip %}}
+For a classroom demo, you can run **HTTP only** first, then add ACM/HTTPS later.
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 {{% /notice %}}
 
-### 5.1. Data Sources (Reference Console-created Resources)
+---
 
-**File: `aws/infra/vpc-data-sources.tf`**
+## 6) CLI Verification (CloudShell-friendly)
 
+<<<<<<< HEAD
 ```hcl
 # Reference VPC infrastructure from Console
 data "aws_vpc" "hybrid" {
@@ -783,129 +995,40 @@ Expected output:
 ### 6.1. Network Architecture Verification
 
 **Verify Hybrid VPC Setup:**
+=======
+### 6.1 Verify VPC and Subnets
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 ```bash
-# Check VPC configuration
 aws ec2 describe-vpcs \
   --filters "Name=tag:Name,Values=mlops-retail-forecast-hybrid-vpc" \
-  --query 'Vpcs[0].{VpcId:VpcId,CidrBlock:CidrBlock,State:State}'
+  --query 'Vpcs[0].{VpcId:VpcId,Cidr:CidrBlock,State:State}' --output table
 
-# Verify subnets
 aws ec2 describe-subnets \
-  --filters "Name=vpc-id,Values=$(aws ec2 describe-vpcs --filters 'Name=tag:Name,Values=mlops-retail-forecast-hybrid-vpc' --query 'Vpcs[0].VpcId' --output text)" \
-  --query 'Subnets[*].{Name:Tags[?Key==`Name`].Value|[0],CIDR:CidrBlock,AZ:AvailabilityZone,Type:MapPublicIpOnLaunch}'
-```
-
-**Verify Security Groups:**
-
-```bash
-# List all security groups for the VPC
-aws ec2 describe-security-groups \
-  --filters "Name=vpc-id,Values=$(terraform output -raw vpc_id)" \
-  --query 'SecurityGroups[*].{Name:GroupName,ID:GroupId,Description:Description}' \
+  --filters "Name=vpc-id,Values=<vpc-id>" \
+  --query 'Subnets[*].{SubnetId:SubnetId,AZ:AvailabilityZone,CIDR:CidrBlock,MapPublicIp:MapPublicIpOnLaunch}' \
   --output table
 ```
 
-### 6.2. VPC Endpoints Testing
-
-**Test S3 VPC Endpoint (after EKS setup):**
+### 6.2 Verify Route Tables
 
 ```bash
-# From EKS pod
-kubectl run network-test --image=amazonlinux --restart=Never -- sleep 3600
-kubectl exec -it network-test -- bash
-
-# Test S3 access via VPC endpoint
-yum update -y && yum install -y awscli curl time
-time aws s3 ls s3://your-model-bucket/ --region ap-southeast-1
-# Expected: < 50ms response time
-
-# Test ECR access
-time aws ecr get-login-token --region ap-southeast-1
-# Expected: < 100ms response time
-```
-
-**Verify VPC Endpoint DNS Resolution:**
-
-```bash
-# Inside EKS pod
-nslookup s3.ap-southeast-1.amazonaws.com
-nslookup api.ecr.ap-southeast-1.amazonaws.com
-nslookup runtime.sagemaker.ap-southeast-1.amazonaws.com
-# Should resolve to private IP addresses (10.0.x.x)
-```
-
-### 6.3. ALB Demo Testing
-
-**Test ALB Public Access:**
-
-```bash
-# Get ALB DNS name
-ALB_DNS=$(aws elbv2 describe-load-balancers \
-  --names mlops-hybrid-api-demo-alb \
-  --query 'LoadBalancers[0].DNSName' \
-  --output text)
-
-echo "ALB DNS: $ALB_DNS"
-
-# Test connectivity (will show 503 until EKS API is deployed)
-curl -I http://$ALB_DNS/
-# Expected: Connection successful (503 Service Unavailable is normal without backend)
-```
-
-**Verify Target Group (after EKS deployment):**
-
-```bash
-# Check target group health
-aws elbv2 describe-target-health \
-  --target-group-arn $(aws elbv2 describe-target-groups \
-    --names mlops-hybrid-eks-api-tg \
-    --query 'TargetGroups[0].TargetGroupArn' --output text)
-```
-
-### 6.4. Cost Monitoring
-
-**Monthly Cost Breakdown:**
-
-```bash
-# Check VPC Endpoints cost (should be ~$21.6/month)
-aws ce get-cost-and-usage \
-  --time-period Start=2024-01-01,End=2024-01-31 \
-  --granularity MONTHLY \
-  --metrics BlendedCost \
-  --group-by Type=DIMENSION,Key=SERVICE \
-  --filter '{"Dimensions":{"Key":"SERVICE","Values":["Amazon Virtual Private Cloud"]}}'
-```
-
-## 7. Troubleshooting & Common Issues
-
-### 7.1. VPC Endpoints Issues
-
-**Problem: EKS pods can't access S3**
-
-```bash
-# Solution 1: Check route table
 aws ec2 describe-route-tables \
-  --filters "Name=tag:Name,Values=mlops-hybrid-private-workloads-rt" \
-  --query 'RouteTables[0].Routes'
-# Should see route to S3 endpoint
-
-# Solution 2: Check security group
-aws ec2 describe-security-groups \
-  --group-names mlops-hybrid-vpc-endpoints-sg \
-  --query 'SecurityGroups[0].IpPermissions'
-# Should allow HTTPS 443 from 10.0.0.0/16
+  --filters "Name=vpc-id,Values=<vpc-id>" \
+  --query 'RouteTables[*].{RT:RouteTableId,Routes:Routes}' \
+  --output json
 ```
 
-**Problem: Interface endpoint DNS not resolving**
+### 6.3 Verify Endpoints
 
 ```bash
-# Check private DNS is enabled
 aws ec2 describe-vpc-endpoints \
-  --filters "Name=vpc-id,Values=$(terraform output -raw vpc_id)" \
-  --query 'VpcEndpoints[*].{Service:ServiceName,PrivateDnsEnabled:PrivateDnsEnabled}'
+  --filters "Name=vpc-id,Values=<vpc-id>" \
+  --query 'VpcEndpoints[*].{Id:VpcEndpointId,Service:ServiceName,Type:VpcEndpointType,PrivateDns:PrivateDnsEnabled,State:State}' \
+  --output table
 ```
 
+<<<<<<< HEAD
 ### 7.2. ALB Issues
 
 **Problem: ALB not accessible from Internet**
@@ -1020,20 +1143,26 @@ curl https://your-alb-dns/health
 - **Availability**: Multi-AZ (99.99% SLA)
   {{% /notice %}}
 
+=======
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 ---
 
-**Next Step**: [Task 6: ECR Container Registry](../6-ecr-registry/)
+## 7) Common Issues (No NAT design)
 
-{{% notice tip %}}
-**🚀 Next Steps:**
+### 7.1 Pods cannot pull images from ECR
 
+<<<<<<< HEAD
 - **Task 3**: IAM Roles & IRSA using VPC infrastructure
 - **Task 4**: EKS cluster deployment with VPC Endpoints integration
 - **Task 5**: EKS managed node groups in cost-optimized private subnets
   {{% /notice %}}
+=======
+Symptoms:
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
-## 8. Clean Up Resources (AWS CLI)
+- `ImagePullBackOff`, `ErrImagePull`
 
+<<<<<<< HEAD
 ### 8.1. Delete Application Load Balancer and Target Groups
 
 ```bash
@@ -1098,9 +1227,103 @@ aws ec2 delete-subnet --subnet-id <private-subnet-1b-id>
 ```bash
 # Detach and delete Internet Gateway
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=<vpc-id>" --query 'InternetGateways[*].InternetGatewayId' --output text | xargs -I {} aws ec2 detach-internet-gateway --internet-gateway-id {} --vpc-id <vpc-id>
+=======
+Fix checklist:
 
+- Have **ECR API + ECR DKR** interface endpoints
+- Have **S3 Gateway** endpoint (ECR layers rely on S3 paths)
+- Ensure endpoint SG allows **443 from nodes SG**
+
+### 7.2 Pods cannot call AWS APIs (IRSA)
+
+Symptoms:
+
+- STS / credential errors in app logs
+
+Fix:
+
+- Add **STS interface endpoint** (`com.amazonaws.<region>.sts`)
+- Make sure Private DNS is enabled
+
+### 7.3 Private nodes cannot join EKS control plane
+
+Fix (in Task 7):
+
+- Enable **EKS private endpoint access**
+- Avoid relying on public endpoint when you have no NAT/Internet
+
+---
+
+## 8) Cost Notes (Be precise about “per AZ”)
+
+### 8.1 Interface Endpoints (PrivateLink)
+
+Interface endpoints are billed **per AZ-hour** and **per GB processed** (rates vary by region).
+
+Example math (illustrative):
+
+- $0.01 / endpoint-hour / AZ
+- 1 endpoint across **2 AZs** ⇒ billed as **2 endpoint-hours**
+- Monthly (30 days): `0.01 * 24 * 30 * 2 = $14.40` per endpoint
+
+So **3 interface endpoints** (ECR API + ECR DKR + Logs) across **2 AZs**:
+
+- `3 * $14.40 = $43.20 / month` (plus data processing)
+
+> Your earlier “$21.6/month” is what you get if you accidentally count only **1 AZ**. In your design you’re using **2 AZs**, so budget for roughly **2×**.
+
+### 8.2 ALB
+
+ALB cost is typically:
+
+- hourly load balancer charge + LCU usage charge (region-dependent)
+
+### 8.3 NAT Gateway (what you’re avoiding)
+
+NAT Gateway pricing includes hourly + per-GB processing (region-dependent)
+
+---
+
+## 9) Cleanup (AWS CLI)
+
+### 9.1 Delete ALB + Target Group (if you created Option B)
+
+```bash
+aws elbv2 delete-load-balancer --load-balancer-arn <alb-arn>
+aws elbv2 delete-target-group  --target-group-arn <tg-arn>
+```
+
+### 9.2 Delete VPC Endpoints
+
+```bash
+aws ec2 delete-vpc-endpoints --vpc-endpoint-ids <vpce-ids...>
+```
+
+### 9.3 Delete Security Groups (reverse dependency order)
+
+```bash
+aws ec2 delete-security-group --group-id <endpoints-sg>
+aws ec2 delete-security-group --group-id <eks-control-plane-sg>
+aws ec2 delete-security-group --group-id <eks-nodes-sg>
+aws ec2 delete-security-group --group-id <alb-sg>
+```
+
+### 9.4 Delete Route Tables, Subnets, IGW, VPC
+
+```bash
+aws ec2 delete-route-table --route-table-id <public-rt>
+aws ec2 delete-route-table --route-table-id <private-rt>
+
+aws ec2 delete-subnet --subnet-id <subnet-id-1>
+aws ec2 delete-subnet --subnet-id <subnet-id-2>
+aws ec2 delete-subnet --subnet-id <subnet-id-3>
+aws ec2 delete-subnet --subnet-id <subnet-id-4>
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+aws ec2 detach-internet-gateway --internet-gateway-id <igw-id> --vpc-id <vpc-id>
 aws ec2 delete-internet-gateway --internet-gateway-id <igw-id>
 
+<<<<<<< HEAD
 # Delete VPC (last)
 aws ec2 delete-vpc --vpc-id <vpc-id>
 
@@ -1147,10 +1370,14 @@ for sg in $SECURITY_GROUPS; do
 done
 
 echo "✅ VPC cleanup completed for $VPC_ID"
+=======
+aws ec2 delete-vpc --vpc-id <vpc-id>
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 ```
 
 ---
 
+<<<<<<< HEAD
 ## 9. VPC and Networking Pricing Table (ap-southeast-1)
 
 ### 9.1. VPC Core Components Cost
@@ -1300,3 +1527,18 @@ aws elbv2 delete-load-balancer --load-balancer-arn <arn>
 ---
 
 **Next Step**: [Task 06: ECR Registry](../6-ecr-registry)
+=======
+## ✅ Task 5 Output (what must exist before Task 6/7)
+
+- VPC `10.0.0.0/16`
+- 2 public subnets (ALB) + 2 private subnets (EKS)
+- IGW + correct public route table
+- Private route table (no NAT route)
+- Security groups (ALB / Nodes / Control plane / Endpoints)
+- VPC Endpoints: S3 gateway + ECR API + ECR DKR + CloudWatch Logs (and ideally STS)
+- Subnet tags prepared for EKS + ALB Controller
+
+---
+
+**Next Step:** `Task 6: ECR Container Registry`
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48

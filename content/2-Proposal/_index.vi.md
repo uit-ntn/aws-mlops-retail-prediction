@@ -1,107 +1,173 @@
 ---
-title: "Bản đề xuất"
+title: "Proposal"
 weight: 2
 chapter: false
 pre: " <b> 2. </b> "
 ---
-{{% notice warning %}}
-⚠️ **Lưu ý:** Các thông tin dưới đây chỉ nhằm mục đích tham khảo, vui lòng **không sao chép nguyên văn** cho bài báo cáo của bạn kể cả warning này.
-{{% /notice %}}
 
-Tại phần này, bạn cần tóm tắt các nội dung trong workshop mà bạn **dự tính** sẽ làm.
+# Nền tảng MLOps Dự đoán Price Sensitivity trên AWS
 
-# IoT Weather Platform for Lab Research  
-## Giải pháp AWS Serverless hợp nhất cho giám sát thời tiết thời gian thực  
+## End-to-End MLOps: Data Lake → Training → Model Registry → Container → EKS API → Monitoring → CI/CD → Tối ưu chi phí
 
-### 1. Tóm tắt điều hành  
-IoT Weather Platform được thiết kế dành cho nhóm *ITea Lab* tại TP. Hồ Chí Minh nhằm nâng cao khả năng thu thập và phân tích dữ liệu thời tiết. Nền tảng hỗ trợ tối đa 5 trạm thời tiết, có khả năng mở rộng lên 10–15 trạm, sử dụng thiết bị biên Raspberry Pi kết hợp cảm biến ESP32 để truyền dữ liệu qua MQTT. Nền tảng tận dụng các dịch vụ AWS Serverless để cung cấp giám sát thời gian thực, phân tích dự đoán và tiết kiệm chi phí, với quyền truy cập giới hạn cho 5 thành viên phòng lab thông qua Amazon Cognito.  
+## 1. Tóm tắt (Executive Summary)
 
-### 2. Tuyên bố vấn đề  
-*Vấn đề hiện tại*  
-Các trạm thời tiết hiện tại yêu cầu thu thập dữ liệu thủ công, khó quản lý khi có nhiều trạm. Không có hệ thống tập trung cho dữ liệu hoặc phân tích thời gian thực, và các nền tảng bên thứ ba thường tốn kém và quá phức tạp.  
+Workshop này xây dựng một quy trình MLOps hoàn chỉnh trên AWS cho **Retail Prediction API**, dự đoán nhãn **BASKET_PRICE_SENSITIVITY (Low/Medium/High)** từ dữ liệu bán lẻ đã được chuẩn hoá. Hệ thống sử dụng S3 làm data lake (raw/silver/gold), pipeline training trên **Amazon SageMaker** (RandomForest) có đánh giá chất lượng (**Accuracy ≥ 0.8, F1 ≥ 0.7**), quản lý phiên bản qua **SageMaker Model Registry**, đóng gói inference bằng **FastAPI** đẩy lên **Amazon ECR**, triển khai production-like trên **Amazon EKS** có autoscaling và public endpoint phục vụ demo. Quan sát hệ thống bằng **Amazon CloudWatch**, tự động hoá build–deploy bằng CI/CD (GitHub Actions hoặc Jenkins), và kết thúc bằng chiến lược **tối ưu chi phí + teardown** để không phát sinh phí ngoài ý muốn.
 
-*Giải pháp*  
-Nền tảng sử dụng AWS IoT Core để tiếp nhận dữ liệu MQTT, AWS Lambda và API Gateway để xử lý, Amazon S3 để lưu trữ (bao gồm data lake), và AWS Glue Crawlers cùng các tác vụ ETL để trích xuất, chuyển đổi, tải dữ liệu từ S3 data lake sang một S3 bucket khác để phân tích. AWS Amplify với Next.js cung cấp giao diện web, và Amazon Cognito đảm bảo quyền truy cập an toàn. Tương tự như Thingsboard và CoreIoT, người dùng có thể đăng ký thiết bị mới và quản lý kết nối, nhưng nền tảng này hoạt động ở quy mô nhỏ hơn và phục vụ mục đích sử dụng nội bộ. Các tính năng chính bao gồm bảng điều khiển thời gian thực, phân tích xu hướng và chi phí vận hành thấp.  
+## 2. Bài toán (Problem Statement)
 
-*Lợi ích và hoàn vốn đầu tư (ROI)*  
-Giải pháp tạo nền tảng cơ bản để các thành viên phòng lab phát triển một nền tảng IoT lớn hơn, đồng thời cung cấp nguồn dữ liệu cho những người nghiên cứu AI phục vụ huấn luyện mô hình hoặc phân tích. Nền tảng giảm bớt báo cáo thủ công cho từng trạm thông qua hệ thống tập trung, đơn giản hóa quản lý và bảo trì, đồng thời cải thiện độ tin cậy dữ liệu. Chi phí hàng tháng ước tính 0,66 USD (theo AWS Pricing Calculator), tổng cộng 7,92 USD cho 12 tháng. Tất cả thiết bị IoT đã được trang bị từ hệ thống trạm thời tiết hiện tại, không phát sinh chi phí phát triển thêm. Thời gian hoàn vốn 6–12 tháng nhờ tiết kiệm đáng kể thời gian thao tác thủ công.  
+### 2.1 Vấn đề là gì?
 
-### 3. Kiến trúc giải pháp  
-Nền tảng áp dụng kiến trúc AWS Serverless để quản lý dữ liệu từ 5 trạm dựa trên Raspberry Pi, có thể mở rộng lên 15 trạm. Dữ liệu được tiếp nhận qua AWS IoT Core, lưu trữ trong S3 data lake và xử lý bởi AWS Glue Crawlers và ETL jobs để chuyển đổi và tải vào một S3 bucket khác cho mục đích phân tích. Lambda và API Gateway xử lý bổ sung, trong khi Amplify với Next.js cung cấp bảng điều khiển được bảo mật bởi Cognito.  
+Khi đưa ML vào production, team thường gặp các khó khăn:
 
-![IoT Weather Station Architecture](/images/2-Proposal/edge_architecture.jpeg)
+- Pipeline dữ liệu không lặp lại được (ETL thủ công, chia tập không nhất quán)
+- Thiếu governance cho model (không registry, không approve version, khó trace)
+- Inference khó triển khai ổn định (không chuẩn hoá container)
+- EKS phức tạp (networking, IAM/IRSA, image pull ECR)
+- Thiếu monitoring/logging → khó debug lỗi và khó kiểm soát chi phí
+- Chi phí tăng nhanh nếu tài nguyên chạy 24/7 (EKS nodes, ALB, logs, storage)
 
-![IoT Weather Platform Architecture](/images/2-Proposal/platform_architecture.jpeg)
+### 2.2 Giải pháp
 
-*Dịch vụ AWS sử dụng*  
-- *AWS IoT Core*: Tiếp nhận dữ liệu MQTT từ 5 trạm, mở rộng lên 15.  
-- *AWS Lambda*: Xử lý dữ liệu và kích hoạt Glue jobs (2 hàm).  
-- *Amazon API Gateway*: Giao tiếp với ứng dụng web.  
-- *Amazon S3*: Lưu trữ dữ liệu thô (data lake) và dữ liệu đã xử lý (2 bucket).  
-- *AWS Glue*: Crawlers lập chỉ mục dữ liệu, ETL jobs chuyển đổi và tải dữ liệu.  
-- *AWS Amplify*: Lưu trữ giao diện web Next.js.  
-- *Amazon Cognito*: Quản lý quyền truy cập cho người dùng phòng lab.  
+Workshop triển khai một hệ thống thống nhất:
 
-*Thiết kế thành phần*  
-- *Thiết bị biên*: Raspberry Pi thu thập và lọc dữ liệu cảm biến, gửi tới IoT Core.  
-- *Tiếp nhận dữ liệu*: AWS IoT Core nhận tin nhắn MQTT từ thiết bị biên.  
-- *Lưu trữ dữ liệu*: Dữ liệu thô lưu trong S3 data lake; dữ liệu đã xử lý lưu ở một S3 bucket khác.  
-- *Xử lý dữ liệu*: AWS Glue Crawlers lập chỉ mục dữ liệu; ETL jobs chuyển đổi để phân tích.  
-- *Giao diện web*: AWS Amplify lưu trữ ứng dụng Next.js cho bảng điều khiển và phân tích thời gian thực.  
-- *Quản lý người dùng*: Amazon Cognito giới hạn 5 tài khoản hoạt động.  
+- Chuẩn hoá data lake trên S3: **silver/** → **gold/** (tạo train/val/test deterministically)
+- Train **RandomForest classifier** trên SageMaker, đạt KPI (**Accuracy ≥ 0.8, F1 ≥ 0.7**)
+- Lưu artifacts vào **S3 artifacts/** và quản lý version qua **SageMaker Model Registry** (register + approve)
+- Build container inference **FastAPI** theo best-practice, push lên **ECR** (scan-on-push + lifecycle)
+- Deploy API lên **EKS** (multi-replica + health check + HPA), public endpoint cho demo (**/health, /docs, /predict**)
+- Thêm monitoring bằng **CloudWatch** (Container Insights, log retention, alarms)
+- Thêm CI/CD tự động build–test–scan–push–deploy và (tuỳ chọn) retrain+register
+- Tối ưu chi phí bằng Spot/schedule/lifecycle/budgets và teardown đầy đủ
 
-### 4. Triển khai kỹ thuật  
-*Các giai đoạn triển khai*  
-Dự án gồm 2 phần — thiết lập trạm thời tiết biên và xây dựng nền tảng thời tiết — mỗi phần trải qua 4 giai đoạn:  
-1. *Nghiên cứu và vẽ kiến trúc*: Nghiên cứu Raspberry Pi với cảm biến ESP32 và thiết kế kiến trúc AWS Serverless (1 tháng trước kỳ thực tập).  
-2. *Tính toán chi phí và kiểm tra tính khả thi*: Sử dụng AWS Pricing Calculator để ước tính và điều chỉnh (Tháng 1).  
-3. *Điều chỉnh kiến trúc để tối ưu chi phí/giải pháp*: Tinh chỉnh (ví dụ tối ưu Lambda với Next.js) để đảm bảo hiệu quả (Tháng 2).  
-4. *Phát triển, kiểm thử, triển khai*: Lập trình Raspberry Pi, AWS services với CDK/SDK và ứng dụng Next.js, sau đó kiểm thử và đưa vào vận hành (Tháng 2–3).  
+### 2.3 Lợi ích / Giá trị
 
-*Yêu cầu kỹ thuật*  
-- *Trạm thời tiết biên*: Cảm biến (nhiệt độ, độ ẩm, lượng mưa, tốc độ gió), vi điều khiển ESP32, Raspberry Pi làm thiết bị biên. Raspberry Pi chạy Raspbian, sử dụng Docker để lọc dữ liệu và gửi 1 MB/ngày/trạm qua MQTT qua Wi-Fi.  
-- *Nền tảng thời tiết*: Kiến thức thực tế về AWS Amplify (lưu trữ Next.js), Lambda (giảm thiểu do Next.js xử lý), AWS Glue (ETL), S3 (2 bucket), IoT Core (gateway và rules), và Cognito (5 người dùng). Sử dụng AWS CDK/SDK để lập trình (ví dụ IoT Core rules tới S3). Next.js giúp giảm tải Lambda cho ứng dụng web fullstack.  
+- Triển khai ML nhanh, lặp lại được, có kiểm soát phiên bản và audit trail
+- Độ tin cậy cao hơn nhờ health check + autoscaling + monitoring
+- Chi phí thấp hơn nhờ Spot/schedule/lifecycle và tắt/bỏ tài nguyên khi không dùng
+- Kiến trúc mẫu tái sử dụng cho các ML APIs khác
 
-### 5. Lộ trình & Mốc triển khai  
-- *Trước thực tập (Tháng 0)*: 1 tháng lên kế hoạch và đánh giá trạm cũ.  
-- *Thực tập (Tháng 1–3)*:  
-    - Tháng 1: Học AWS và nâng cấp phần cứng.  
-    - Tháng 2: Thiết kế và điều chỉnh kiến trúc.  
-    - Tháng 3: Triển khai, kiểm thử, đưa vào sử dụng.  
-- *Sau triển khai*: Nghiên cứu thêm trong vòng 1 năm.  
+## 3. Kiến trúc giải pháp (Solution Architecture)
 
-### 6. Ước tính ngân sách  
-Có thể xem chi phí trên [AWS Pricing Calculator](https://calculator.aws/#/estimate?id=621f38b12a1ef026842ba2ddfe46ff936ed4ab01)  
-Hoặc tải [tệp ước tính ngân sách](../attachments/budget_estimation.pdf).  
+### 3.1 Kiến trúc tổng quan (mô tả)
 
-*Chi phí hạ tầng*  
-- AWS Lambda: 0,00 USD/tháng (1.000 request, 512 MB lưu trữ).  
-- S3 Standard: 0,15 USD/tháng (6 GB, 2.100 request, 1 GB quét).  
-- Truyền dữ liệu: 0,02 USD/tháng (1 GB vào, 1 GB ra).  
-- AWS Amplify: 0,35 USD/tháng (256 MB, request 500 ms).  
-- Amazon API Gateway: 0,01 USD/tháng (2.000 request).  
-- AWS Glue ETL Jobs: 0,02 USD/tháng (2 DPU).  
-- AWS Glue Crawlers: 0,07 USD/tháng (1 crawler).  
-- MQTT (IoT Core): 0,08 USD/tháng (5 thiết bị, 45.000 tin nhắn).  
+**Tầng dữ liệu**
 
-*Tổng*: 0,7 USD/tháng, 8,40 USD/12 tháng  
-- *Phần cứng*: 265 USD một lần (Raspberry Pi 5 và cảm biến).  
+- Amazon S3: `raw/`, `silver/`, `gold/`, `artifacts/`, `logs/`, `tmp/`
+- ETL tự động từ silver partitions → gold splits (train/val/test)
 
-### 7. Đánh giá rủi ro  
-*Ma trận rủi ro*  
-- Mất mạng: Ảnh hưởng trung bình, xác suất trung bình.  
-- Hỏng cảm biến: Ảnh hưởng cao, xác suất thấp.  
-- Vượt ngân sách: Ảnh hưởng trung bình, xác suất thấp.  
+**Tầng training & governance**
 
-*Chiến lược giảm thiểu*  
-- Mạng: Lưu trữ cục bộ trên Raspberry Pi với Docker.  
-- Cảm biến: Kiểm tra định kỳ, dự phòng linh kiện.  
-- Chi phí: Cảnh báo ngân sách AWS, tối ưu dịch vụ.  
+- Amazon SageMaker Training (RandomForest)
+- Log metric/training qua CloudWatch
+- Model artifacts lưu S3 `artifacts/`
+- SageMaker Model Registry: Model Package Group + approve phiên bản
 
-*Kế hoạch dự phòng*  
-- Quay lại thu thập thủ công nếu AWS gặp sự cố.  
-- Sử dụng CloudFormation để khôi phục cấu hình liên quan đến chi phí.  
+**Tầng container & triển khai**
 
-### 8. Kết quả kỳ vọng  
-*Cải tiến kỹ thuật*: Dữ liệu và phân tích thời gian thực thay thế quy trình thủ công. Có thể mở rộng tới 10–15 trạm.  
-*Giá trị dài hạn*: Nền tảng dữ liệu 1 năm cho nghiên cứu AI, có thể tái sử dụng cho các dự án tương lai.
+- Amazon ECR: `mlops/retail-api` (immutability/scan/lifecycle)
+- Amazon EKS: `mlops-retail-cluster` (VPC production, private subnets cho nodes/pods)
+- Public demo endpoint qua LoadBalancer/ALB (bật khi demo, tắt khi không dùng)
+
+**Tầng quan sát & tự động hoá**
+
+- CloudWatch: Container Insights, log groups retention, alarms
+- CI/CD: GitHub Actions (OIDC) hoặc Jenkins (EC2) cho build/test/scan/push/deploy + optional retrain
+- Cost: S3/ECR lifecycle, log retention, schedule start/stop, teardown scripts
+
+> **Yêu cầu bắt buộc về region:** đồng bộ toàn bộ tài nguyên ở **ap-southeast-1** để tránh lỗi/redirect và phát sinh phức tạp (ví dụ S3 301).
+
+### 3.2 AWS services sử dụng
+
+- **Amazon S3**: data lake + artifacts + logs
+- **Amazon SageMaker**: training jobs + Model Registry
+- **Amazon ECR**: private image registry cho inference API
+- **Amazon EKS**: nền tảng chạy API production-like
+- **Elastic Load Balancing (ALB/NLB)**: public endpoint cho demo `/predict` và `/docs`
+- **Amazon CloudWatch**: logs, metrics, Container Insights, alarms
+- **AWS IAM + IRSA**: cấp quyền an toàn cho pod truy cập S3/SageMaker/CloudWatch
+- **Amazon VPC + VPC Endpoints**: private access đến S3/ECR/CloudWatch Logs (không cần NAT)
+- **CI/CD**: GitHub Actions hoặc Jenkins
+
+### 3.3 Thiết kế thành phần
+
+- **ETL & Dataset Prep**: tạo gold splits từ silver partitions; lưu dưới `gold/`
+- **Model Training**: training job ghi artifact vào `artifacts/` và xuất metrics
+- **Model Governance**: register model package và chỉ dùng version đã approve
+- **Inference Service**: FastAPI gọi model approved từ registry; endpoint `/predict`
+- **Độ tin cậy**: probes, replicas, autoscaling HPA
+- **Bảo mật**: private subnets, endpoints, least-privilege IAM, scan image
+
+## 4. Triển khai kỹ thuật (Technical Implementation)
+
+### 4.1 Các giai đoạn triển khai (mapping theo workshop tasks)
+
+- **Task 4 – Training Pipeline (SageMaker):** ETL silver→gold, train RF, evaluate, artifacts S3, register/approve Model Registry
+- **Task 5 – Production Networking:** tạo Production VPC (`10.0.0.0/16`), private subnets cho EKS, public subnets cho ALB demo-only, VPC endpoints, không NAT
+- **Task 6 – ECR:** build FastAPI container multi-stage, non-root, healthcheck, scan-on-push, lifecycle, push scripts
+- **Task 7 – EKS Setup:** tạo cluster + add-ons + IRSA + nodegroup, deploy app mẫu và verify ECR pull
+- **Task 8 – API Deployment:** deploy retail API (namespace `mlops`), ServiceAccount gắn IRSA role, LB endpoint + HPA + test
+- **Task 9 – Load Balancing:** nâng cấp demo endpoint bằng ALB/Ingress + controller (tuỳ chọn TLS/DNS)
+- **Task 10 – Monitoring:** Container Insights, log retention, alarms, Logs Insights
+- **Task 11 – CI/CD:** build/test/scan/push/deploy + optional retrain+register + rollback hooks
+- **Task 12 – Cost & Teardown:** Spot/schedule/lifecycle/budget + teardown script và verify xóa sạch
+
+### 4.2 Yêu cầu kỹ thuật
+
+- AWS account có quyền EKS, SageMaker, ECR, S3, VPC, CloudWatch, IAM
+- Docker + AWS CLI (hoặc CloudShell)
+- kubectl (và Helm nếu dùng AWS Load Balancer Controller)
+- Repo structure theo workshop: `aws/scripts/`, `aws/k8s/`, `aws/infra/`, ...
+
+## 5. Timeline & Milestones
+
+- **Milestone 1:** Data pipeline + SageMaker training + Model Registry hoạt động (model version có approve)
+- **Milestone 2:** Container FastAPI lên ECR (scan/lifecycle bật đầy đủ)
+- **Milestone 3:** EKS + IRSA ổn; API chạy có health check + HPA
+- **Milestone 4:** Public demo endpoint hoạt động; monitoring/alarms xong
+- **Milestone 5:** CI/CD chạy end-to-end; cost controls + teardown verify ok
+
+## 6. Ước tính chi phí (Budget Estimation)
+
+Workshop hướng tới mô hình production-like nhưng **tiết kiệm**:
+
+- EKS node ưu tiên nhỏ/Spot cho demo
+- Load balancer chỉ bật lúc demo
+- SageMaker training tối ưu (Managed Spot Training nếu phù hợp)
+- CloudWatch log retention 7–30 ngày
+- S3/ECR lifecycle để giảm chi phí storage
+- Budget alerts để tránh vượt ngân sách
+
+_(Tuỳ chọn: đính kèm bảng chi phí/ảnh AWS Pricing Calculator hoặc trích bảng từ Task 12.)_
+
+## 7. Đánh giá rủi ro (Risk Assessment)
+
+### 7.1 Risk Matrix (rủi ro phổ biến)
+
+- **Vượt chi phí**: ảnh hưởng vừa, xác suất vừa
+- **Lỗi networking (private subnets/endpoints)**: ảnh hưởng cao, xác suất vừa
+- **Sai IAM/IRSA**: ảnh hưởng cao, xác suất vừa
+- **Image pull lỗi (ECR auth/endpoint)**: ảnh hưởng vừa, xác suất vừa
+- **Dùng nhầm version model / chưa approve**: ảnh hưởng vừa, xác suất thấp
+
+### 7.2 Giảm thiểu rủi ro
+
+- Đồng bộ region và đặt naming convention rõ ràng
+- Dùng VPC endpoints (S3 gateway, ECR API/DKR, CloudWatch Logs) để giảm phụ thuộc NAT
+- Test IRSA sớm bằng pod smoke-test
+- Health checks + rollback trong CI/CD
+- Budget alerts + teardown sau demo
+
+## 8. Kết quả kỳ vọng (Expected Outcomes)
+
+### 8.1 Kết quả kỹ thuật
+
+- Pipeline MLOps hoàn chỉnh: **S3 → SageMaker Training → Model Registry → ECR → EKS API**
+- Public demo endpoint hoạt động với autoscaling và health checks
+- Monitoring/logs đầy đủ để debug và theo dõi vận hành
+- CI/CD giúp triển khai lặp lại nhanh và chuẩn
+
+### 8.2 Giá trị dài hạn
+
+- Blueprint tái sử dụng cho các ML services khác
+- Governance rõ ràng cho model version + artifacts
+- Thực hành vận hành tiết kiệm chi phí, phù hợp đồ án/thử nghiệm production

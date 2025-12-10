@@ -7,28 +7,28 @@ pre: "<b>10. </b>"
 ---
 
 {{% notice info %}}
-**🎯 Mục tiêu Task 10:**
+**🎯 Task 10 Objective:**
 {{% /notice %}}
 
-Thiết lập CloudWatch monitoring cơ bản cho EKS cluster và retail API.
+Set up basic CloudWatch monitoring for the EKS cluster and the retail API.
 
 ## 1. Container Insights
 
 ```bash
-# Enable Container Insights cho EKS cluster
+# Enable Container Insights for the EKS cluster
 aws eks update-addon \
   --cluster-name mlops-retail-cluster \
   --addon-name amazon-cloudwatch-observability \
   --addon-version v1.0.0-eksbuild.1
 
-# Tạo Log Groups
+# Create Log Groups
 aws logs create-log-group \
   --log-group-name /aws/containerinsights/mlops-retail-cluster/application \
   --retention-in-days 7
 ```
- 
+
 {{% notice tip %}}
-**Tip:** Chọn retention hợp lý (ví dụ 7–30 ngày) cho log groups dựa trên yêu cầu debug và compliance để cân bằng chi phí và khả năng truy vết.
+**Tip:** Choose an appropriate retention period (e.g., 7–30 days) for log groups based on debugging and compliance needs to balance cost and traceability.
 {{% /notice %}}
 
 ## 2. Basic Alarms
@@ -58,15 +58,15 @@ aws cloudwatch put-metric-alarm \
   --comparison-operator GreaterThanThreshold \
   --dimensions Name=ClusterName,Value=mlops-retail-cluster
 ```
- 
-  {{% notice info %}}
-  **Info:** Nên cấu hình action cho alarms (ví dụ SNS topic hoặc webhook tới PagerDuty) để tự động thông báo cho team khi alarm trigger. Kiểm tra kỹ metric namespace và dimension trước khi bật alarm.
-  {{% /notice %}}
+
+{{% notice info %}}
+**Info:** Configure alarm actions (for example, an SNS topic or a webhook to PagerDuty) to notify the team automatically when an alarm triggers. Double-check metric namespaces and dimensions before enabling alarms.
+{{% /notice %}}
 
 ## 3. SageMaker Training Logs
 
 ```bash
-# Tạo SageMaker Training Job với logging configuration
+# Create SageMaker Training Job with logging configuration
 aws sagemaker create-training-job \
   --training-job-name retail-prediction-training \
   --algorithm-specification TrainingImage=842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:v3 \
@@ -91,18 +91,18 @@ aws sagemaker create-training-job \
   }' \
   --stopping-condition MaxRuntimeInSeconds=3600
 
-# Log Analysis với CloudWatch Insights
+# Log analysis with CloudWatch Insights
 aws logs start-query \
   --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
   --start-time $(date -d '24 hour ago' +%s) \
   --end-time $(date +%s) \
   --query-string '
-    filter @message like "loss" 
-    | parse @message "loss: *," as loss_value 
-    | parse @message "epoch * " as epoch_num 
+    filter @message like "loss"
+    | parse @message "loss: *," as loss_value
+    | parse @message "epoch * " as epoch_num
     | stats avg(loss_value) as avg_loss by bin(1h)'
 
-# Tạo metric filter cho training loss
+# Create a metric filter for training loss
 aws logs put-metric-filter \
   --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
   --filter-name "TrainingLoss" \
@@ -110,9 +110,9 @@ aws logs put-metric-filter \
   --metric-transformations \
       metricName=TrainingLoss,metricNamespace=RetailMLOps,metricValue=1,unit=None
 ```
- 
+
 {{% notice warning %}}
-**Warning:** SageMaker training logs có thể sinh lượng lớn dữ liệu (đặc biệt khi in nhiều dòng hoặc debug verbose). Giới hạn level logging trong training scripts và cân nhắc filter/metric extraction để tránh chi phí ingestion/storage đột biến.
+**Warning:** SageMaker training logs can produce a large volume of data (especially when printing many lines or using verbose debug). Limit logging levels in training scripts and consider metric extraction/filters to avoid spikes in ingestion/storage costs.
 {{% /notice %}}
 
 ## 4. Verification
@@ -134,14 +134,15 @@ aws logs describe-log-streams \
 
 {{% notice success %}}
 **🎯 Task 10 Complete - CloudWatch Monitoring**
-- **Container Insights** enabled cho EKS cluster
-- **CloudWatch Alarms** configured cho CPU/Memory
-- **SageMaker training logs** với custom metrics
-- **Log Groups** với retention policy
-{{% /notice %}}
+
+- **Container Insights** enabled for the EKS cluster
+- **CloudWatch Alarms** configured for CPU/Memory
+- **SageMaker training logs** with custom metrics
+- **Log Groups** with retention policies
+  {{% /notice %}}
 
 {{% notice info %}}
-**Note:** Trước khi xóa log groups hoặc metric filters, export hoặc snapshot dashboard quan trọng (ví dụ Grafana/CSV) nếu cần lưu trữ cho audit hoặc so sánh sau này.
+**Note:** Before deleting log groups or metric filters, export or snapshot important dashboards (for example Grafana/CSV) if you need to retain them for audit or later comparison.
 {{% /notice %}}
 
 ## 5. Clean Up Resources
@@ -149,17 +150,17 @@ aws logs describe-log-streams \
 ### 5.1 Xóa CloudWatch Alarms
 
 ```bash
-# List tất cả alarms liên quan đến dự án
+# List all alarms related to the project
 aws cloudwatch describe-alarms \
   --alarm-name-prefix "EKS-" \
   --query 'MetricAlarms[].AlarmName' \
   --output table
 
-# Xóa specific alarms
+# Delete specific alarms
 aws cloudwatch delete-alarms \
   --alarm-names "EKS-HighCPU" "EKS-HighMemory"
 
-# Xóa alarms liên quan đến SageMaker
+# Delete alarms related to SageMaker
 aws cloudwatch describe-alarms \
   --alarm-name-prefix "SageMaker-" \
   --query 'MetricAlarms[].AlarmName' \
@@ -169,13 +170,13 @@ aws cloudwatch describe-alarms \
 ### 5.2 Xóa Log Groups và Metric Filters
 
 ```bash
-# List tất cả log groups liên quan
+# List all related log groups
 aws logs describe-log-groups \
   --log-group-name-prefix "/aws/containerinsights/mlops-retail-cluster" \
   --query 'logGroups[].logGroupName' \
   --output table
 
-# Xóa Container Insights log groups
+# Delete Container Insights log groups
 aws logs delete-log-group \
   --log-group-name "/aws/containerinsights/mlops-retail-cluster/application"
 
@@ -185,7 +186,7 @@ aws logs delete-log-group \
 aws logs delete-log-group \
   --log-group-name "/aws/containerinsights/mlops-retail-cluster/host"
 
-# Xóa SageMaker training log groups
+# Delete SageMaker training log groups
 aws logs describe-log-groups \
   --log-group-name-prefix "/aws/sagemaker/TrainingJobs" \
   --query 'logGroups[].logGroupName' \
@@ -194,7 +195,7 @@ aws logs describe-log-groups \
     aws logs delete-log-group --log-group-name "$log_group"
 done
 
-# Xóa EKS cluster log groups
+# Delete EKS cluster log groups
 aws logs delete-log-group --log-group-name "/aws/eks/mlops-retail-cluster/cluster" || true
 ```
 
@@ -206,10 +207,10 @@ aws eks delete-addon \
   --cluster-name mlops-retail-cluster \
   --addon-name amazon-cloudwatch-observability
 
-# Xóa CloudWatch agent từ EKS cluster
+# Remove CloudWatch agent from the EKS cluster
 kubectl delete namespace amazon-cloudwatch || true
 
-# Remove CloudWatch agent DaemonSet nếu còn
+# Remove CloudWatch agent DaemonSet if present
 kubectl delete daemonset cloudwatch-agent -n amazon-cloudwatch || true
 kubectl delete configmap cwagentconfig -n amazon-cloudwatch || true
 kubectl delete serviceaccount cloudwatch-agent -n amazon-cloudwatch || true
@@ -218,13 +219,13 @@ kubectl delete serviceaccount cloudwatch-agent -n amazon-cloudwatch || true
 ### 5.4 Xóa Custom Metrics và Dashboards
 
 ```bash
-# List custom metrics trong RetailMLOps namespace
+# List custom metrics in the RetailMLOps namespace
 aws cloudwatch list-metrics \
   --namespace "RetailMLOps" \
   --query 'Metrics[].MetricName' \
   --output table
 
-# Xóa custom metric filters
+# Delete custom metric filters
 aws logs describe-metric-filters \
   --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training" \
   --query 'metricFilters[].filterName' \
@@ -235,7 +236,7 @@ aws logs describe-metric-filters \
       --filter-name "$filter"
 done
 
-# List và xóa CloudWatch Dashboards
+# List and delete CloudWatch Dashboards
 aws cloudwatch list-dashboards \
   --dashboard-name-prefix "RetailMLOps" \
   --query 'DashboardEntries[].DashboardName' \
@@ -248,54 +249,54 @@ done
 ### 5.5 Verification Clean Up
 
 ```bash
-# Verify alarms đã bị xóa
+# Verify alarms have been deleted
 aws cloudwatch describe-alarms \
   --alarm-name-prefix "EKS-" \
   --query 'MetricAlarms[].AlarmName'
 
-# Verify log groups đã bị xóa
+# Verify log groups have been deleted
 aws logs describe-log-groups \
   --log-group-name-prefix "/aws/containerinsights/mlops-retail-cluster" \
   --query 'logGroups[].logGroupName'
 
-# Verify Container Insights addon đã bị remove
+# Verify Container Insights addon has been removed
 aws eks describe-addon \
   --cluster-name mlops-retail-cluster \
   --addon-name amazon-cloudwatch-observability || echo "Addon removed successfully"
 
-# Check namespaces trong EKS
+# Check namespaces in EKS
 kubectl get namespaces | grep cloudwatch
 ```
 
-## 6. Bảng giá CloudWatch Monitoring (ap-southeast-1)
+## 6. CloudWatch Monitoring Pricing (ap-southeast-1)
 
 ### 6.1. CloudWatch Logs Pricing
 
-| Service | Ingestion | Storage | Analysis |
-|---------|-----------|---------|----------|
-| **Log Ingestion** | $0.67/GB | - | - |
-| **Log Storage** | - | $0.033/GB/month | - |
-| **Log Insights** | - | - | $0.0067/GB scanned |
+| Service           | Ingestion | Storage         | Analysis           |
+| ----------------- | --------- | --------------- | ------------------ |
+| **Log Ingestion** | $0.67/GB  | -               | -                  |
+| **Log Storage**   | -         | $0.033/GB/month | -                  |
+| **Log Insights**  | -         | -               | $0.0067/GB scanned |
 
 ### 6.2. Container Insights Pricing
 
-| Component | Volume | Monthly Cost | Description |
-|-----------|---------|--------------|-------------|
-| **Performance Logs** | ~2GB/month | $1.34 | Node và Pod metrics |
-| **Application Logs** | ~1GB/month | $0.67 | Container stdout/stderr |
-| **Storage (30 days)** | 3GB total | $0.099 | Log retention |
-| **Insights Queries** | ~0.5GB scanned | $0.0034 | Monthly analysis |
-| **Total Container Insights** | | **$2.11/month** | Per cluster |
+| Component                    | Volume         | Monthly Cost    | Description             |
+| ---------------------------- | -------------- | --------------- | ----------------------- |
+| **Performance Logs**         | ~2GB/month     | $1.34           | Node and Pod metrics    |
+| **Application Logs**         | ~1GB/month     | $0.67           | Container stdout/stderr |
+| **Storage (30 days)**        | 3GB total      | $0.099          | Log retention           |
+| **Insights Queries**         | ~0.5GB scanned | $0.0034         | Monthly analysis        |
+| **Total Container Insights** |                | **$2.11/month** | Per cluster             |
 
-### 6.3. CloudWatch Alarms và Metrics
+### 6.3. CloudWatch Alarms and Metrics
 
-| Feature | Quantity | Unit Cost | Monthly Cost |
-|---------|----------|-----------|--------------|
-| **Standard Metrics** | Free | $0 | $0 |
-| **Custom Metrics** | 10 metrics | $0.30/metric | $3.00 |
-| **Alarms** | 5 alarms | $0.10/alarm | $0.50 |
-| **API Calls** | 1M calls | $0.01/1000 calls | $10.00 |
-| **Total Monitoring** | | | **$13.50/month** |
+| Feature              | Quantity   | Unit Cost        | Monthly Cost     |
+| -------------------- | ---------- | ---------------- | ---------------- |
+| **Standard Metrics** | Free       | $0               | $0               |
+| **Custom Metrics**   | 10 metrics | $0.30/metric     | $3.00            |
+| **Alarms**           | 5 alarms   | $0.10/alarm      | $0.50            |
+| **API Calls**        | 1M calls   | $0.01/1000 calls | $10.00           |
+| **Total Monitoring** |            |                  | **$13.50/month** |
 
 ### 6.4. SageMaker Training Logs
 
@@ -305,21 +306,21 @@ kubectl get namespaces | grep cloudwatch
 # With 4 training jobs per month
 ```
 
-| Training Scenario | Log Volume | Ingestion Cost | Storage Cost | Total Cost |
-|-------------------|------------|----------------|--------------|------------|
-| **Single Training** | 100MB | $0.067 | $0.0033 | $0.070 |
-| **4 Jobs/month** | 400MB | $0.268 | $0.013 | $0.281 |
-| **Daily Training** | 3GB/month | $2.01 | $0.099 | $2.11 |
+| Training Scenario   | Log Volume | Ingestion Cost | Storage Cost | Total Cost |
+| ------------------- | ---------- | -------------- | ------------ | ---------- |
+| **Single Training** | 100MB      | $0.067         | $0.0033      | $0.070     |
+| **4 Jobs/month**    | 400MB      | $0.268         | $0.013       | $0.281     |
+| **Daily Training**  | 3GB/month  | $2.01          | $0.099       | $2.11      |
 
 ### 6.5. CloudWatch Dashboards
 
-| Dashboard Type | Widgets | Monthly Cost | Use Case |
-|----------------|---------|--------------|----------|
-| **Basic Dashboard** | 3 widgets | $3.00 | EKS cluster overview |
-| **Detailed Dashboard** | 10 widgets | $3.00 | Full MLOps monitoring |
-| **Custom Dashboard** | 20 widgets | $3.00 | Multi-service view |
+| Dashboard Type         | Widgets    | Monthly Cost | Use Case              |
+| ---------------------- | ---------- | ------------ | --------------------- |
+| **Basic Dashboard**    | 3 widgets  | $3.00        | EKS cluster overview  |
+| **Detailed Dashboard** | 10 widgets | $3.00        | Full MLOps monitoring |
+| **Custom Dashboard**   | 20 widgets | $3.00        | Multi-service view    |
 
-*Note: CloudWatch Dashboard pricing is $3.00/month per dashboard, regardless of widget count*
+_Note: CloudWatch Dashboard pricing is $3.00/month per dashboard, regardless of widget count_
 
 ### 6.6. Log Insights Query Costs
 
@@ -327,30 +328,30 @@ kubectl get namespaces | grep cloudwatch
 # Example query costs for different scenarios
 ```
 
-| Query Type | Data Scanned | Cost per Query | Monthly Queries | Monthly Cost |
-|------------|---------------|----------------|-----------------|--------------|
-| **Error Analysis** | 100MB | $0.00067 | 50 | $0.034 |
-| **Performance Review** | 500MB | $0.0034 | 20 | $0.068 |
-| **Full Log Search** | 2GB | $0.013 | 10 | $0.13 |
-| **Total Query Cost** | | | | **$0.23/month** |
+| Query Type             | Data Scanned | Cost per Query | Monthly Queries | Monthly Cost    |
+| ---------------------- | ------------ | -------------- | --------------- | --------------- |
+| **Error Analysis**     | 100MB        | $0.00067       | 50              | $0.034          |
+| **Performance Review** | 500MB        | $0.0034        | 20              | $0.068          |
+| **Full Log Search**    | 2GB          | $0.013         | 10              | $0.13           |
+| **Total Query Cost**   |              |                |                 | **$0.23/month** |
 
 ### 6.7. Data Transfer Costs
 
-| Transfer Type | Volume | Cost | Monthly Estimate |
-|---------------|---------|------|------------------|
-| **CloudWatch API** | 1GB/month | $0.12/GB | $0.12 |
-| **Log Streaming** | 500MB/month | $0.12/GB | $0.06 |
-| **Cross-AZ Logs** | 200MB/month | $0.01/GB | $0.002 |
-| **Total Transfer** | | | **$0.18/month** |
+| Transfer Type      | Volume      | Cost     | Monthly Estimate |
+| ------------------ | ----------- | -------- | ---------------- |
+| **CloudWatch API** | 1GB/month   | $0.12/GB | $0.12            |
+| **Log Streaming**  | 500MB/month | $0.12/GB | $0.06            |
+| **Cross-AZ Logs**  | 200MB/month | $0.01/GB | $0.002           |
+| **Total Transfer** |             |          | **$0.18/month**  |
 
 ### 6.8. Retention Cost Analysis
 
-| Retention Period | Storage Multiplier | Cost Impact | Use Case |
-|------------------|-------------------|-------------|----------|
-| **1 day** | 1x | Baseline | Development |
-| **7 days** | 7x | 7x storage cost | Testing |
-| **30 days** | 30x | 30x storage cost | Production |
-| **1 year** | 365x | 365x storage cost | Compliance |
+| Retention Period | Storage Multiplier | Cost Impact       | Use Case    |
+| ---------------- | ------------------ | ----------------- | ----------- |
+| **1 day**        | 1x                 | Baseline          | Development |
+| **7 days**       | 7x                 | 7x storage cost   | Testing     |
+| **30 days**      | 30x                | 30x storage cost  | Production  |
+| **1 year**       | 365x               | 365x storage cost | Compliance  |
 
 ```bash
 # Example: 1GB/day logs with different retention
@@ -362,6 +363,7 @@ kubectl get namespaces | grep cloudwatch
 ### 6.9. Cost Optimization Strategies
 
 **Log Filtering:**
+
 ```bash
 # Chỉ log ERROR và WARNING levels
 aws logs put-metric-filter \
@@ -372,6 +374,7 @@ aws logs put-metric-filter \
 ```
 
 **Intelligent Log Routing:**
+
 ```yaml
 # Kubernetes fluent-bit configuration
 apiVersion: v1
@@ -393,6 +396,7 @@ data:
 ```
 
 **Metric Sampling:**
+
 ```bash
 # Sample metrics every 5 minutes instead of 1 minute
 aws cloudwatch put-metric-alarm \
@@ -404,41 +408,43 @@ aws cloudwatch put-metric-alarm \
 
 ### 6.10. Tổng kết chi phí Task 10
 
+### 6.10. Cost Summary for Task 10
+
 **Scenario 1: Basic Monitoring (Development)**
 
-| Component | Monthly Cost |
-|-----------|--------------|
-| Container Insights (basic) | $2.11 |
-| 3 CloudWatch Alarms | $0.30 |
-| 1 Dashboard | $3.00 |
-| Log storage (7 days) | $0.23 |
-| **Total Development** | **$5.64/month** |
+| Component                  | Monthly Cost    |
+| -------------------------- | --------------- |
+| Container Insights (basic) | $2.11           |
+| 3 CloudWatch Alarms        | $0.30           |
+| 1 Dashboard                | $3.00           |
+| Log storage (7 days)       | $0.23           |
+| **Total Development**      | **$5.64/month** |
 
 **Scenario 2: Production Monitoring**
 
-| Component | Monthly Cost |
-|-----------|--------------|
-| Container Insights (full) | $6.00 |
-| 10 CloudWatch Alarms | $1.00 |
-| 2 Dashboards | $6.00 |
-| SageMaker training logs | $0.28 |
-| Log storage (30 days) | $0.99 |
-| Custom metrics | $3.00 |
-| Log Insights queries | $0.23 |
-| **Total Production** | **$17.50/month** |
+| Component                 | Monthly Cost     |
+| ------------------------- | ---------------- |
+| Container Insights (full) | $6.00            |
+| 10 CloudWatch Alarms      | $1.00            |
+| 2 Dashboards              | $6.00            |
+| SageMaker training logs   | $0.28            |
+| Log storage (30 days)     | $0.99            |
+| Custom metrics            | $3.00            |
+| Log Insights queries      | $0.23            |
+| **Total Production**      | **$17.50/month** |
 
 **Scenario 3: Enterprise Monitoring**
 
-| Component | Monthly Cost |
-|-----------|--------------|
-| Container Insights (multi-cluster) | $12.00 |
-| 25 CloudWatch Alarms | $2.50 |
-| 5 Dashboards | $15.00 |
-| Daily SageMaker training | $2.11 |
-| Extended log retention | $5.00 |
-| Heavy custom metrics | $10.00 |
-| Frequent queries | $2.00 |
-| **Total Enterprise** | **$48.61/month** |
+| Component                          | Monthly Cost     |
+| ---------------------------------- | ---------------- |
+| Container Insights (multi-cluster) | $12.00           |
+| 25 CloudWatch Alarms               | $2.50            |
+| 5 Dashboards                       | $15.00           |
+| Daily SageMaker training           | $2.11            |
+| Extended log retention             | $5.00            |
+| Heavy custom metrics               | $10.00           |
+| Frequent queries                   | $2.00            |
+| **Total Enterprise**               | **$48.61/month** |
 
 ### 6.11. Monitoring Cost Commands
 
@@ -463,14 +469,15 @@ aws cloudwatch list-metrics \
 ```
 
 {{% notice info %}}
-**💰 Cost Summary cho Task 10:**
-- **Development:** $5.64/month (basic monitoring)
-- **Production:** $17.50/month (full monitoring) 
-- **Enterprise:** $48.61/month (extensive monitoring)
-- **Optimization potential:** 30-50% cost reduction với log filtering và retention tuning
-{{% /notice %}}
+**💰 Cost Summary for Task 10:**
 
-## 🎬 Video thực hiện Task 10
+- **Development:** $5.64/month (basic monitoring)
+- **Production:** $17.50/month (full monitoring)
+- **Enterprise:** $48.61/month (extensive monitoring)
+- **Optimization potential:** 30-50% cost reduction with log filtering and retention tuning
+  {{% /notice %}}
+
+## 🎬 Video for Task 10
 
 <div style="position: relative; width: 100%; max-width: 2000px; margin: 0 auto; padding-bottom: 56.25%; height: 0; overflow: hidden;">
   <iframe 

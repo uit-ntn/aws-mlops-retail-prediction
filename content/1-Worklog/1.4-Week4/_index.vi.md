@@ -1,58 +1,27 @@
 ---
-title: "Worklog Tuần 4"
-weight: 1
+title: "Tuần 4 - Dịch vụ lưu trữ trên AWS"
+weight: 5
 chapter: false
 pre: " <b> 1.4. </b> "
 ---
-{{% notice warning %}}
-⚠️ **Lưu ý:** Các thông tin dưới đây chỉ nhằm mục đích tham khảo, vui lòng **không sao chép nguyên văn** cho bài báo cáo của bạn kể cả warning này.
-{{% /notice %}}
 
+### Mục tiêu Tuần 4:
 
-### Mục tiêu tuần 4:
+- Khám phá các lựa chọn lưu trữ nâng cao: S3, EFS và EBS.
+- Triển khai phân phối nội dung với CloudFront.
 
-* Kết nối, làm quen với các thành viên trong First Cloud Journey.
-* Hiểu dịch vụ AWS cơ bản, cách dùng console & CLI.
+### Các nhiệm vụ thực hiện trong tuần này:
 
-### Các công việc cần triển khai trong tuần này:
-| Thứ | Công việc                                                                                                                                                                                   | Ngày bắt đầu | Ngày hoàn thành | Nguồn tài liệu                            |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------- | ----------------------------------------- |
-| 2   | - Làm quen với các thành viên FCJ <br> - Đọc và lưu ý các nội quy, quy định tại đơn vị thực tập                                                                                             | 11/08/2025   | 11/08/2025      |
-| 3   | - Tìm hiểu AWS và các loại dịch vụ <br>&emsp; + Compute <br>&emsp; + Storage <br>&emsp; + Networking <br>&emsp; + Database <br>&emsp; + ... <br>                                            | 12/08/2025   | 12/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 4   | - Tạo AWS Free Tier account <br> - Tìm hiểu AWS Console & AWS CLI <br> - **Thực hành:** <br>&emsp; + Tạo AWS account <br>&emsp; + Cài AWS CLI & cấu hình <br> &emsp; + Cách sử dụng AWS CLI | 13/08/2025   | 13/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 5   | - Tìm hiểu EC2 cơ bản: <br>&emsp; + Instance types <br>&emsp; + AMI <br>&emsp; + EBS <br>&emsp; + ... <br> - Các cách remote SSH vào EC2 <br> - Tìm hiểu Elastic IP   <br>                  | 14/08/2025   | 15/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 6   | - **Thực hành:** <br>&emsp; + Tạo EC2 instance <br>&emsp; + Kết nối SSH <br>&emsp; + Gắn EBS volume                                                                                         | 15/08/2025   | 15/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
+| Ngày | Nhiệm vụ                                                                                                                   | Tài liệu tham khảo |
+| ---- | -------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 2    | - **S3 nâng cao:** Cấu hình Versioning, Lifecycle Policies và Encryption.<br>- Thiết lập Pre-signed URL để upload an toàn. | AWS S3 Docs        |
+| 3    | - **CDN:** Thiết lập CloudFront với Origin Access Control (OAC) cho S3.<br>- Kiểm tra caching và invalidation.             | AWS CloudFront     |
+| 4    | - **Lưu trữ file:** Tạo và mount Amazon EFS vào các EC2 instances.<br>- Cấu hình Access Points và Mount Targets.           | AWS EFS Docs       |
+| 5    | - **Lưu trữ block:** Quản lý EBS Volumes (Snapshot, Restore, Resize).<br>- Triển khai kế hoạch Backup.                     | AWS Backup         |
+| 6    | - **Ôn tập:** Xác thực phân phối nội dung an toàn và tính bền vững (persistence) của lưu trữ.<br>- Báo cáo tuần.           | -                  |
 
+### Kết quả đạt được Tuần 4:
 
-### Kết quả đạt được tuần 4:
-
-* Hiểu AWS là gì và nắm được các nhóm dịch vụ cơ bản: 
-  * Compute
-  * Storage
-  * Networking 
-  * Database
-  * ...
-
-* Đã tạo và cấu hình AWS Free Tier account thành công.
-
-* Làm quen với AWS Management Console và biết cách tìm, truy cập, sử dụng dịch vụ từ giao diện web.
-
-* Cài đặt và cấu hình AWS CLI trên máy tính bao gồm:
-  * Access Key
-  * Secret Key
-  * Region mặc định
-  * ...
-
-* Sử dụng AWS CLI để thực hiện các thao tác cơ bản như:
-
-  * Kiểm tra thông tin tài khoản & cấu hình
-  * Lấy danh sách region
-  * Xem dịch vụ EC2
-  * Tạo và quản lý key pair
-  * Kiểm tra thông tin dịch vụ đang chạy
-  * ...
-
-* Có khả năng kết nối giữa giao diện web và CLI để quản lý tài nguyên AWS song song.
-* ...
-
-
+- Phục vụ nội dung tĩnh an toàn thông qua CloudFront + S3 OAC.
+- Triển khai shared storage bằng EFS cho nhiều instances.
+- Tự động hoá backup EBS bằng Data Lifecycle Manager.

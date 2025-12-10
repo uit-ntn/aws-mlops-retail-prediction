@@ -1,58 +1,27 @@
 ---
-title: "Worklog Tuần 11"
-weight: 2
+title: "Tuần 11 - Observability & FinOps"
+weight: 12
 chapter: false
 pre: " <b> 1.11. </b> "
 ---
-{{% notice warning %}}
-⚠️ **Lưu ý:** Các thông tin dưới đây chỉ nhằm mục đích tham khảo, vui lòng **không sao chép nguyên văn** cho bài báo cáo của bạn kể cả warning này.
-{{% /notice %}}
 
+### Mục tiêu Tuần 11:
 
-### Mục tiêu tuần 11:
+- Triển khai giám sát/quan sát hệ thống toàn diện (CloudWatch, X-Ray).
+- Tối ưu chi phí cloud (Budgets, Tagging, Rightsizing).
 
-* Kết nối, làm quen với các thành viên trong First Cloud Journey.
-* Hiểu dịch vụ AWS cơ bản, cách dùng console & CLI.
+### Các nhiệm vụ thực hiện trong tuần này:
 
-### Các công việc cần triển khai trong tuần này:
-| Thứ | Công việc                                                                                                                                                                                   | Ngày bắt đầu | Ngày hoàn thành | Nguồn tài liệu                            |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------- | ----------------------------------------- |
-| 2   | - Làm quen với các thành viên FCJ <br> - Đọc và lưu ý các nội quy, quy định tại đơn vị thực tập                                                                                             | 11/08/2025   | 11/08/2025      |
-| 3   | - Tìm hiểu AWS và các loại dịch vụ <br>&emsp; + Compute <br>&emsp; + Storage <br>&emsp; + Networking <br>&emsp; + Database <br>&emsp; + ... <br>                                            | 12/08/2025   | 12/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 4   | - Tạo AWS Free Tier account <br> - Tìm hiểu AWS Console & AWS CLI <br> - **Thực hành:** <br>&emsp; + Tạo AWS account <br>&emsp; + Cài AWS CLI & cấu hình <br> &emsp; + Cách sử dụng AWS CLI | 13/08/2025   | 13/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 5   | - Tìm hiểu EC2 cơ bản: <br>&emsp; + Instance types <br>&emsp; + AMI <br>&emsp; + EBS <br>&emsp; + ... <br> - Các cách remote SSH vào EC2 <br> - Tìm hiểu Elastic IP   <br>                  | 14/08/2025   | 15/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 6   | - **Thực hành:** <br>&emsp; + Tạo EC2 instance <br>&emsp; + Kết nối SSH <br>&emsp; + Gắn EBS volume                                                                                         | 15/08/2025   | 15/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
+| Ngày | Nhiệm vụ                                                                                                         | Tài liệu tham khảo |
+| ---- | ---------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 2    | - **Giám sát (Monitoring):** Thiết lập CloudWatch Dashboards và Alarms (CPU, lỗi 5xx).<br>- Bật X-Ray tracing.   | AWS CloudWatch     |
+| 3    | - **Logs:** Tập trung log về CloudWatch Logs kèm retention policies.<br>- Dùng Logs Insights để truy vấn.        | AWS X-Ray          |
+| 4    | - **FinOps:** Triển khai Cost Allocation Tags.<br>- Thiết lập AWS Budgets và Cost Anomaly Detection.             | AWS Budgets        |
+| 5    | - **Tối ưu (Optimization):** Rà soát Cost Explorer.<br>- Thực hiện rightsizing và dọn dẹp tài nguyên không dùng. | AWS Cost Explorer  |
+| 6    | - **Ôn tập:** Xác minh độ bao phủ observability và các biện pháp tiết kiệm chi phí.<br>- Báo cáo tuần.           | -                  |
 
+### Kết quả đạt được Tuần 11:
 
-### Kết quả đạt được tuần 11:
-
-* Hiểu AWS là gì và nắm được các nhóm dịch vụ cơ bản: 
-  * Compute
-  * Storage
-  * Networking 
-  * Database
-  * ...
-
-* Đã tạo và cấu hình AWS Free Tier account thành công.
-
-* Làm quen với AWS Management Console và biết cách tìm, truy cập, sử dụng dịch vụ từ giao diện web.
-
-* Cài đặt và cấu hình AWS CLI trên máy tính bao gồm:
-  * Access Key
-  * Secret Key
-  * Region mặc định
-  * ...
-
-* Sử dụng AWS CLI để thực hiện các thao tác cơ bản như:
-
-  * Kiểm tra thông tin tài khoản & cấu hình
-  * Lấy danh sách region
-  * Xem dịch vụ EC2
-  * Tạo và quản lý key pair
-  * Kiểm tra thông tin dịch vụ đang chạy
-  * ...
-
-* Có khả năng kết nối giữa giao diện web và CLI để quản lý tài nguyên AWS song song.
-* ...
-
-
+- Thiết lập dashboard observability thống nhất để theo dõi sức khoẻ hệ thống.
+- Áp dụng cơ chế kiểm soát chi phí bằng Budgets và Tagging.
+- Tối ưu mức sử dụng tài nguyên dựa trên dữ liệu giám sát.

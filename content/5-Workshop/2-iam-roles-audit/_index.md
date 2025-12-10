@@ -7,6 +7,7 @@ pre: "<b>2. </b>"
 ---
 
 ## 🎯 Task 2 Objectives
+## 🎯 Task 2 Objectives
 
 Set up **access permissions (IAM)** for all AWS services in the pipeline and **enable CloudTrail** to monitor and record all activities in the AWS account.
 
@@ -20,12 +21,15 @@ Set up **access permissions (IAM)** for all AWS services in the pipeline and **e
 
 - **Input from Task 1:** Task 1 (Introduction) — project conventions, naming, and high-level objectives
 
+- **Input from Task 1:** Task 1 (Introduction) — project conventions, naming, and high-level objectives
 
 ✅ **Output**
 - AWS services have appropriate **Least Privilege** permissions for their roles
 - All operations are **recorded by CloudTrail**
 - Meets rubric criteria: **security, access control, cloud project management**
 
+💰 **Estimated Cost**
+≈ **0.05 USD/month** (CloudTrail + S3 storage for logs)
 💰 **Estimated Cost**
 ≈ **0.05 USD/month** (CloudTrail + S3 storage for logs)
 
@@ -52,6 +56,7 @@ Set up **access permissions (IAM)** for all AWS services in the pipeline and **e
 - All IAM roles comply with principle of least privilege
 - Audit trail ready for compliance and monitoring
 
+## 1. CloudTrail Setup - Audit Foundation
 ## 1. CloudTrail Setup - Audit Foundation
 
 ### 1.1. Create S3 Bucket for CloudTrail
@@ -88,6 +93,7 @@ AWS Console → S3 → "Create bucket"
 
 3. **Lifecycle rule actions**:
    - ✅ Transition current versions of objects between storage classes
+     - Select to automatically move logs to cheaper storage classes
      - Select to automatically move logs to cheaper storage classes
    - ❌ Transition noncurrent versions of objects between storage classes
      - Not needed as CloudTrail logs don't have many versions
@@ -146,6 +152,7 @@ Suggestion: For labs and quick debugging, the least risky approach is to create 
 2. **Key Configuration:**
    ```
    Key type: ✅ Symmetric (encrypt and decrypt data)
+   Key type: ✅ Symmetric (encrypt and decrypt data)
    Key usage: ✅ Encrypt and decrypt
    ```
 
@@ -153,7 +160,7 @@ Suggestion: For labs and quick debugging, the least risky approach is to create 
    ```
    Alias: alias/mlops-retail-prediction-dev-cloudtrail-key
    Description (optional): KMS key for CloudTrail logs encryption
-   Tags (optional): 
+   Tags (optional):
      - Key: Project
      - Value: MLOps-Retail-Prediction
    ```
@@ -180,9 +187,7 @@ Suggestion: For labs and quick debugging, the least risky approach is to create 
          "Sid": "Enable IAM User Permissions",
          "Effect": "Allow",
          "Principal": {
-           "AWS": [
-             "arn:aws:iam::842676018087:root"
-           ]
+           "AWS": ["arn:aws:iam::842676018087:root"]
          },
          "Action": "kms:*",
          "Resource": "*"
@@ -276,10 +281,7 @@ Allow CloudTrail to describe key: Allow CloudTrail to view key information
          "Principal": {
            "AWS": "*"
          },
-         "Action": [
-           "kms:Decrypt",
-           "kms:ReEncryptFrom"
-         ],
+         "Action": ["kms:Decrypt", "kms:ReEncryptFrom"],
          "Resource": "*",
          "Condition": {
            "StringEquals": {
@@ -296,10 +298,7 @@ Allow CloudTrail to describe key: Allow CloudTrail to view key information
          "Principal": {
            "AWS": "*"
          },
-         "Action": [
-           "kms:Decrypt",
-           "kms:ReEncryptFrom"
-         ],
+         "Action": ["kms:Decrypt", "kms:ReEncryptFrom"],
          "Resource": "*",
          "Condition": {
            "StringEquals": {
@@ -404,6 +403,7 @@ AWS Console → us-east-1 → CloudTrail → Create trail
 | **Insights events** | ✅ Enabled (detect anomalous behavior) |
 
 **Step 3: Storage configuration**
+**Step 3: Storage configuration**
 
 | Item | Value |
 |-----|----------|
@@ -412,6 +412,7 @@ AWS Console → us-east-1 → CloudTrail → Create trail
 | **Log file SSE-KMS encryption** | ✅ Enabled |
 | **AWS KMS alias** | `alias/mlops-retail-prediction-dev-cloudtrail-key` (select the created key) |
 
+**Step 4: CloudWatch Logs integration (optional)**
 **Step 4: CloudWatch Logs integration (optional)**
 
 | Item | Value |
@@ -438,6 +439,7 @@ Correct order to avoid errors:
 
 
 ### 2.1. EKS Cluster Service Role
+
 - AWS Console → IAM → Roles → "Create role"
 
 1. **Trusted entity type:**
@@ -493,6 +495,7 @@ Correct order to avoid errors:
 	```
 
 ### 2.4. REQUIRED: Add EC2 Permissions
+### 2.4. REQUIRED: Add EC2 Permissions
 
 Because SageMaker Projects are mandatory, EC2 permissions must be added:
 
@@ -514,6 +517,7 @@ Because SageMaker Projects are mandatory, EC2 permissions must be added:
 {{% notice tip %}}
 ✅ Verify: the role should have these 4 policies attached:
 - `AmazonSageMakerFullAccess` (AWS managed)
+- `AmazonS3FullAccess` (AWS managed)
 - `AmazonS3FullAccess` (AWS managed)
 - `CloudWatchLogsFullAccess` (AWS managed)
 - `SageMakerEC2Access` (the inline policy created above)
@@ -539,9 +543,12 @@ If EC2 permissions are missing:
 ## 3. Validation & Security checks
 
 ### 3.1. Verify CloudTrail
+### 3.1. Verify CloudTrail
 
 **Check CloudTrail status:**
+**Check CloudTrail status:**
 AWS Console → CloudTrail → Trails
+
 ```
 ✅ mlops-retail-prediction-audit-trail: Active
 ✅ Multi-region trail: Enabled
@@ -551,7 +558,9 @@ AWS Console → CloudTrail → Trails
 ```
 
 **Verify S3 logging:**
+**Verify S3 logging:**
 AWS Console → S3 → mlops-cloudtrail-logs-ap-southeast-1
+
 ```
 ✅ Log files present: /mlops-logs/AWSLogs/[account-id]/CloudTrail/
 ✅ Encryption: SSE-S3 enabled
@@ -564,7 +573,7 @@ AWS Console → S3 → mlops-cloudtrail-logs-ap-southeast-1
 **Go to IAM → Roles and verify:**
 ```
 ✅ mlops-retail-prediction-dev-eks-cluster-role
-✅ mlops-retail-prediction-dev-eks-nodegroup-role  
+✅ mlops-retail-prediction-dev-eks-nodegroup-role
 ✅ mlops-retail-prediction-dev-sagemaker-execution
 ✅ CloudTrail_CloudWatchLogs_Role (auto-created)
 ```
@@ -596,6 +605,7 @@ aws s3 ls s3://mlops-retail-prediction-dev-ACCOUNT/ --profile sagemaker-test
 # Test SageMaker training job permissions
 aws sagemaker list-training-jobs --region us-east-1 --profile sagemaker-test
 
+# Test EC2 permissions (if added)
 # Test EC2 permissions (if added)
 aws ec2 describe-vpcs --region us-east-1 --profile sagemaker-test
 ```
@@ -636,6 +646,7 @@ Notes:
 > Warning: commands below will delete real resources. Confirm names (bucket, role, trail, key) before running.
 
 ### 5.1 Delete CloudTrail
+### 5.1 Delete CloudTrail
 
 PowerShell (AWS CLI):
 
@@ -656,6 +667,7 @@ Note: bucket may be in `us-east-1` per this guide. Verify with `aws s3 ls` / con
 aws s3 rm s3://mlops-cloudtrail-logs-ap-southeast-1 --recursive
 
 # Delete the bucket
+# Delete the bucket
 aws s3api delete-bucket --bucket mlops-cloudtrail-logs-ap-southeast-1 --region us-east-1
 ```
 
@@ -665,12 +677,14 @@ KMS keys cannot be immediately deleted if in use. Schedule deletion (e.g., 7 day
 
 ```powershell
 # Find KeyId from alias
+# Find KeyId from alias
 $keyId = aws kms list-aliases --query "Aliases[?AliasName=='alias/mlops-retail-prediction-dev-cloudtrail-key'].TargetKeyId" --output text
 
 # Schedule key deletion (pending window: 7-30 days)
 aws kms schedule-key-deletion --key-id $keyId --pending-window-in-days 7
 ```
 
+### 5.4 Remove IAM Roles & Policies (EKS / SageMaker / CloudTrail)
 ### 5.4 Remove IAM Roles & Policies (EKS / SageMaker / CloudTrail)
 
 Safe procedure: 1) Detach managed policies 2) Delete inline policies 3) Delete role.
@@ -683,14 +697,17 @@ $roleName = 'mlops-retail-prediction-dev-sagemaker-execution'
 aws iam list-attached-role-policies --role-name $roleName --query 'AttachedPolicies[].PolicyArn' --output text | ForEach-Object { aws iam detach-role-policy --role-name $roleName --policy-arn $_ }
 
 # 2) Delete inline policies
+# 2) Delete inline policies
 aws iam list-role-policies --role-name $roleName --query 'PolicyNames' --output text | ForEach-Object { aws iam delete-role-policy --role-name $roleName --policy-name $_ }
 
+# 3) Delete the role
 # 3) Delete the role
 aws iam delete-role --role-name $roleName
 
 # Repeat for other roles (EKS cluster/nodegroup, CloudTrail_CloudWatchLogs_Role, CI roles, etc.)
 ```
 
+### 5.5 Remove Container Insights / CloudWatch integration
 ### 5.5 Remove Container Insights / CloudWatch integration
 
 ```powershell
@@ -701,12 +718,14 @@ aws logs delete-log-group --log-group-name "/aws/containerinsights/mlops-retail-
 aws logs delete-log-group --log-group-name "mlops-cloudtrail-log-group" || Write-Host 'Log group not found'
 
 # Disable Container Insights addon from EKS (if applied)
+# Disable Container Insights addon from EKS (if applied)
 aws eks delete-addon --cluster-name mlops-retail-cluster --addon-name amazon-cloudwatch-observability
 ```
 
 ### 5.6 Delete ECR images (optional)
 
 ```powershell
+# Delete images by tag
 # Delete images by tag
 aws ecr batch-delete-image --repository-name mlops/retail-api --image-ids imageTag=dev,imageTag=staging || Write-Host 'No matching images or already deleted'
 
@@ -715,9 +734,10 @@ aws ecr describe-images --repository-name mlops/retail-api --filter tagStatus=UN
 ```
 
 ### 5.7 Stop / Delete SageMaker training jobs, endpoints, model packages
+### 5.7 Stop / Delete SageMaker training jobs, endpoints, model packages
 
 ```powershell
-# Stop in-progress training jobs with name pattern
+# Stop in-progress training jobs by name pattern
 aws sagemaker list-training-jobs --name-contains "retail-" --status-equals InProgress --query 'TrainingJobSummaries[].TrainingJobName' --output text | ForEach-Object { aws sagemaker stop-training-job --training-job-name $_ }
 
 # Delete failed endpoints
@@ -727,6 +747,7 @@ aws sagemaker list-endpoints --name-contains "retail-" --query 'Endpoints[?Endpo
 aws sagemaker list-model-packages --model-package-group-name "retail-forecast-models" --model-approval-status PendingManualApproval --query 'ModelPackageSummaryList[].ModelPackageArn' --output text | ForEach-Object { aws sagemaker delete-model-package --model-package-name $_ }
 ```
 
+### 5.8 Verification
 ### 5.8 Verification
 
 ```powershell

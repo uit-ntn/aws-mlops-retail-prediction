@@ -1,39 +1,41 @@
 ---
-title: "Tự đánh giá"
+title: "Self-Assessment"
 weight: 6
 chapter: false
 pre: " <b> 6. </b> "
 ---
 
-{{% notice warning %}}
-⚠️ **Lưu ý:** Các thông tin dưới đây chỉ nhằm mục đích tham khảo, vui lòng **không sao chép nguyên văn** cho bài báo cáo của bạn kể cả warning này.
-{{% /notice %}}
+Trong quá trình thực hiện workshop **Retail MLOps trên AWS**, tôi có cơ hội áp dụng kiến thức Cloud/DevOps/MLOps vào một pipeline thực tế end-to-end: từ tổ chức dữ liệu theo chuẩn S3, huấn luyện và đánh giá mô hình trên SageMaker, quản lý phiên bản mô hình bằng SageMaker Model Registry, đóng gói dịch vụ inference FastAPI bằng Docker, triển khai lên EKS, giám sát qua CloudWatch, tự động hoá CI/CD, và tối ưu chi phí bằng các quy trình teardown sau mỗi buổi demo.
 
-Trong suốt thời gian thực tập tại **[Tên công ty/tổ chức]** từ **[ngày bắt đầu]** đến **[ngày kết thúc]**, tôi đã có cơ hội học hỏi, rèn luyện và áp dụng kiến thức đã được trang bị tại trường vào môi trường làm việc thực tế.  
-Tôi đã tham gia **[mô tả ngắn gọn dự án hoặc công việc chính]**, qua đó cải thiện kỹ năng **[liệt kê kỹ năng: lập trình, phân tích, viết báo cáo, giao tiếp…]**.  
+Thông qua workshop này, tôi đã cải thiện các kỹ năng sau:
 
-Về tác phong, tôi luôn cố gắng hoàn thành tốt nhiệm vụ, tuân thủ nội quy, và tích cực trao đổi với đồng nghiệp để nâng cao hiệu quả công việc.
+- Thiết kế kiến trúc MLOps theo hướng production (networking, security, scalability)
+- Xây dựng pipeline từ dữ liệu → mô hình với tiêu chí chất lượng rõ ràng và bước kiểm chứng cụ thể
+- Làm việc với các dịch vụ AWS: S3, SageMaker, ECR, EKS, IAM/IRSA, CloudWatch, VPC endpoints
+- Container hoá dịch vụ inference (multi-stage build, non-root, healthcheck, scan image)
+- Triển khai và vận hành workload Kubernetes (manifests, Service/Ingress, HPA, debug)
+- Tối ưu chi phí và vận hành “gọn sạch” (Spot, lifecycle policies, log retention, schedule start/stop, teardown scripts)
 
-Để phản ánh một cách khách quan quá trình thực tập, tôi xin tự đánh giá bản thân dựa trên các tiêu chí dưới đây:
+Để phản ánh khách quan mức độ tiến bộ sau khi hoàn thành workshop, tôi tự đánh giá theo các tiêu chí dưới đây:
 
+| STT | Tiêu chí                           | Mô tả                                                                                        | Tốt | Khá | Trung bình |
+| --- | ---------------------------------- | -------------------------------------------------------------------------------------------- | --- | --- | ---------- |
+| 1   | **Kiến thức & kỹ năng chuyên môn** | Hiểu khái niệm MLOps, triển khai pipeline train/deploy, chất lượng đầu ra                    | ✅  | ☐   | ☐          |
+| 2   | **Khả năng học hỏi**               | Học và áp dụng AWS/EKS/SageMaker/ECR/CloudWatch nhanh                                        | ✅  | ☐   | ☐          |
+| 3   | **Tính chủ động**                  | Chủ động debug (pods, image pull, IRSA), cải tiến cấu hình và cleanup                        | ✅  | ☐   | ☐          |
+| 4   | **Tinh thần trách nhiệm**          | Hoàn thành theo checklist, đạt tiêu chí metric mô hình và yêu cầu verify                     | ✅  | ☐   | ☐          |
+| 5   | **Tính kỷ luật**                   | Tuân thủ naming conventions, nhất quán region, thực hiện teardown để tránh phát sinh chi phí | ☐   | ✅  | ☐          |
+| 6   | **Tinh thần cầu tiến**             | Tiếp nhận phản hồi và cải tiến (Spot, lifecycle, log retention, scheduling)                  | ✅  | ☐   | ☐          |
+| 7   | **Giao tiếp**                      | Trình bày lựa chọn kiến trúc, báo cáo tiến độ, ghi chú bước verify rõ ràng                   | ☐   | ✅  | ☐          |
+| 8   | **Làm việc nhóm (nếu áp dụng)**    | Phối hợp các phần (data/train/deploy/monitor/cost) và tích hợp deliverables                  | ☐   | ✅  | ☐          |
+| 9   | **Tác phong chuyên nghiệp**        | Làm việc có hệ thống, tôn trọng quy ước, ưu tiên least privilege và bảo mật                  | ✅  | ☐   | ☐          |
+| 10  | **Kỹ năng giải quyết vấn đề**      | Tìm root cause và đề xuất fix (VPC endpoints, IRSA/RBAC, LB/SG, logs)                        | ☐   | ✅  | ☐          |
+| 11  | **Đóng góp cho dự án/nhóm**        | Tạo pipeline end-to-end có thể tái sử dụng kèm script vận hành/teardown                      | ✅  | ☐   | ☐          |
+| 12  | **Tổng quan**                      | Mức độ hoàn thành tổng thể và khả năng tự tái hiện hệ thống                                  | ✅  | ☐   | ☐          |
 
-| STT | Tiêu chí                            | Mô tả                                                                                            | Tốt | Khá | Trung bình |
-| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------ | --- | --- | ---------- |
-| 1   | **Kiến thức và kỹ năng chuyên môn** | Hiểu biết về ngành, áp dụng kiến thức vào thực tế, kỹ năng sử dụng công cụ, chất lượng công việc | ✅   | ☐   | ☐          |
-| 2   | **Khả năng học hỏi**                | Tiếp thu kiến thức mới, học hỏi nhanh                                                            | ☐   | ✅   | ☐          |
-| 3   | **Chủ động**                        | Tự tìm hiểu, nhận nhiệm vụ mà không chờ chỉ dẫn                                                  | ✅   | ☐   | ☐          |
-| 4   | **Tinh thần trách nhiệm**           | Hoàn thành công việc đúng hạn, đảm bảo chất lượng                                                | ✅   | ☐   | ☐          |
-| 5   | **Kỷ luật**                         | Tuân thủ giờ giấc, nội quy, quy trình làm việc                                                   | ☐   | ☐   | ✅          |
-| 6   | **Tính cầu tiến**                   | Sẵn sàng nhận feedback và cải thiện bản thân                                                     | ☐   | ✅   | ☐          |
-| 7   | **Giao tiếp**                       | Trình bày ý tưởng, báo cáo công việc rõ ràng                                                     | ☐   | ✅   | ☐          |
-| 8   | **Hợp tác nhóm**                    | Làm việc hiệu quả với đồng nghiệp, tham gia nhóm                                                 | ✅   | ☐   | ☐          |
-| 9   | **Ứng xử chuyên nghiệp**            | Tôn trọng đồng nghiệp, đối tác, môi trường làm việc                                              | ✅   | ☐   | ☐          |
-| 10  | **Tư duy giải quyết vấn đề**        | Nhận diện vấn đề, đề xuất giải pháp, sáng tạo                                                    | ☐   | ✅   | ☐          |
-| 11  | **Đóng góp vào dự án/tổ chức**      | Hiệu quả công việc, sáng kiến cải tiến, ghi nhận từ team                                         | ✅   | ☐   | ☐          |
-| 12  | **Tổng thể**                        | Đánh giá chung về toàn bộ quá trình thực tập                                                     | ✅   | ☐   | ☐          |
+## Cần cải thiện
 
-### Cần cải thiện
-
-* Nâng cao tính kỹ luật, chấp hành nghiêm chỉnh nội quy của công ty hoặc bất kỳ trong một tổ chức nào
-* Cải thiện trong cách tư duy giải quyết vấn đề
-* Học cách giao tiếp tốt hơn trong giao tiếp hằng ngày và trong công việc, xử lý tình huống
+- **Nâng chất lượng tài liệu hoá:** mô tả kiến trúc rõ hơn, checklist prerequisite, và bộ hướng dẫn troubleshooting có cấu trúc.
+- **Tăng độ “chặt” cho CI/CD:** bổ sung các cổng kiểm soát (tests, policy checks, rollback rõ ràng), tách dev/stage/prod.
+- **Nâng mức trưởng thành quan sát (observability):** dashboard/cảnh báo theo SLO thực tế (latency, error rate), tối ưu log và (tuỳ chọn) tracing.
+- **Kiểm soát chi phí tốt hơn:** schedule theo khung giờ demo, kiểm soát log ingestion, dọn ECR định kỳ.

@@ -1,10 +1,12 @@
 ---
-title: "EKS Cluster Setup"
-weight: 7
+title: "EKS Cluster Setup (Production)"
+date: 2024-01-01T00:00:00Z
+weight: 8
 chapter: false
 pre: "<b>7. </b>"
 ---
 
+<<<<<<< HEAD
 ## 🎯 Task 7 Objectives
 
 Deploy Amazon Elastic Kubernetes Service (EKS) as the foundation to run prediction API (FastAPI) in production environment:
@@ -154,223 +156,191 @@ kubectl get deployment -n kube-system ebs-csi-controller
 
 {{% notice info %}}
 **Info:** EKS control plane automatically runs across multiple AZs. To optimize costs, ensure worker nodes are balanced across AZs to avoid cross-AZ data transfer charges ($0.01/GB).
+=======
+{{% notice info %}}
+**🎯 Task 7 Goal:** Provision an Amazon EKS cluster in **ap-southeast-1** connected to the Production VPC, enable essential add-ons/logging, configure IRSA (OIDC) for AWS access from pods, and deploy a sample app that pulls from ECR.
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 {{% /notice %}}
 
-## 2. IRSA (IAM Roles for Service Accounts) Setup
+## 0) Inputs from previous tasks
 
-### 2.1. Associate OIDC Provider
+- Production VPC: `10.0.0.0/16` (private subnets for nodes/pods; public subnets for ALB demos)
+- No NAT Gateway (cost optimization). Use **VPC Endpoints**:
+  - S3 **Gateway** endpoint
+  - ECR API + ECR DKR **Interface** endpoints
+  - CloudWatch Logs **Interface** endpoint
+- Cluster name: `mlops-retail-cluster`
+- Region: `ap-southeast-1`
+- ECR: `842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest`
 
-```bash
-# Check if OIDC provider exists
-aws eks describe-cluster --name mlops-retail-cluster \
-    --region ap-southeast-1 \
-    --query "cluster.identity.oidc.issuer" --output text
+---
 
-# Associate OIDC identity provider with cluster
-eksctl utils associate-iam-oidc-provider \
-    --cluster mlops-retail-cluster \
-    --region ap-southeast-1 \
-    --approve
-```
+## 1) Create the EKS cluster
 
-**Expected output:**
+### Option A (Recommended): eksctl (fast)
 
-```
-✅ Created OIDC identity provider for cluster "mlops-retail-cluster" in region "ap-southeast-1"
-```
+> If you already created the VPC in Task 5, plug in your subnet IDs.
 
-![OIDC Provider Setup](../images/07-eks-cluster/07-oidc-provider-setup.png)
-
-### 2.2. Create IRSA Role for S3 Access
-
-**Create file `scripts/create-irsa-s3-role.sh`:**
-
-```bash
-#!/bin/bash
-
-# Configuration
-CLUSTER_NAME="mlops-retail-cluster"
-REGION="ap-southeast-1"
-NAMESPACE="mlops-retail-forecast"
-SERVICE_ACCOUNT="s3-access-sa"
-ROLE_NAME="mlops-irsa-s3-access-role"
-POLICY_NAME="mlops-irsa-s3-policy"
-
-# Get OIDC issuer URL
-OIDC_ISSUER=$(aws eks describe-cluster \
-    --name $CLUSTER_NAME \
-    --region $REGION \
-    --query "cluster.identity.oidc.issuer" \
-    --output text | sed 's|https://||')
-
-# Get AWS account ID
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-echo "🔧 Creating IRSA role for S3 access..."
-echo "Cluster: $CLUSTER_NAME"
-echo "OIDC Issuer: $OIDC_ISSUER"
-echo "Namespace: $NAMESPACE"
-echo "Service Account: $SERVICE_ACCOUNT"
-
-# Create trust policy
-cat > trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/${OIDC_ISSUER}"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "${OIDC_ISSUER}:sub": "system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT}",
-          "${OIDC_ISSUER}:aud": "sts.amazonaws.com"
-        }
-      }
-    }
-  ]
-}
-EOF
-
-# Create IAM role
-aws iam create-role \
-    --role-name $ROLE_NAME \
-    --assume-role-policy-document file://trust-policy.json \
-    --description "IRSA role for EKS pods to access S3"
-
-# Create S3 access policy
-cat > s3-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket",
-        "s3:GetBucketLocation"
-      ],
-      "Resource": [
-        "arn:aws:s3:::mlops-retail-forecast-models",
-        "arn:aws:s3:::mlops-retail-forecast-models/*",
-        "arn:aws:s3:::mlops-retail-forecast-data",
-        "arn:aws:s3:::mlops-retail-forecast-data/*"
-      ]
-    }
-  ]
-}
-EOF
-
-# Create and attach policy
-aws iam create-policy \
-    --policy-name $POLICY_NAME \
-    --policy-document file://s3-policy.json \
-    --description "S3 access policy for ML workloads"
-
-aws iam attach-role-policy \
-    --role-name $ROLE_NAME \
-    --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/${POLICY_NAME}
-
-# Clean up temp files
-rm trust-policy.json s3-policy.json
-
-echo "✅ IRSA S3 role created successfully!"
-echo "Role ARN: arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
-```
-
-**Run the script:**
-
-```bash
-chmod +x scripts/create-irsa-s3-role.sh
-./scripts/create-irsa-s3-role.sh
-```
-
-### 2.3. Create IRSA Role for CloudWatch
-
-**Create file `scripts/create-irsa-cloudwatch-role.sh`:**
-
-```bash
-#!/bin/bash
-
-# Configuration
-CLUSTER_NAME="mlops-retail-cluster"
-REGION="ap-southeast-1"
-NAMESPACE="mlops-retail-forecast"
-SERVICE_ACCOUNT="cloudwatch-sa"
-ROLE_NAME="mlops-irsa-cloudwatch-role"
-
-# Get OIDC issuer and account ID
-OIDC_ISSUER=$(aws eks describe-cluster \
-    --name $CLUSTER_NAME \
-    --region $REGION \
-    --query "cluster.identity.oidc.issuer" \
-    --output text | sed 's|https://||')
-
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-echo "🔧 Creating IRSA role for CloudWatch access..."
-
-# Create trust policy for CloudWatch service account
-cat > cloudwatch-trust-policy.json << EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/${OIDC_ISSUER}"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "${OIDC_ISSUER}:sub": "system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT}",
-          "${OIDC_ISSUER}:aud": "sts.amazonaws.com"
-        }
-      }
-    }
-  ]
-}
-EOF
-
-# Create IAM role
-aws iam create-role \
-    --role-name $ROLE_NAME \
-    --assume-role-policy-document file://cloudwatch-trust-policy.json \
-    --description "IRSA role for EKS pods to access CloudWatch"
-
-# Attach CloudWatch agent policy
-aws iam attach-role-policy \
-    --role-name $ROLE_NAME \
-    --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
-
-# Clean up
-rm cloudwatch-trust-policy.json
-
-echo "✅ IRSA CloudWatch role created successfully!"
-echo "Role ARN: arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}"
-```
-
-**Run the script:**
-
-```bash
-chmod +x scripts/create-irsa-cloudwatch-role.sh
-./scripts/create-irsa-cloudwatch-role.sh
-```
-
-### 2.4. Create Kubernetes Service Accounts
-
-**Create file `k8s/service-accounts.yaml`:**
+Create `eksctl-cluster.yaml`:
 
 ```yaml
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: mlops-retail-cluster
+  region: ap-southeast-1
+  version: "1.29"
+
+vpc:
+  id: "<PRODUCTION_VPC_ID>"
+  subnets:
+    private:
+      ap-southeast-1a: { id: "<PRIVATE_SUBNET_ID_A>" }
+      ap-southeast-1b: { id: "<PRIVATE_SUBNET_ID_B>" }
+    public:
+      ap-southeast-1a: { id: "<PUBLIC_SUBNET_ID_A>" }
+      ap-southeast-1b: { id: "<PUBLIC_SUBNET_ID_B>" }
+
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+managedNodeGroups:
+  - name: retail-ng-dev
+    instanceType: t2.micro
+    desiredCapacity: 2
+    minSize: 1
+    maxSize: 3
+    privateNetworking: true
+    labels:
+      role: dev
+    iam:
+      withAddonPolicies:
+        cloudWatch: true
+        ecr: true
+        autoScaler: true
+```
+
+Create cluster:
+
+```bash
+eksctl create cluster -f eksctl-cluster.yaml
+```
+
+### Option B: AWS Console (if you must)
+
+1. EKS → Clusters → Create
+2. Name: `mlops-retail-cluster`, Region: `ap-southeast-1`
+3. Networking: select Production VPC + **private** subnets for nodes
+4. Enable control plane logs
+5. After cluster is ready → create Managed Node Group (`t2.micro` for dev)
+
 ---
+
+## 2) Add-ons & observability baseline
+
+Recommended EKS add-ons:
+
+- `vpc-cni`
+- `coredns`
+- `kube-proxy`
+- `aws-ebs-csi-driver` (optional)
+
+```bash
+aws eks list-addons --cluster-name mlops-retail-cluster --region ap-southeast-1
+aws eks create-addon --cluster-name mlops-retail-cluster --addon-name vpc-cni --region ap-southeast-1
+aws eks create-addon --cluster-name mlops-retail-cluster --addon-name coredns --region ap-southeast-1
+aws eks create-addon --cluster-name mlops-retail-cluster --addon-name kube-proxy --region ap-southeast-1
+```
+
+---
+
+## 3) Configure kubectl access
+
+```bash
+aws eks update-kubeconfig --name mlops-retail-cluster --region ap-southeast-1
+kubectl get nodes
+```
+
+---
+
+## 4) IRSA (IAM Roles for Service Accounts)
+
+### 4.1 Associate OIDC provider
+
+```bash
+eksctl utils associate-iam-oidc-provider   --cluster mlops-retail-cluster   --region ap-southeast-1   --approve
+```
+
+### 4.2 Create an IAM role for pods (example: S3 read + CloudWatch logs)
+
+Create policy `irsa-s3-cw.json`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3ReadArtifacts",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": ["arn:aws:s3:::<YOUR_BUCKET>", "arn:aws:s3:::<YOUR_BUCKET>/*"]
+    },
+    {
+      "Sid": "CWLogsWrite",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+Create policy + role (example via CLI):
+
+```bash
+aws iam create-policy --policy-name EKSIRSA-S3-CW --policy-document file://irsa-s3-cw.json
+# Create role trust policy is easier using eksctl serviceaccount (next section)
+```
+
+Create K8s namespace and service account with eksctl:
+
+```bash
+kubectl create namespace mlops-retail-forecast || true
+
+eksctl create iamserviceaccount   --cluster mlops-retail-cluster   --region ap-southeast-1   --namespace mlops-retail-forecast   --name retail-sa   --attach-policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/EKSIRSA-S3-CW   --approve   --override-existing-serviceaccounts
+```
+
+---
+
+## 5) Verify ECR access (image pull)
+
+If your node group has the standard EKS worker role, it can pull from ECR.
+If you run strictly private subnets with no NAT, confirm your VPC endpoints exist:
+
+- `com.amazonaws.ap-southeast-1.ecr.api`
+- `com.amazonaws.ap-southeast-1.ecr.dkr`
+- `com.amazonaws.ap-southeast-1.logs`
+- S3 Gateway endpoint
+
+---
+
+## 6) Deploy a sample app (smoke test)
+
+Create `k8s/sample-app.yaml`:
+
+```yaml
 apiVersion: v1
 kind: Namespace
 metadata:
   name: mlops-retail-forecast
+<<<<<<< HEAD
   labels:
     name: mlops-retail-forecast
 ---
@@ -611,91 +581,53 @@ aws ec2 describe-vpc-endpoints \
 **Create file `k8s/retail-api-deployment.yaml`:**
 
 ```yaml
+=======
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: retail-api
+  name: sample-nginx
   namespace: mlops-retail-forecast
-  labels:
-    app: retail-api
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: retail-api
+      app: sample-nginx
   template:
     metadata:
       labels:
-        app: retail-api
+        app: sample-nginx
     spec:
-      serviceAccountName: retail-api-sa # IRSA Service Account
       containers:
-        - name: retail-api
-          image: ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+        - name: nginx
+          image: nginx:1.25
           ports:
-            - containerPort: 8000
-              name: http
-          env:
-            - name: AWS_DEFAULT_REGION
-              value: "ap-southeast-1"
-            - name: S3_BUCKET_MODELS
-              value: "mlops-retail-forecast-models"
-            - name: S3_BUCKET_DATA
-              value: "mlops-retail-forecast-data"
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "250m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 30
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 60
-            periodSeconds: 20
+            - containerPort: 80
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: retail-api-service
+  name: sample-nginx-svc
   namespace: mlops-retail-forecast
-  labels:
-    app: retail-api
 spec:
   type: ClusterIP
+  selector:
+    app: sample-nginx
   ports:
     - port: 80
-      targetPort: 8000
-      name: http
-  selector:
-    app: retail-api
+      targetPort: 80
 ```
 
-### 5.2. Deploy Application with IRSA
+Apply + verify:
 
 ```bash
-# Replace ACCOUNT_ID in deployment file
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-sed "s/ACCOUNT_ID/$ACCOUNT_ID/g" k8s/retail-api-deployment.yaml | kubectl apply -f -
-
-# Verify deployment
-kubectl get deployments -n mlops-retail-forecast
+kubectl apply -f k8s/sample-app.yaml
 kubectl get pods -n mlops-retail-forecast
-kubectl get services -n mlops-retail-forecast
-
-# Check logs to verify IRSA working
-kubectl logs -l app=retail-api -n mlops-retail-forecast
+kubectl get svc  -n mlops-retail-forecast
 ```
 
+<<<<<<< HEAD
 ### 5.3. Test IRSA S3 Access
 
 **Create test pod:**
@@ -832,70 +764,14 @@ metadata:
   name: amazon-cloudwatch
   labels:
     name: amazon-cloudwatch
+=======
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: cloudwatch-agent
-  namespace: amazon-cloudwatch
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mlops-retail-forecast-dev-irsa-cloudwatch
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: cloudwatch-agent
-  namespace: amazon-cloudwatch
-spec:
-  selector:
-    matchLabels:
-      name: cloudwatch-agent
-  template:
-    metadata:
-      labels:
-        name: cloudwatch-agent
-    spec:
-      serviceAccountName: cloudwatch-agent
-      containers:
-        - name: cloudwatch-agent
-          image: amazon/cloudwatch-agent:1.300026.2b251814
-          env:
-            - name: AWS_REGION
-              value: ap-southeast-1
-            - name: CLUSTER_NAME
-              value: mlops-retail-forecast-dev-cluster
-          volumeMounts:
-            - name: cwagentconfig
-              mountPath: /etc/cwagentconfig
-            - name: rootfs
-              mountPath: /rootfs
-              readOnly: true
-            - name: dockersock
-              mountPath: /var/run/docker.sock
-              readOnly: true
-            - name: varlibdocker
-              mountPath: /var/lib/docker
-              readOnly: true
-      volumes:
-        - name: cwagentconfig
-          configMap:
-            name: cwagentconfig
-        - name: rootfs
-          hostPath:
-            path: /
-        - name: dockersock
-          hostPath:
-            path: /var/run/docker.sock
-        - name: varlibdocker
-          hostPath:
-            path: /var/lib/docker
-```
 
-## 8. Security Hardening
-
-### 8.1. Network Security
+## 7) Cleanup (recommended for cost control)
 
 ```bash
+<<<<<<< HEAD
 # Verify security groups
 aws ec2 describe-security-groups \
   --group-ids $(terraform output -raw eks_control_plane_security_group_id) \
@@ -1035,61 +911,15 @@ echo "🧹 Starting EKS cluster cleanup..."
 
 # 1. Delete applications and namespace
 echo "Deleting Kubernetes resources..."
+=======
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 kubectl delete namespace mlops-retail-forecast --ignore-not-found=true
-
-# 2. Delete node group
-echo "Deleting node group..."
-aws eks delete-nodegroup \
-    --cluster-name $CLUSTER_NAME \
-    --nodegroup-name $NODEGROUP_NAME \
-    --region $REGION
-
-# Wait for node group deletion
-echo "Waiting for node group deletion..."
-aws eks wait nodegroup-deleted \
-    --cluster-name $CLUSTER_NAME \
-    --nodegroup-name $NODEGROUP_NAME \
-    --region $REGION
-
-# 3. Delete IRSA roles
-echo "Cleaning up IRSA roles..."
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-# Delete S3 role
-aws iam detach-role-policy --role-name mlops-irsa-s3-access-role --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/mlops-irsa-s3-policy 2>/dev/null
-aws iam delete-policy --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/mlops-irsa-s3-policy 2>/dev/null
-aws iam delete-role --role-name mlops-irsa-s3-access-role 2>/dev/null
-
-# Delete CloudWatch role
-aws iam detach-role-policy --role-name mlops-irsa-cloudwatch-role --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy 2>/dev/null
-aws iam delete-role --role-name mlops-irsa-cloudwatch-role 2>/dev/null
-
-# 4. Delete OIDC provider
-echo "Deleting OIDC provider..."
-OIDC_URL=$(aws eks describe-cluster --name $CLUSTER_NAME --region $REGION --query 'cluster.identity.oidc.issuer' --output text 2>/dev/null | sed 's|https://||')
-if [ ! -z "$OIDC_URL" ]; then
-    aws iam delete-open-id-connect-provider --open-id-connect-provider-arn arn:aws:iam::${ACCOUNT_ID}:oidc-provider/${OIDC_URL} 2>/dev/null
-fi
-
-# 5. Delete cluster
-echo "Deleting EKS cluster..."
-aws eks delete-cluster --name $CLUSTER_NAME --region $REGION
-
-# Wait for cluster deletion
-echo "Waiting for cluster deletion (this may take 10-15 minutes)..."
-aws eks wait cluster-deleted --name $CLUSTER_NAME --region $REGION
-
-# 6. Clean up kubeconfig
-echo "Cleaning up kubeconfig..."
-kubectl config delete-cluster arn:aws:eks:$REGION:${ACCOUNT_ID}:cluster/$CLUSTER_NAME 2>/dev/null
-kubectl config delete-context arn:aws:eks:$REGION:${ACCOUNT_ID}:cluster/$CLUSTER_NAME 2>/dev/null
-kubectl config unset users.arn:aws:eks:$REGION:${ACCOUNT_ID}:cluster/$CLUSTER_NAME 2>/dev/null
-
-echo "✅ EKS cleanup completed successfully!"
+eksctl delete cluster --name mlops-retail-cluster --region ap-southeast-1
 ```
 
 ---
 
+<<<<<<< HEAD
 ## 10. EKS Pricing Table (ap-southeast-1)
 
 ### 10.1. EKS Control Plane Cost
@@ -1290,3 +1120,19 @@ EKS cluster foundation is ready for deployment:
 ---
 
 **Next Step**: [Task 08: Deploy Kubernetes](../8-deploy-kubernetes)
+=======
+## 8) Rough cost notes
+
+- EKS control plane has a fixed hourly cost.
+- NodeGroup (EC2) is your main variable cost. Use tiny instances for dev and shut down when idle.
+- Avoid NAT Gateway costs by using VPC Endpoints (as designed in Task 5).
+
+{{% notice success %}}
+**✅ Task 7 Complete (EKS):**
+
+- EKS cluster created in ap-southeast-1
+- Control plane logs enabled + add-ons configured
+- IRSA enabled (OIDC provider + service account role)
+- Sample workload deployed successfully
+  {{% /notice %}}
+>>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
