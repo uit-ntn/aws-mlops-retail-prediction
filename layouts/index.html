@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="{{ .Site.Language.Lang }}" class="js csstransforms3d">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Hugo {{ hugo.Version }}" />
+<meta name="description" content="{{ .Site.Params.description }}">
+<title>{{ .Site.Title }}</title>
+
+{{ partial "custom-head.html" . }}
+{{ with .Site.Params.themeVariant }}
+  <link href="{{ $.Site.BaseURL }}/css/nucleus.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/font-awesome.min.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/hybrid.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/featherlight.min.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/perfect-scrollbar.min.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/auto-complete.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/atom-one-dark-reasonable.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/theme.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/hugo-theme.css" rel="stylesheet">
+  <link href="{{ $.Site.BaseURL }}/css/theme-{{ . }}.css" rel="stylesheet">
+{{ end }}
+
+<style type="text/css">
+  :root {
+    --MAIN-TEXT-color: #323232;
+    --MAIN-TITLES-TEXT-color: #5e5e5e;
+    --MAIN-LINK-color: #1C90F3;
+    --MAIN-LINK-HOVER-color: #167ad0;
+    --MAIN-ANCHOR-color: #1C90F3;
+  }
+</style>
+</head>
+<body class="" data-url="/">
+
+<nav id="sidebar" class="">
+  <div id="header-wrapper">
+    <div id="header">
+      {{ partial "logo.html" . }}
+    </div>
+    {{ partial "menu.html" . }}
+  </div>
+</nav>
+
+<section id="body">
+  <div id="overlay"></div>
+  <div class="padding">
+    <div id="head-tags">
+    </div>
+    
+    <div id="body-inner">
+      <h1>{{ .Site.Title }}</h1>
+      
+      <div style="text-align: center; margin: 2rem 0;">
+        <h2>🚀 Chào mừng đến với AWS MLOps Platform</h2>
+        <p>Xây dựng hệ thống dự đoán bán lẻ với Machine Learning trên AWS</p>
+      </div>
+      
+      <div style="display: grid; gap: 1rem; margin: 2rem 0;">
+        {{ range .Site.Sections }}
+          {{ if ne .Title "" }}
+          <div style="border: 1px solid #ddd; border-radius: 8px; padding: 1rem;">
+            <h3><a href="{{ .RelPermalink }}" style="text-decoration: none;">{{ .Params.weight }}. {{ .Title }}</a></h3>
+            <p>{{ .Summary }}</p>
+          </div>
+          {{ end }}
+        {{ end }}
+      </div>
+      
+      {{ partial "custom-footer.html" . }}
+    </div>
+  </div>
+</section>
+
+<div id="navigation">
+</div>
+
+{{ partial "custom-header.html" . }}
+<script src="{{ .Site.BaseURL }}/js/clipboard.min.js"></script>
+<script src="{{ .Site.BaseURL }}/js/perfect-scrollbar.min.js"></script>
+<script src="{{ .Site.BaseURL }}/js/perfect-scrollbar.jquery.min.js"></script>
+<script src="{{ .Site.BaseURL }}/js/jquery.sticky.js"></script>
+<script src="{{ .Site.BaseURL }}/js/featherlight.min.js"></script>
+<script src="{{ .Site.BaseURL }}/js/html5shiv-printshiv.min.js"></script>
+<script src="{{ .Site.BaseURL }}/js/highlight.pack.js"></script>
+<script src="{{ .Site.BaseURL }}/js/modernizr.custom.71422.js"></script>
+<script src="{{ .Site.BaseURL }}/js/learn.js"></script>
+<script src="{{ .Site.BaseURL }}/js/hugo-learn.js"></script>
+
+</body>
+</html>
