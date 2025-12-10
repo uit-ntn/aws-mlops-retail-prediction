@@ -5,133 +5,123 @@ chapter: false
 pre: "<b>4. </b>"
 ---
 
-## Task 4 Objectives
+## Mục tiêu Task 4
 
-Train a model to predict **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) using Amazon SageMaker with an automated pipeline: ETL → Training → Model Registry.
+Huấn luyện mô hình dự báo **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) bằng Amazon SageMaker với pipeline tự động ETL → Training → Model Registry.
 
-→ **The heart of the MLOps pipeline** — from raw data to a production-ready model.
+→ **Trái tim của MLOps pipeline** - từ dữ liệu thô đến model production-ready.
 
 **Input**
+- AWS Account với quyền SageMaker/S3/CloudWatch
+- S3 bucket với dữ liệu (từ Task 3)
+- IAM Role SageMaker (từ Task 2)
 
-- AWS Account with SageMaker/S3/CloudWatch permissions
-- S3 bucket containing the dataset (from Task 3)
-- SageMaker IAM Role (from Task 2)
+**Kết quả**
+- Model đạt accuracy ≥ 80%, F1 ≥ 0.7
+- Model được đăng ký trong Model Registry
+- Artifacts lưu trữ trong S3
 
-**Results**
-
-- Model achieves accuracy ≥ 80%, F1 ≥ 0.7
-- Model is registered in the Model Registry
-- Artifacts are stored in S3
-
-**Cost**: ~**$0.3–0.5/job** (ml.m5.large, 10–15 minutes)
+**Chi phí**: ~**$0.3-0.5/job** (ml.m5.large, 10-15 phút)
 
 {{% notice info %}}
 **💡 Task 4 - MLOps Core Pipeline:**
+- **ETL tự động** - Raw data → Features
+- **Model training** - Random Forest classifier  
+- **Model evaluation** - Accuracy, F1, Confusion Matrix
+- **Model Registry** - Version control và approval
+{{% /notice %}}
 
-- **Automated ETL** — Raw data → Features
-- **Model training** — Random Forest classifier
-- **Model evaluation** — Accuracy, F1, Confusion Matrix
-- **Model Registry** — Version control and approval
-  {{% /notice %}}
+## 1. Chuẩn bị môi trường và kiểm tra prerequisites
 
-## 1. Prepare the environment and verify prerequisites
-
-### 1.1. Check the S3 bucket (from Task 3)
+### 1.1. Kiểm tra S3 bucket (từ Task 3)
 
 **AWS Console → S3:**
-
-1. Find the bucket: `mlops-retail-prediction-dev-[account-id]`
-2. Verify the actual structure:
+1. Tìm bucket: `mlops-retail-prediction-dev-[account-id]`
+2. Kiểm tra cấu trúc thực tế:
 
    ```
    raw/           # transactions.csv + _select/ folder
-   silver/        # shop_week partitions (200607-200619)
-   gold/          # processed features (to be created from silver/)
-   artifacts/     # model outputs (to be created)
-   ```
+   silver/        # shop_week partitions (200607-200619) 
+   gold/          # features đã xử lý (sẽ tạo từ silver/)
+   artifacts/     # model outputs (sẽ tạo)
+    ```
 
 ![S3 bucket placeholder](../images/4-sagemake-training/01-s3-bucket.png)
 
-### 1.2. Verify the IAM Role (from Task 2)
+### 1.2. Xác minh IAM Role (từ Task 2)
 
 **AWS Console → IAM → Roles:**
-
-1. Find the role: `mlops-retail-prediction-dev-sagemaker-execution`
-2. Verify permissions:
+1. Tìm role: `mlops-retail-prediction-dev-sagemaker-execution`
+2. Kiểm tra permissions:
    - ✅ `AmazonSageMakerFullAccess`
    - ✅ `AmazonS3FullAccess`
    - ✅ `CloudWatchLogsFullAccess`
-
+ 
 ![IAM role placeholder](../images/4-sagemake-training/02-iam-role.png)
 
 {{% notice warning %}}
-Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permissions for the KMS key; if you use cross-account S3, also verify the trust policy.
+Warning: Nếu bucket của bạn dùng SSE-KMS, role cần có quyền decrypt/encrypt với KMS key; nếu dùng cross-account S3, kiểm tra thêm trust policy.
 {{% /notice %}}
 
-## 2. Create a SageMaker Domain and Project
+## 2. Tạo SageMaker Domain và Project
 
-### 2.1. Access SageMaker Unified Studio
+### 2.1. Truy cập SageMaker Unified Studio
 
 **AWS Console → SageMaker:**
-
-1. Open the URL: `https://[domain-id].studio.sagemaker.[region].amazonaws.com`
-2. Or from SageMaker Console → **Studio** → **Open Studio**
-3. Choose the authentication method:
-   - **Sign in with SSO** (if SSO is configured)
-   - **Sign in with AWS IAM** (using an IAM user/role)
+1. Truy cập URL: `https://[domain-id].studio.sagemaker.[region].amazonaws.com`
+2. Hoặc từ SageMaker Console → **Studio** → **Open Studio**
+3. Chọn authentication method:
+   - **Sign in with SSO** (nếu có setup SSO)
+   - **Sign in with AWS IAM** (dùng IAM user/role)
 
 ![SageMaker Unified Studio Login](../images/4-sagemake-training/04.1-domain.png)
 
-4. After sign-in, you will see the **SageMaker Unified Studio** interface
-5. The dashboard shows:
+4. Sau khi đăng nhập, bạn sẽ thấy giao diện **SageMaker Unified Studio**
+5. Dashboard hiển thị:
    - **"Good morning"** greeting
    - **Search bar**: "Search for data products, assets, and projects"
    - **Discover section**: Catalog, Generative AI playground, Shared generative AI assets
    - **Build section**: ML and generative AI model development, Generative AI app development
-   - **Browse all projects** and **Create project** buttons
+   - **Browse all projects** và **Create project** buttons
 
 ![SageMaker Unified Studio Dashboard](../images/4-sagemake-training/04.2-domain.png)
 
+
 {{% notice info %}}
 **💡 SageMaker Unified Studio:**
-
-- **Unified interface** for data analytics, ML, and generative AI
-- **Project-based workspace** with shared resources
-- **Built-in collaboration** with team members and approval workflows
+- **Unified interface** cho data analytics, ML, và generative AI
+- **Project-based workspace** với shared resources
+- **Built-in collaboration** với team members và approval workflows
 - **Integrated tools**: Notebooks, Visual ETL, Workflows, Chat agents
-  {{% /notice %}}
+{{% /notice %}}
 
-### 2.2. Create a Project in Unified Studio
+### 2.2. Tạo Project trong Unified Studio
 
-**From the SageMaker Unified Studio dashboard:**
+**Trong SageMaker Unified Studio dashboard:**
 
-**Step 1: Open Create Project**
-
-1. In the **Build** section, click **"Create project"** (blue button)
-2. Or click **"Browse all projects"** → **"Create project"**
+**Bước 1: Truy cập Create Project**
+1. Trong **Build** section, click **"Create project"** (nút xanh)
+2. Hoặc click **"Browse all projects"** → **"Create project"**
 
 ![Project Name and Description](../images/4-sagemake-training/05.2.png)
 
-**Step 2: Fill in Project info (Step 1)**
-
+**Bước 2: Điền thông tin Project (Step 1)**
 1. **Project name**: `retail-ml-training`
 2. **Description**: `Retail price sensitivity model training`
-3. Click **Next** to go to Step 2
+3. Click **Next** để chuyển tới Step 2
 
 ![Project Name and Description](../images/4-sagemake-training/05.3.png)
 
-**Step 2.5: Choose a Project Profile (Step 2)**
-
-1. **Project profile**: Select **"All capabilities"** (highlighted in blue)
+**Bước 2.5: Chọn Project Profile (Step 2)**
+1. **Project profile**: Chọn **"All capabilities"** (highlighted in blue)
    - **Description**: "Analyze data and build machine learning and generative AI models and applications powered by Amazon Bedrock, Amazon EMR, AWS Glue, Amazon Athena, Amazon SageMaker AI and Amazon SageMaker Lakehouse"
    - **Tooling**: LakeHouse Database, Workflows
    - **+ 12 more** capabilities
-2. Other options: **Generative AI application development**, **SQL analytics**
+2. Các options khác: **Generative AI application development**, **SQL analytics**
 
 ![Project Profile Selection](../images/4-sagemake-training/05.4.png)
 
-**Step 3: Blueprint Parameters**
-
+**Bước 3: Blueprint Parameters**
 - **S3 location**: `s3://amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]`
 - **Retention**: 731 days
 - **Enable Project Repository Auto Sync**: false
@@ -139,147 +129,139 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 
 ![Blueprint Parameters](../images/4-sagemake-training/05.5.png)
 
-**Step 4: Create Project**
-
-- Review all settings and click **"Create project"**
+**Bước 4: Create Project**
+- Review các settings và click **"Create project"**
 
 ![Project Creation Final](../images/4-sagemake-training/05.5.png)
 
-- Wait ~2–3 minutes for the project to be provisioned
+- Đợi 2-3 phút để Project được provisioned
 
-### 2.3. Access the Project Workspace
+### 2.3. Truy cập Project Workspace
 
-**After the project `retail-ml-training` is created successfully:**
+**Sau khi Project `retail-ml-training` tạo thành công:**
 
-**Step 1: Open Project Overview**
-
-1. The project appears in the list with status **"Created"**
-2. Click the project name `retail-ml-training` to open **Project overview**
-3. The overview shows:
+**Bước 1: Vào Project Overview**
+1. Project sẽ hiển thị trong danh sách với status **"Created"**
+2. Click vào project name `retail-ml-training` để vào **Project overview**
+3. Project overview hiển thị:
    - **Project title**: `retail-ml-training`
    - **Description**: "Retail price sensitivity model training"
    - **Project files (6)**: `.ipynb_checkpoints`, `workflows`, `.libs.json`, `.temp_sagemaker_unified_studio_debugging_info`, `README.md`, `getting_started.ipynb`
    - **S3 path**: `/dzd-5kultpj28sm31d/cu2gr2js1w1wv` (project workspace path)
-   - **Actions** and **New** dropdown buttons
+   - **Actions** và **New** dropdown buttons
      - **Project overview** (active)
-     - **Data** — data assets and connections
-     - **Compute** — compute resources and environments
-     - **Members** — team collaboration
+     - **Data** - data assets và connections
+     - **Compute** - compute resources và environments  
+     - **Members** - team collaboration
      - **Project catalog** (expandable)
      - **Assets**, **Subscription requests**, **Data sources**, **Metadata entities**
 
-**Step 2: Create a Notebook**
 
-1. Click the **"New"** dropdown (blue button) → select **"Notebook"**
-2. The **New** dropdown shows options (as in the screenshot):
+**Bước 2: Tạo Notebook**
+1. Click **"New"** dropdown (nút xanh) → chọn **"Notebook"**
+2. **New** dropdown hiển thị các options (theo thứ tự trong hình):
 
 ![Project Overview](../images/4-sagemake-training/05.6.png)
 
 ![New Notebook Creation](../images/4-sagemake-training/06.1.png)
 
-- **Notebook** (select this option)
+   - **Notebook** (chọn option này)
 
-**Step 3: Project Welcome**
-In the project overview, the **Readme** section shows **"Welcome"** with quick-start instructions.
 
-### 2.4. Verify EC2 permissions (already added in Task 2)
+**Bước 3: Project Welcome**
+Trong project overview, bạn cũng thấy **Readme** section hiển thị **"Welcome"** với hướng dẫn bắt đầu sử dụng project.
 
-**EC2 permissions were configured in Task 2**, via the inline policy `SageMakerEC2Access` attached to the role `mlops-retail-prediction-dev-sagemaker-execution`.
+### 2.4. Xác minh EC2 Permissions (đã có từ Task 2)
 
-**Verify the inline policy exists:**
+**EC2 permissions đã được cấu hình đầy đủ trong Task 2**, bao gồm inline policy `SageMakerEC2Access` trong role `mlops-retail-prediction-dev-sagemaker-execution`.
+
+**Xác minh EC2 permissions đã có:**
 
 ```powershell
-# Verify the inline policy added in Task 2
+# Kiểm tra inline policy đã được thêm từ Task 2
 aws iam get-role-policy --role-name mlops-retail-prediction-dev-sagemaker-execution --policy-name SageMakerEC2Access
 
-# Test EC2 describe permissions
+# Test quyền EC2 describe
 aws ec2 describe-vpcs --region us-east-1
 ```
 
-**The role should have 4 policies (from Task 2):**
-
+**Role đã có đủ 4 policies từ Task 2:**
 - ✅ `AmazonSageMakerFullAccess` (AWS managed)
-- ✅ `AmazonS3FullAccess` (AWS managed)
+- ✅ `AmazonS3FullAccess` (AWS managed)  
 - ✅ `CloudWatchLogsFullAccess` (AWS managed)
-- ✅ `SageMakerEC2Access` (inline policy for project creation)
+- ✅ `SageMakerEC2Access` (inline policy cho Project creation)
 
 {{% notice success %}}
-**Project creation ready:** The role is fully configured from Task 2 and can create a Project immediately.
+**Project creation ready:** Role đã được cấu hình đầy đủ từ Task 2, có thể tạo Project ngay lập tức.
 {{% /notice %}}
 
-### 2.5. Recommended region for Task 4
+### 2.5. Khuyến nghị Region cho Task 4
 
-**Summary:** If your `gold/` and `artifacts/` data currently lives in the bucket `mlops-retail-prediction-dev-842676018087` (region `us-east-1`), it is recommended to **create your SageMaker Domain / Project in the same region (`us-east-1`)** to avoid cross-region issues (S3 301), KMS complexity, and endpoint issues.
+**Tóm tắt:** Nếu dữ liệu `gold/` và `artifacts/` hiện đang nằm trong bucket `mlops-retail-prediction-dev-842676018087` (region `us-east-1`), khuyến nghị là **tạo SageMaker Domain / Project ở cùng `us-east-1`** để tránh lỗi cross-region (S3 301), phức tạp với KMS và endpoint.
 
-- **Benefits of creating the Project in `us-east-1`:**
+- **Lợi ích khi tạo Project ở `us-east-1`:**
+    - Loại bỏ lỗi 'bucket must be addressed using the specified endpoint' khi SageMaker tải dữ liệu từ S3.
+    - Không cần duy trì KMS keys hoặc IAM policies ở nhiều region.
+    - Ít rủi ro khi chạy training jobs từ Studio/Project.
 
-  - Avoid the error: `bucket must be addressed using the specified endpoint` when SageMaker reads from S3.
-  - No need to manage KMS keys or IAM policies across multiple regions.
-  - Lower risk when running training jobs from Studio/Project.
-
-- **When you must create the Project in `ap-southeast-1` (or another region):**
-  - You must **move/copy** `gold/` and `artifacts/` to a bucket in that region or configure Cross-Region Replication (CRR).
-  - Create KMS keys in the destination region and update policies/roles accordingly.
+- **Khi cần tạo Project ở `ap-southeast-1` (hoặc region khác):**
+    - Phải **chuyển** hoặc **sao chép** dữ liệu `gold/` và `artifacts/` sang bucket ở region đó hoặc cấu hình Cross-Region Replication (CRR).
+    - Tạo KMS keys tương ứng và cập nhật policies/roles cho bucket mới.
 
 ---
 
-If you want to keep the Project in `ap-southeast-1`, here is an example to create a bucket and sync data (PowerShell / CloudShell):
+Nếu bạn muốn giữ Project trong `ap-southeast-1`, đây là ví dụ lệnh để tạo bucket và sao chép dữ liệu (PowerShell / CloudShell):
 
 ```powershell
-# Create a new bucket in ap-southeast-1
+# Tạo bucket mới ở ap-southeast-1
 aws s3 mb s3://mlops-retail-prediction-dev-842676018087-apse1 --region ap-southeast-1
 
-# Sync gold/ and artifacts/ to the new bucket
+# Đồng bộ gold/ và artifacts/ sang bucket mới
 aws s3 sync s3://mlops-retail-prediction-dev-842676018087/gold/ s3://mlops-retail-prediction-dev-842676018087-apse1/gold/ --acl bucket-owner-full-control --exact-timestamps
 aws s3 sync s3://mlops-retail-prediction-dev-842676018087/artifacts/ s3://mlops-retail-prediction-dev-842676018087-apse1/artifacts/ --acl bucket-owner-full-control --exact-timestamps
 
-# (Optional) Create a KMS key in ap-southeast-1 and update bucket policy / IAM role
+# (Optional) Tạo KMS key ở ap-southeast-1 và cập nhật bucket policy / IAM role
 # aws kms create-key --region ap-southeast-1 --description "KMS for mlops retail ap-southeast-1"
 ```
 
-Notes:
+Ghi chú:
+- Nếu bucket nguồn dùng SSE-KMS, đảm bảo bạn tạo tương ứng KMS key ở region đích và cập nhật cả bucket policy và role `mlops-retail-prediction-dev-sagemaker-execution`.
+- Nếu muốn resolution nhanh và ít thay đổi IAM, chọn tạo Project/Domain ở `us-east-1` (nơi bucket hiện có) — đây là phương án khuyến nghị cho lab và chạy training nhanh.
 
-- If the source bucket uses SSE-KMS, make sure you create a corresponding KMS key in the destination region and update both bucket policies and the role `mlops-retail-prediction-dev-sagemaker-execution`.
-- For faster labs and fewer IAM changes, creating the Project/Domain in `us-east-1` (where the bucket already exists) is typically the safest option.
+### 3. ETL - Chuẩn bị dữ liệu trong SageMaker Studio
 
-## 3. ETL — Prepare data in SageMaker Studio
+**🎯 Mục tiêu:** Đọc TẤT CẢ shop_week partitions từ S3 silver/ và tạo train/test/validation splits
 
-**🎯 Objective:** Read ALL shop_week partitions from S3 `silver/` and create train/test/validation splits
-
-**Input:** `silver/shop_week=200607/` through `silver/shop_week=200619/` (14 partitions)  
+**Input:** `silver/shop_week=200607/` đến `silver/shop_week=200619/` (14 partitions)  
 **Output:** `gold/train.parquet`, `gold/test.parquet`, `gold/validation.parquet`
 
-#### Step 1: Create an ETL Notebook in the Project
+#### **Bước 1: Tạo ETL Notebook trong Project**
 
-**From Project overview:**
-
-1. Click **"New"** dropdown → choose **"Notebook"**
-2. The notebook opens in a new browser tab
-3. Select kernel: **Python 3 (Data Science 3.0)**
-4. Rename the notebook: **File** → **Rename** → `retail-etl-pipeline.ipynb`
-5. The notebook will auto-save to the project’s S3 path
+**Từ Project overview:**
+1. Click **"New"** dropdown → chọn **"Notebook"**
+2. Notebook sẽ mở trong browser tab mới
+3. Chọn kernel: **Python 3 (Data Science 3.0)**
+4. Đặt tên notebook: **File** → **Rename** → `retail-etl-pipeline.ipynb`
+5. Notebook sẽ tự động lưu vào S3 project path
 
 {{% notice info %}}
-**Notes:**
+**Lưu ý:** 
+- Notebook chạy trên managed compute instance của SageMaker
+- Files tự động sync với S3 project storage
+- Có thể chia sẻ với team members trong project
+{{% /notice %}}
 
-- Notebooks run on a managed SageMaker compute instance
-- Files auto-sync to S3 project storage
-- You can share notebooks with team members in the project
-  {{% /notice %}}
+#### **Bước 2: Thực hiện ETL Pipeline**
 
-#### Step 2: Implement the ETL Pipeline
+Tạo và chạy các cells sau theo thứ tự:
 
-Create and run the following cells in order:
-
-**Cell 1: Install dependencies**
-
+**Cell 1: Cài đặt dependencies**
 ```bash
 # Install all required packages
 pip install pandas pyarrow s3fs scikit-learn xgboost sagemaker boto3 joblib
 ```
 
-**Cell 2: Setup configuration**
-
+**Cell 2: Thiết lập cấu hình**
 ```python
 import boto3
 import pandas as pd
@@ -288,10 +270,10 @@ from sklearn.model_selection import train_test_split
 import json
 from datetime import datetime
 
-# Configuration - update bucket name for your project
-# If using the project S3 bucket: amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]
-# Or bucket from Task 3: mlops-retail-prediction-dev-[account-id]
-bucket_name = 'amazon-sagemaker-842676018087-ap-southeast-1-f6cd5056a835'  # <-- UPDATE for your project
+# Configuration - update bucket name theo project của bạn
+# Nếu dùng project S3: amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]
+# Hoặc bucket từ Task 3: mlops-retail-prediction-dev-[account-id]
+bucket_name = 'amazon-sagemaker-842676018087-ap-southeast-1-f6cd5056a835'  # <-- SỬA theo project của bạn
 raw_prefix = 'silver/'
 gold_prefix = 'gold/'
 
@@ -300,14 +282,13 @@ s3 = boto3.client('s3')
 print(f'✅ AWS clients initialized. Bucket: {bucket_name}')
 ```
 
-**Cell 3: Load data from all partitions**
-
+**Cell 3: Load dữ liệu từ tất cả partitions**
 ```python
 print(f'📊 Loading all partitioned data from s3://{bucket_name}/{raw_prefix}...')
 
 # Discover all parquet files in silver/
 response = s3.list_objects_v2(Bucket=bucket_name, Prefix=raw_prefix)
-parquet_files = [obj['Key'] for obj in response.get('Contents', [])
+parquet_files = [obj['Key'] for obj in response.get('Contents', []) 
                 if obj['Key'].endswith('.parquet') and obj['Size'] > 0]
 
 print(f'📁 Found {len(parquet_files)} parquet files')
@@ -318,7 +299,7 @@ total_rows = 0
 
 for i, key in enumerate(parquet_files[:10]):  # Limit to first 10 files for demo
     s3_path = f's3://{bucket_name}/{key}'
-
+    
     try:
         df = pd.read_parquet(s3_path)
         all_dataframes.append(df)
@@ -333,8 +314,7 @@ print(f'\n🎯 Combined dataset: {combined_data.shape}')
 print(f'📋 Columns: {list(combined_data.columns)}')
 ```
 
-**Cell 4: Create features and target variable**
-
+**Cell 4: Tạo features và target variable**
 ```python
 print("📌 STEP 1 — Columns in combined_data:")
 print(list(combined_data.columns))
@@ -383,7 +363,7 @@ if 'basket_id' in combined_data.columns and 'spend' in combined_data.columns:
 else:
     print("❌ Could NOT find required columns for basket-level engineering.")
     print("Available columns:", list(combined_data.columns))
-
+    
     print("\n📌 Fallback: Using transaction-level feature engineering...")
     features = combined_data.copy()
 
@@ -405,8 +385,7 @@ print("\n📌 STEP 10 — Sample output:")
 print(features.head())
 ```
 
-**Cell 5: Create train/test/validation splits and save to S3**
-
+**Cell 5: Tạo train/test/validation splits và lưu vào S3**
 ```python
 print('📋 Creating train/test/validation splits...')
 
@@ -446,30 +425,30 @@ if 'Contents' in response:
         print(f'  📄 {obj["Key"]}: {size_mb:.2f} MB')
 ```
 
-## 4. Training — Train the model
+## 4. Training - Huấn luyện Model
 
-**🎯 Objective:** Train a Random Forest model to classify customer price sensitivity
+**🎯 Mục tiêu:** Huấn luyện mô hình Random Forest để phân loại độ nhạy giá khách hàng
 
 **Input:** S3 `gold/train.parquet`, `gold/test.parquet`, `gold/validation.parquet`  
-**Output:** Trained Random Forest model in S3 `artifacts/` with performance metrics
+**Output:** Trained Random Forest model trong S3 artifacts/ với performance metrics
 
-#### Step 1: Create a Training Notebook in the Project
+#### **Bước 1: Tạo Training Notebook trong Project**
 
-1. In the Studio interface, click **File** → **New** → **Notebook**
-2. Select **conda_python3** kernel (or **Python 3 (Data Science)**)
-3. Name the notebook: `notebooks/retail-model-training.ipynb`
+1. Trong Studio interface, click **File** → **New** → **Notebook**
+2. Chọn **conda_python3** kernel (hoặc **Python 3 (Data Science)**)
+3. Đặt tên notebook: `notebooks/retail-model-training.ipynb`  
 4. Click **Create**
 
 ![Create notebook](../images/4-sagemake-training/05.7.png)
 
-**💡 Note:** The notebook will be saved in the Project repository and can be committed to CodeCommit.
 
-#### Step 2: Implement model training
+**💡 Lưu ý:** Notebook sẽ được lưu trong Project repository và có thể commit vào CodeCommit.
 
-Create and run the following cells in order:
+#### **Bước 2: Thực hiện Model Training**
+
+Tạo và chạy các cells sau theo thứ tự:
 
 **Cell 1: Setup SageMaker Configuration**
-
 ```python
 import sagemaker
 import boto3
@@ -490,7 +469,7 @@ print(f'📊 Training Data: s3://{bucket_name}/{gold_prefix}')
 print(f'📦 Model Artifacts: s3://{bucket_name}/{artifacts_prefix}')
 ```
 
-**Cell 2: Create the training script**
+**Cell 2: Tạo Training Script**
 
 ```python
 %%writefile train_retail_model.py
@@ -503,10 +482,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report
 
 def main():
-    # SageMaker standard paths
+    # Đường dẫn chuẩn của SageMaker
     train_dir = os.environ.get("SM_CHANNEL_TRAIN", "/opt/ml/input/data/train")
     model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
-
+    
     # 1. Load data
     train_path = os.path.join(train_dir, "train.parquet")
     print(f"📖 Loading training data from: {train_path}")
@@ -514,23 +493,23 @@ def main():
 
     print(f"📊 Dataset shape: {df.shape}")
     print(f"📋 Columns: {list(df.columns)}")
-
-    # 2. Prepare features & target
+    
+    # 2. Chuẩn bị features & target
     target_col = "price_sensitivity" if "price_sensitivity" in df.columns else df.columns[-1]
     feature_cols = [c for c in df.columns if c not in [target_col, "basket_id"]]
-
+    
     X = df[feature_cols]
     y = df[target_col]
-
+    
     print(f"🔢 Features: {len(feature_cols)} columns")
     print(f"🎯 Target: {target_col}")
     print(f"📈 Target distribution: {dict(y.value_counts())}")
-
+    
     # 3. Train/validation split (stratified)
     X_train, X_val, y_train, y_val = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
-
+    
     # 4. Train Random Forest model
     print("\n🌲 Training Random Forest model...")
     model = RandomForestClassifier(
@@ -540,31 +519,31 @@ def main():
         min_samples_leaf=2,
         random_state=42
     )
-
+    
     model.fit(X_train, y_train)
-
+    
     # 5. Evaluate model
     y_pred = model.predict(X_val)
-
+    
     accuracy = accuracy_score(y_val, y_pred)
     f1 = f1_score(y_val, y_pred, average="macro")
     precision = precision_score(y_val, y_pred, average="macro")
     recall = recall_score(y_val, y_pred, average="macro")
-
+    
     print(f"\n📊 Model Performance:")
     print(f"  ✅ Accuracy:  {accuracy:.4f}")
     print(f"  ✅ Precision: {precision:.4f}")
     print(f"  ✅ Recall:    {recall:.4f}")
     print(f"  ✅ F1-Score:  {f1:.4f}")
-
+    
     # 6. Save model and results
     os.makedirs(model_dir, exist_ok=True)
-
+    
     # Save Random Forest model
     model_path = os.path.join(model_dir, 'model.joblib')
     joblib.dump(model, model_path)
     print(f'🌲 Random Forest model saved: {model_path}')
-
+    
     # Save training results
     results_path = os.path.join(model_dir, 'training_results.json')
     training_summary = {
@@ -578,32 +557,36 @@ def main():
         'validation_samples': len(X_val),
         'feature_names': feature_cols,
         'classification_report': classification_report(y_val, y_pred, output_dict=True)
-    }
-
+    
     with open(results_path, 'w') as f:
         json.dump(training_summary, f, indent=2)
-
+    
     print(f'📋 Results saved: {results_path}')
     print(f'📦 Model artifacts: 1 model + 1 results file')
-
+    
     # Validation checks
     target_accuracy = 0.80
     target_f1 = 0.70
-
+    
     print(f'\n🎯 Performance Validation:')
     print(f'  📊 Accuracy ≥ {target_accuracy}: {"✅" if accuracy >= target_accuracy else "❌"} ({accuracy:.3f})')
     print(f'  📊 F1-Score ≥ {target_f1}: {"✅" if f1 >= target_f1 else "❌"} ({f1:.3f})')
 
 if __name__ == '__main__':
     main()
+'''
+
+# Write training script to file
+with open('train_retail_model.py', 'w') as f:
+    f.write(train_script)
+
 ```
 
-**Cell 3: Submit the SageMaker Training Job**
-
+**Cell 3: Submit SageMaker Training Job**
 ```python
 print("🚀 Submitting SageMaker Training Job...")
 
-# Pre-flight: check region + data in gold/
+# Pre-flight: kiểm tra region + data trong gold/
 s3_client = boto3.client("s3")
 
 bucket_location = s3_client.get_bucket_location(Bucket=bucket_name)
@@ -613,13 +596,25 @@ current_region = sagemaker_session.boto_region_name
 print(f"📍 Bucket region:    {bucket_region}")
 print(f"📍 SageMaker region: {current_region}")
 
-# Check cross-region issue
+# Kiểm tra cross-region issue
 if bucket_region != current_region:
     print(f"⚠️ Region mismatch detected!")
     print(f"   Bucket: {bucket_name} in {bucket_region}")
     print(f"   SageMaker: {current_region}")
     print(f"   This may cause S3 301 redirect errors during training")
-    print(f"   Consider using a project bucket in the same region or configure cross-region access")
+    print(f"   Consider using project bucket in same region or configure cross-region access")
+    
+    # Option 1: Use project bucket in same region
+    print(f"\n💡 Option 1: Use project bucket (same region):")
+    print(f"   bucket_name = '{project_bucket}'")
+    print(f"   (But need to copy gold/ data to this bucket first)")
+    
+    # Option 2: Continue with cross-region
+    print(f"\n💡 Option 2: Continue with cross-region (may need additional config)")
+    
+    # For demo, we'll continue but warn user
+    import warnings
+    warnings.warn(f"Cross-region S3 access: {bucket_region} -> {current_region}")
 else:
     print(f"✅ Same region - no cross-region issues")
 
@@ -629,11 +624,43 @@ resp = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=gold_prefix)
 data_files = [o["Key"] for o in resp.get("Contents", []) if o["Key"].endswith(".parquet")]
 
 if not data_files:
-    raise ValueError(f"❌ No .parquet files found in {train_s3_uri}. Run ETL first.")
+    raise ValueError(f"❌ No .parquet files found in {train_s3_uri}. Run ETL trước đã.")
 
 print(f"✅ Found {len(data_files)} training files in {train_s3_uri}")
 
-# Configure estimator
+# Cấu hình estimator
+estimator = SKLearn(
+    entry_point="train_retail_model.py",
+    role=role,
+    instance_type="ml.m5.xlarge",
+    instance_count=1,
+    framework_version="1.0-1",
+    py_version="py3",
+    base_job_name="retail-prediction-training",
+    sagemaker_session=sagemaker_session,
+)
+
+print(f"📊 Training data location: {train_s3_uri}")
+
+# Chạy training job
+estimator.fit({"train": train_s3_uri}, wait=True)
+
+job_name = estimator.latest_training_job.name
+model_artifacts = estimator.model_data
+
+print("\n🎉 Training job completed!")
+print("📝 Job name:       ", job_name)
+print("💾 Model artifacts:", model_artifacts)
+        
+except Exception as e:
+    print(f'❌ Pre-flight check failed: {e}')
+    print('💡 Solutions:')
+    print('  1. Run ETL notebook first to create gold/ data')
+    print('  2. Make sure you ran debug cell (Bước 4) to fix regions')
+    print('  3. Check IAM role has S3 access')
+    raise
+
+# Configure estimator for Unified Studio project
 estimator = SKLearn(
     entry_point='train_retail_model.py',
     role=role,
@@ -643,6 +670,7 @@ estimator = SKLearn(
     py_version='py3',
     base_job_name='retail-prediction-training',
     sagemaker_session=sagemaker_session,
+    # Output path sẽ được set tự động vào project S3 location
     output_path=f's3://{bucket_name}/{artifacts_prefix}'
 )
 
@@ -650,27 +678,27 @@ print(f'📊 Training data location: {train_s3_uri}')
 
 # Start training job with error handling
 try:
-    print('⏳ Starting training job (this will take 5–10 minutes)...')
+    print('⏳ Starting training job (this will take 5-10 minutes)...')
     estimator.fit({'train': train_s3_uri}, wait=True)
-
+    
     # Get job results
     job_name = estimator.latest_training_job.name
     model_artifacts = estimator.model_data
-
-    print(f'\n🎉 Training job completed!')
+    
+    print(f'\\n🎉 Training job completed!')
     print(f'📝 Job name: {job_name}')
     print(f'💾 Model artifacts: {model_artifacts}')
-
+    
 except Exception as e:
     print(f'❌ Training job failed: {e}')
     print('💡 Troubleshooting:')
-    print('  - Check CloudWatch logs for details')
+    print('  - Check CloudWatch logs for detailed error')
     print('  - Verify IAM role permissions')
     print('  - Ensure training data format is correct')
     raise
 ```
 
-**Cell 4: Download and read training results**
+**Cell 4: Download & Đọc Training Results**
 
 ```python
 import os
@@ -680,22 +708,22 @@ import boto3
 
 print("📊 Analyzing training results...")
 
-# model_artifacts comes from Cell 3 (estimator.model_data)
+# model_artifacts lấy từ Cell 3 (estimator.model_data)
 print("📦 Artifact path:", model_artifacts)
 
-# Split bucket + key
+# Tách bucket + key
 art_parts = model_artifacts.replace("s3://", "").split("/", 1)
 art_bucket = art_parts[0]
 art_key = art_parts[1]
 
 s3 = boto3.client("s3")
 
-# Download model.tar.gz
+# Tải file model.tar.gz về local
 local_tar = "model.tar.gz"
 s3.download_file(art_bucket, art_key, local_tar)
 print("📥 Downloaded", local_tar)
 
-# Extract to model_artifacts/
+# Giải nén vào thư mục model_artifacts/
 extract_dir = "model_artifacts"
 os.makedirs(extract_dir, exist_ok=True)
 
@@ -705,7 +733,7 @@ with tarfile.open(local_tar, "r:gz") as tar:
 print("\n📂 Files inside model:")
 print(os.listdir(extract_dir))
 
-# Read training_results.json
+# Đọc training_results.json
 results_path = os.path.join(extract_dir, "training_results.json")
 with open(results_path, "r") as f:
     results = json.load(f)
@@ -735,49 +763,55 @@ print(f"  📊 Accuracy ≥ {acc_target}: {'✅' if results['accuracy'] >= acc_t
 print(f"  📊 F1-score ≥ {f1_target}: {'✅' if results['f1_score'] >= f1_target else '❌'} ({results['f1_score']:.3f})")
 ```
 
-**Result**
-![Training result](../images/4-sagemake-training/00.png)
+**Kết quả**
+![Kết quả training](../images/4-sagemake-training/00.png)
+
 
 {{% notice success %}}
-✅ **Training complete!** The model meets target performance and is ready for the Model Registry.
+✅ **Training Hoàn thành!** Model đạt target performance và sẵn sàng cho Model Registry.
 {{% /notice %}}
 
 ## 5. Monitoring & Results
 
-### 5.1. Monitor the Training Job in Studio
+### 5.1. Theo dõi Training Job trong Studio
 
-In **SageMaker Studio (Unified Studio)**:
+Trong **SageMaker Studio (Unified Studio)**:
 
-1. Open **Build** in the left sidebar
-2. Select **Training jobs**
+1. Mở mục **Build** ở thanh bên trái
+
+2. Chọn **Training jobs**
 
 ![Training logs example](../images/4-sagemake-training/08.1.png)
 
-3. Find a job starting with: `retail-prediction-training-`
-4. Click the **Training Job name** to open details
+3. Tìm job có tên bắt đầu bằng: retail-prediction-training-
+
+4. Nhấp vào **tên Training Job** để mở chi tiết
 
 ![Training logs example](../images/4-sagemake-training/08.2.png)
 
-5. Open the **Logs** tab to view real-time logs
-6. (Optional) Click **“Open in CloudWatch”** for full logs
+5. Chọn tab **Logs** để xem log real-time  
+
+6. (Tùy chọn) Bấm **“Open in CloudWatch”** để xem log đầy đủ
 
 ![Training logs example](../images/4-sagemake-training/08.3.png)
 
 ![Training logs example](../images/4-sagemake-training/08.4.png)
 
+
+
 {{% notice info %}}
 **Info:**  
-CloudWatch logs for Training Jobs are stored under: `/aws/sagemaker/TrainingJobs/<job-name>`. If the job fails, Python errors are typically at the end of the log stream.
+CloudWatch logs cho Training Job được lưu dưới dạng: /aws/sagemaker/TrainingJobs/<job-name> Nếu job bị lỗi, lỗi Python sẽ nằm ở cuối log.
 {{% /notice %}}
 
-## 6. Model Registry (New UI inside the Project)
+## 6. Model Registry (Giao diện mới trong Project)
 
-After the training job completes and produces `model.tar.gz`, the next step is to register the model in the **Model Registry**.  
-In the new SageMaker Unified Studio, Model Registry lives **inside each Project**, instead of being a separate area like before.
+Sau khi training job hoàn thành và tạo ra `model.tar.gz`, bước tiếp theo là đăng ký mô hình trong **Model Registry**.  
+Ở giao diện SageMaker Unified Studio mới, Model Registry nằm **bên trong từng Project**, không còn tách riêng như trước.
 
 ---
 
-### 6.1. Open Model Registry in the Project
+### 6.1. Mở Model Registry trong Project
 
 **SageMaker Studio → Projects → mlops-retail-prediction → Models → Registered models**
 
@@ -785,47 +819,50 @@ In the new SageMaker Unified Studio, Model Registry lives **inside each Project*
 
 ![Model registry](../images/4-sagemake-training/09.2.png)
 
-### 6.2. Create a Model Group
 
-1. Click **Register model group**
-2. Fill in:
+### 6.2. Tạo Model Group
+
+1. Bấm **Register model group**
+2. Điền:
    - **Name**: `retail-price-sensitivity-models`
    - **Description**: `Model group for retail price sensitivity prediction`
-3. Click **Register model group**
+3. Nhấn **Register model group**
 
 ![Model registry](../images/4-sagemake-training/09.3.png)
 
-The Model Group will appear in the list.
+
+Model Group sẽ xuất hiện trong danh sách.
 
 ![Model registry](../images/4-sagemake-training/09.4.png)
 
 ---
 
-### 6.3. Register a Model Version after training
+### 6.3. Đăng ký Model Version sau khi Training
 
 ![Model registry](../images/4-sagemake-training/09.5.png)
 
 ![Model registry](../images/4-sagemake-training/09.6.png)
 
-1. Go to **Models → Registered models versions → Model groups**
+
+1. Vào **Models → Registered models versions → Model groups**
 
 ![Model registry](../images/4-sagemake-training/09.7.png)
 
-2. Select the group: **retail-price-sensitivity-models**
-3. Click **Register model**
-4. Enter:
+2. Chọn nhóm: **retail-price-sensitivity-models**
+3. Nhấn **Register model**
+4. Nhập thông tin:
    - **Model artifact location (S3)**  
-     Example:
+     Ví dụ:
      ```
      s3://amazon-sagemaker-842676018087-us-east-1-xxxx/output/model.tar.gz
      ```
    - **Version description**: `Retail prediction model v1.0`
    - **Approval status**: `Pending manual approval`
-5. Click **Register**
+5. Nhấn **Register**
 
 ![Model registry](../images/4-sagemake-training/09.8.png)
 
-A new _Model Version_ will be created.
+Một *Model Version* mới sẽ được tạo.
 
 ![Model registry](../images/4-sagemake-training/09.9.png)
 
@@ -833,192 +870,186 @@ A new _Model Version_ will be created.
 
 ---
 
-### 6.4. Approve a Model Version
+### 6.4. Approve Model Version
 
-1. Open **Model group → retail-price-sensitivity-models**
-2. Select **Version 1**
-3. Click **Update status**
-4. Set:
+1. Mở **Model group → retail-price-sensitivity-models**
+2. Chọn **Version 1**
+3. Nhấn **Update status**
+4. Đặt:
    - **Approved**
 5. Save
 
 ![Model registry](../images/4-sagemake-training/09.11.png)
 
-### Task 4 Completed
+### Hoàn thành Task 4
 
-**📁 Execution notebook:** `notebooks/sagemaker-retail-etl-training.ipynb`
+**📁 Notebook thực thi:** `notebooks/sagemaker-retail-etl-training.ipynb`
 
-**Completed successfully:**
-
-- ✅ **Created SageMaker Domain** and configured it
-- ✅ **Created a Project** and opened the Studio workspace
-- ✅ **ETL of the full dataset** — All shop_week partitions → Gold Parquet
-- ✅ **Auto-discovered partitions** — Scanned all available shop_week partitions
-- ✅ **Trained Random Forest** with tuned hyperparameters
-- ✅ **Single-model focus** to optimize performance
-- ✅ **Spot instances** — Cost optimization with auto-scaling (optional)
-- ✅ **Complete notebook** — step-by-step cells with detailed logging
+**Đã thành công:**
+- ✅ **Tạo SageMaker Domain** và cấu hình
+- ✅ **Tạo Project** và mở Studio workspace  
+- ✅ **ETL toàn bộ dataset** - All shop_week partitions → Gold Parquet
+- ✅ **Auto-detect partitions** - Scan tất cả shop_week có sẵn
+- ✅ **Train Random Forest** với optimal hyperparameters
+- ✅ **Chọn single model** focus để tối ưu performance  
+- ✅ **Spot instances** - Cost optimization với auto-scaling
+- ✅ **Complete notebook** - 4 cells với detailed logging
 
 ## 7. Clean Up Resources (AWS CLI)
 
-### 7.1. Delete SageMaker Training Jobs
+### 7.1. Xóa SageMaker Training Jobs
 
 ```bash
-# List training jobs
+# Liệt kê training jobs
 aws sagemaker list-training-jobs --name-contains "retail-prediction-training" --query 'TrainingJobSummaries[*].[TrainingJobName,TrainingJobStatus]' --output table
 
-# Stop a running training job (if any)
+# Dừng training job đang chạy (nếu có)
 aws sagemaker stop-training-job --training-job-name <job-name>
 
-# Training jobs are cleaned up automatically after completion (no manual deletion needed)
+# Training jobs tự động cleanup sau khi hoàn thành (không cần xóa manual)
 ```
 
-### 7.2. Delete Model Registry artifacts
+### 7.2. Xóa Model Registry
 
 ```bash
-# List model packages
+# Liệt kê model packages
 aws sagemaker list-model-packages --model-package-group-name retail-price-sensitivity-models --query 'ModelPackageSummaryList[*].[ModelPackageArn,ModelPackageStatus]' --output table
 
-# Delete each model package version
+# Xóa từng model package version
 aws sagemaker delete-model-package --model-package-name <model-package-arn>
 
-# Delete the model package group
+# Xóa model package group
 aws sagemaker delete-model-package-group --model-package-group-name retail-price-sensitivity-models
 ```
 
-### 7.3. Delete SageMaker Domain and Project
+### 7.3. Xóa SageMaker Domain và Project
 
 ```bash
-# List domains
+# Liệt kê domains
 aws sagemaker list-domains --query 'Domains[*].[DomainId,DomainName,Status]' --output table
 
-# List user profiles first
+# Xóa user profiles trước
 aws sagemaker list-user-profiles --domain-id <domain-id> --query 'UserProfiles[*].UserProfileName' --output text
 
-# Delete each user profile
+# Xóa từng user profile
 aws sagemaker delete-user-profile --domain-id <domain-id> --user-profile-name <user-profile-name>
 
-# Delete domain (after all user profiles are deleted)
+# Xóa domain (sau khi xóa hết user profiles)
 aws sagemaker delete-domain --domain-id <domain-id>
 ```
 
-### 7.4. Clean up S3 artifacts
+### 7.4. Clean Up S3 Artifacts
 
 ```bash
-# Delete model artifacts
+# Xóa model artifacts
 aws s3 rm s3://amazon-sagemaker-<account-id>-<region>-<random-id>/artifacts/ --recursive
 
-# Delete gold datasets
+# Xóa gold datasets
 aws s3 rm s3://amazon-sagemaker-<account-id>-<region>-<random-id>/gold/ --recursive
 
-# Verify remaining objects in the project bucket
+# Kiểm tra project bucket còn gì
 aws s3 ls s3://amazon-sagemaker-<account-id>-<region>-<random-id>/ --recursive
 ```
 
-### 7.5. Delete CloudWatch Logs
+### 7.5. Xóa CloudWatch Logs
 
 ```bash
-# List SageMaker log groups
+# Liệt kê log groups của SageMaker
 aws logs describe-log-groups --log-group-name-prefix "/aws/sagemaker/TrainingJobs" --query 'logGroups[*].logGroupName'
 
-# Delete training job logs
+# Xóa training job logs
 aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-prediction-training-<timestamp>"
 ```
 
 ---
 
-## 8. SageMaker Pricing
+## 8. Bảng giá SageMaker
 
-### 8.1. Training instance costs
+### 8.1. Chi phí Training Instances
 
-| Instance Type     | vCPU | RAM   | Price (USD/hour) | Best for                    |
-| ----------------- | ---- | ----- | ---------------- | --------------------------- |
-| **ml.m5.large**   | 2    | 8 GB  | $0.138           | Small datasets, prototyping |
-| **ml.m5.xlarge**  | 4    | 16 GB | $0.276           | Medium datasets (used here) |
-| **ml.m5.2xlarge** | 8    | 32 GB | $0.552           | Large datasets              |
-| **ml.c5.xlarge**  | 4    | 8 GB  | $0.238           | CPU-intensive training      |
-| **ml.p3.2xlarge** | 8    | 61 GB | $4.284           | GPU deep learning           |
+| Instance Type | vCPU | RAM | Giá (USD/hour) | Phù hợp cho |
+|---------------|------|-----|----------------|-------------|
+| **ml.m5.large** | 2 | 8 GB | $0.138 | Small datasets, prototyping |
+| **ml.m5.xlarge** | 4 | 16 GB | $0.276 | Medium datasets (đã dùng) |
+| **ml.m5.2xlarge** | 8 | 32 GB | $0.552 | Large datasets |
+| **ml.c5.xlarge** | 4 | 8 GB | $0.238 | CPU-intensive training |
+| **ml.p3.2xlarge** | 8 | 61 GB | $4.284 | GPU deep learning |
 
-### 8.2. SageMaker Studio costs
+### 8.2. Chi phí SageMaker Studio
 
-| Component            | Price (USD)      | Notes                |
-| -------------------- | ---------------- | -------------------- |
-| **Studio Notebooks** | $0.0582/hour     | ml.t3.medium default |
-| **Domain Setup**     | Free             | One-time setup       |
-| **Data Wrangler**    | $0.42/hour       | Visual data prep     |
-| **Processing Jobs**  | Instance pricing | Same as training     |
+| Component | Giá (USD) | Ghi chú |
+|-----------|-----------|---------|
+| **Studio Notebooks** | $0.0582/hour | ml.t3.medium default |
+| **Domain Setup** | Free | One-time setup |
+| **Data Wrangler** | $0.42/hour | Visual data prep |
+| **Processing Jobs** | Instance pricing | Same as training |
 
-### 8.3. Model Registry & Endpoints costs
+### 8.3. Chi phí Model Registry & Endpoints
 
-| Service                  | Price (USD)           | Notes             |
-| ------------------------ | --------------------- | ----------------- |
-| **Model Registry**       | Free                  | Model versioning  |
-| **Real-time Endpoint**   | $0.076/hour           | ml.t2.medium      |
-| **Batch Transform**      | Instance pricing      | Pay per job       |
+| Service | Giá (USD) | Ghi chú |
+|---------|-----------|---------|
+| **Model Registry** | Free | Model versioning |
+| **Real-time Endpoint** | $0.076/hour | ml.t2.medium |
+| **Batch Transform** | Instance pricing | Pay per job |
 | **Multi-model Endpoint** | $0.076/hour + storage | Cost optimization |
 
-### 8.4. Estimated cost for Task 4
+### 8.4. Ước tính chi phí cho Task 4
 
-**Training job (example):**
-
+**Training Job thực tế:**
 - Instance: ml.m5.xlarge
-- Duration: ~10–15 minutes
+- Duration: ~10-15 minutes  
 - **Training cost:** $0.276 × 0.25h = **$0.07**
 
 **SageMaker Studio:**
-
 - Notebook development: ~2 hours
 - Instance: ml.t3.medium
 - **Studio cost:** $0.0582 × 2h = **$0.12**
 
 **Storage & Model Registry:**
-
 - Model artifacts: ~50MB
 - S3 storage: ~$0.001
 - Model Registry: Free
 
-**Total cost for Task 4:**
+**Total chi phí Task 4:**
 
-| Component               | Duration | Cost        |
-| ----------------------- | -------- | ----------- |
-| Training (ml.m5.xlarge) | 15 mins  | $0.07       |
-| Studio Notebooks        | 2 hours  | $0.12       |
-| S3 Storage              | Monthly  | $0.001      |
-| **Total**               |          | **≈ $0.19** |
+| Component | Duration | Cost |
+|-----------|----------|------|
+| Training (ml.m5.xlarge) | 15 mins | $0.07 |
+| Studio Notebooks | 2 hours | $0.12 |
+| S3 Storage | Monthly | $0.001 |
+| **Total** | | **≈ $0.19** |
 
-**Comparison of options:**
+**So sánh với các options:**
 
-| Approach                   | Instance     | Duration | Cost       | Performance          |
-| -------------------------- | ------------ | -------- | ---------- | -------------------- |
-| **Current (ml.m5.xlarge)** | 4 vCPU, 16GB | 15 min   | $0.07      | ✅ Balanced          |
-| Smaller (ml.m5.large)      | 2 vCPU, 8GB  | 25 min   | $0.06      | Slower               |
-| Larger (ml.m5.2xlarge)     | 8 vCPU, 32GB | 8 min    | $0.07      | Faster, similar cost |
-| Spot instance              | Same specs   | 15 min   | $0.02–0.05 | 60–70% savings       |
+| Approach | Instance | Duration | Cost | Performance |
+|----------|----------|----------|------|-------------|
+| **Current (ml.m5.xlarge)** | 4 vCPU, 16GB | 15 min | $0.07 | ✅ Balanced |
+| Smaller (ml.m5.large) | 2 vCPU, 8GB | 25 min | $0.06 | Slower |
+| Larger (ml.m5.2xlarge) | 8 vCPU, 32GB | 8 min | $0.07 | Faster, same cost |
+| Spot instance | Same specs | 15 min | $0.02-0.05 | 60-70% savings |
 
 {{% notice info %}}
 **💰 Cost Optimization Tips:**
-
-- **Spot instances:** 60–70% cheaper for non-critical training
-- **Smaller instances:** OK for datasets < 1GB
-- **Studio auto-shutdown:** Automatically stop notebooks after 1h idle
-- **Batch jobs:** Use batch transform instead of real-time endpoints for inference when possible
-  {{% /notice %}}
+- **Spot instances:** 60-70% cheaper cho non-critical training
+- **Smaller instances:** OK cho datasets < 1GB  
+- **Studio auto-shutdown:** Tự động tắt notebooks sau 1h idle
+- **Batch jobs:** Thay vì real-time endpoints cho inference
+{{% /notice %}}
 
 ---
 
 {{% notice info %}}
 **📊 SageMaker Unified Studio Benefits:**
+- **Integrated Workspace**: Project-based collaboration với shared resources
+- **Managed Infrastructure**: Auto-provisioned compute cho notebooks và training
+- **Cross-Region Support**: Built-in handling của S3 cross-region access
+- **Asset Catalog**: Automatic registration của models và datasets
+- **Team Collaboration**: Shared notebooks, workflows, và approval processes
+- **Cost Optimization**: Managed compute với automatic scaling
+- **Unified Interface**: Single pane for data, ML, và generative AI workflows
+{{% /notice %}}
 
-- **Integrated Workspace**: Project-based collaboration with shared resources
-- **Managed Infrastructure**: Auto-provisioned compute for notebooks and training
-- **Cross-Region Support**: Built-in handling for S3 cross-region access
-- **Asset Catalog**: Automatic registration of models and datasets
-- **Team Collaboration**: Shared notebooks, workflows, and approval processes
-- **Cost Optimization**: Managed compute with automatic scaling
-- **Unified Interface**: Single pane for data, ML, and generative AI workflows
-  {{% /notice %}}
-
-## 📹 Task 4 Demo Video
+## 📹 Video thực hiện Task 4
 
 <div style="position: relative; width: 100%; max-width: 2000px; margin: 0 auto; padding-bottom: 56.25%; height: 0; overflow: hidden;">
   <iframe 

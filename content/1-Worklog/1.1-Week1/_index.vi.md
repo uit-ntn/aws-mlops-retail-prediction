@@ -1,58 +1,28 @@
 ---
-title: "Worklog Tuần 1"
-weight: 1
+title: "Tuần 1 - Giới thiệu về AWS"
+weight: 2
 chapter: false
 pre: " <b> 1.1. </b> "
 ---
-{{% notice warning %}}
-⚠️ **Lưu ý:** Các thông tin dưới đây chỉ nhằm mục đích tham khảo, vui lòng **không sao chép nguyên văn** cho bài báo cáo của bạn kể cả warning này.
-{{% /notice %}}
 
+### Mục tiêu Tuần 1:
 
-### Mục tiêu tuần 1:
+- Làm quen với Hạ tầng Toàn cầu của AWS (Regions, AZs) và mô hình **Chia sẻ trách nhiệm** (Shared Responsibility Model).
+- Thành thạo cấu hình AWS Console & AWS CLI.
+- Thực hành các nguyên tắc bảo mật cơ bản (IAM User/Role, MFA).
 
-* Kết nối, làm quen với các thành viên trong First Cloud Journey.
-* Hiểu dịch vụ AWS cơ bản, cách dùng console & CLI.
+### Các nhiệm vụ thực hiện trong tuần này:
 
-### Các công việc cần triển khai trong tuần này:
-| Thứ | Công việc                                                                                                                                                                                   | Ngày bắt đầu | Ngày hoàn thành | Nguồn tài liệu                            |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | --------------- | ----------------------------------------- |
-| 2   | - Làm quen với các thành viên FCJ <br> - Đọc và lưu ý các nội quy, quy định tại đơn vị thực tập                                                                                             | 11/08/2025   | 11/08/2025      |
-| 3   | - Tìm hiểu AWS và các loại dịch vụ <br>&emsp; + Compute <br>&emsp; + Storage <br>&emsp; + Networking <br>&emsp; + Database <br>&emsp; + ... <br>                                            | 12/08/2025   | 12/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 4   | - Tạo AWS Free Tier account <br> - Tìm hiểu AWS Console & AWS CLI <br> - **Thực hành:** <br>&emsp; + Tạo AWS account <br>&emsp; + Cài AWS CLI & cấu hình <br> &emsp; + Cách sử dụng AWS CLI | 13/08/2025   | 13/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 5   | - Tìm hiểu EC2 cơ bản: <br>&emsp; + Instance types <br>&emsp; + AMI <br>&emsp; + EBS <br>&emsp; + ... <br> - Các cách remote SSH vào EC2 <br> - Tìm hiểu Elastic IP   <br>                  | 14/08/2025   | 15/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
-| 6   | - **Thực hành:** <br>&emsp; + Tạo EC2 instance <br>&emsp; + Kết nối SSH <br>&emsp; + Gắn EBS volume                                                                                         | 15/08/2025   | 15/08/2025      | <https://cloudjourney.awsstudygroup.com/> |
+| Ngày | Nhiệm vụ                                                                                                                                                    | Tài liệu tham khảo |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| 2    | - **Thiết lập:** Tạo tài khoản AWS, bật MFA cho root user.<br>- **IAM:** Tạo IAM Groups/Users theo nguyên tắc **Least Privilege**.                          | AWS IAM Docs       |
+| 3    | - **CLI:** Cài AWS CLI v2, cấu hình profiles (`~/.aws/config`, `credentials`).<br>- **Kiểm tra:** Chạy `aws sts get-caller-identity` để xác thực đăng nhập. | AWS CLI Guide      |
+| 4    | - **S3 cơ bản:** Tạo bucket với **Block Public Access** được bật.<br>- Thực hành upload/download object qua Console & CLI.                                  | AWS S3 Docs        |
+| 5    | - **Bảo mật:** Học mô hình **Shared Responsibility Model**.<br>- Định nghĩa quy ước tagging (Owner, Project, Env).                                          | FCJ Materials      |
+| 6    | - **Ôn tập:** Ghi lại quy trình setup và kiểm tra cảnh báo billing.<br>- Báo cáo tuần.                                                                      | -                  |
 
+### Kết quả đạt được Tuần 1:
 
-### Kết quả đạt được tuần 1:
-
-* Hiểu AWS là gì và nắm được các nhóm dịch vụ cơ bản: 
-  * Compute
-  * Storage
-  * Networking 
-  * Database
-  * ...
-
-* Đã tạo và cấu hình AWS Free Tier account thành công.
-
-* Làm quen với AWS Management Console và biết cách tìm, truy cập, sử dụng dịch vụ từ giao diện web.
-
-* Cài đặt và cấu hình AWS CLI trên máy tính bao gồm:
-  * Access Key
-  * Secret Key
-  * Region mặc định
-  * ...
-
-* Sử dụng AWS CLI để thực hiện các thao tác cơ bản như:
-
-  * Kiểm tra thông tin tài khoản & cấu hình
-  * Lấy danh sách region
-  * Xem dịch vụ EC2
-  * Tạo và quản lý key pair
-  * Kiểm tra thông tin dịch vụ đang chạy
-  * ...
-
-* Có khả năng kết nối giữa giao diện web và CLI để quản lý tài nguyên AWS song song.
-* ...
-
-
+- Bảo vệ tài khoản AWS bằng MFA và không dùng root cho các tác vụ hằng ngày.
+- Cấu hình AWS CLI profiles cho nhiều môi trường.
+- Tạo S3 bucket an toàn, bật mã hoá và versioning.

@@ -1,630 +1,251 @@
 ---
-title: "ECR Container Registry"
-date: 2024-01-01T00:00:00+07:00
-weight: 6
+title: "Amazon ECR Container Registry (MLOps)"
+date: 2024-01-01T00:00:00Z
+weight: 7
 chapter: false
 pre: "<b>6. </b>"
 ---
 
 {{% notice info %}}
-**🎯 Mục tiêu Task 6:** Thiết lập Amazon Elastic Container Registry (ECR) cho MLOps pipeline:
-1. **Tạo ECR Repository**: Repository cho API container
-2. **Cấu hình Security**: Image scanning, IAM policy, lifecycle rules  
-3. **Build & Push Image**: Upload FastAPI container lên ECR
-4. **Manual Build & Push**: Hướng dẫn build/push bằng script (CLI / PowerShell)
+**🎯 Task 6 Goal:** Create a private Amazon ECR repository for the Retail API image, enforce image hygiene (immutability, scan-on-push, lifecycle), and publish a production-ready FastAPI container image to ECR.
 {{% /notice %}}
 
-📥 **Input từ các Task trước:**
-- **Task 2 (IAM Roles & Audit):** IAM roles, policies và permissions cho ECR/EKS/S3 access
-- **Task 5 (Production VPC):** VPC endpoints, networking và security groups để cho phép EKS pull images từ ECR
+## 0) Inputs from previous tasks
 
-📦 **Output:**
-- **Inference Container**: `server/` code → FastAPI API serving predictions trong EKS
+- Production AWS Region: **ap-southeast-1**
+- AWS Account ID: **842676018087**
+- Source folder: `server/` (FastAPI inference API)
+- Target ECR repository: `mlops/retail-api`
 
-## Tổng quan
+---
 
-**Amazon ECR (Elastic Container Registry)** là dịch vụ Docker container registry được quản lý hoàn toàn bởi AWS, tích hợp sâu với EKS và CI/CD pipeline. ECR cung cấp khả năng lưu trữ, quản lý và triển khai container images một cách an toàn cho MLOps workflow.
+## 1) Create the ECR repository (recommended settings)
 
-## 1. ECR Repositories Setup
+### 1.1 Create repo (CLI)
 
-### 1.1. Create ECR Repositories
+```bash
+export AWS_REGION="ap-southeast-1"
+export REPO_NAME="mlops/retail-api"
 
-1. **Navigate to ECR Console:**
-   - Đăng nhập AWS Console
-   - Navigate to Amazon ECR service
-   - Region: ap-southeast-1
-   - Chọn "Create repository"
+aws ecr create-repository   --region "$AWS_REGION"   --repository-name "$REPO_NAME"   --image-tag-mutability IMMUTABLE   --image-scanning-configuration scanOnPush=true
+```
 
-![](/images/06-ecr-registry/01.png)
+> If the repo already exists, the command will fail. In that case, just update settings in the console.
 
-2. **API Repository Configuration:**
+### 1.2 Enable scan-on-push and immutability (Console)
 
-![](/images/06-ecr-registry/02.png)
+ECR → Repositories → `mlops/retail-api` → **Edit**:
 
-3. **Repository Created Successfully:**
-   
-   Sau khi tạo repository, bạn sẽ thấy giao diện như hình dưới với thông tin:
-   
-   - Repository name: `mlops/retail-api`
-   - Repository URI: `<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api`
-   - Status: "No active images" (chưa có image nào được push)
-   - Các tab: Summary, Images, Permissions, Lifecycle policy, Repository tags
+- **Image tag mutability:** Immutable
+- **Scan on push:** Enabled
 
-![](/images/06-ecr-registry/03.1.png)
+---
 
-4. **Repository Setup Complete:**
-   
-   API repository đã sẵn sàng cho containerized FastAPI application.
+## 2) Add lifecycle policy (keep prod/dev tags, expire untagged)
 
-5. **Repository Management Interface:**
-   
-   Trong giao diện quản lý repository, bạn có thể:
-   - **Images tab**: Xem danh sách images, filter theo tags
-   - **View push commands**: Lệnh để push image lên repository  
-   - **Copy URI**: Copy repository URI để sử dụng
-   - **Scan**: Quét vulnerability cho images
-   - **Delete**: Xóa repository khi không cần
+Create `ecr-lifecycle.json`:
 
-![](/images/06-ecr-registry/04.png)
+```json
+{
+  "rules": [
+    {
+      "rulePriority": 1,
+      "description": "Expire untagged images after 7 days",
+      "selection": {
+        "tagStatus": "untagged",
+        "countType": "sinceImagePushed",
+        "countUnit": "days",
+        "countNumber": 7
+      },
+      "action": { "type": "expire" }
+    },
+    {
+      "rulePriority": 2,
+      "description": "Keep last 10 images for prod/dev tag prefixes",
+      "selection": {
+        "tagStatus": "tagged",
+        "tagPrefixList": ["prod", "dev", "staging", "latest"],
+        "countType": "imageCountMoreThan",
+        "countNumber": 10
+      },
+      "action": { "type": "expire" }
+    }
+  ]
+}
+```
 
-{{% notice tip %}}
-**Tip:** Bật `tag immutability` cho các tag production (ví dụ `v*`) để tránh accidental overwrite. Sử dụng semantic tags (`v1.2.3`, `commit-<sha>`) giúp dễ rollback và audit.
-{{% /notice %}}
+Apply it:
 
-### 1.2. Lifecycle Policy Setup
+```bash
+aws ecr put-lifecycle-policy   --region "$AWS_REGION"   --repository-name "$REPO_NAME"   --lifecycle-policy-text file://ecr-lifecycle.json
+```
 
-1. **API Repository Lifecycle Policy:**
-   - Chọn repository `mlops/retail-api`
-   - Click tab "Lifecycle policy" 
-   - Click "Create rule" để tạo lifecycle policy
+---
 
-![](/images/06-ecr-registry/07.png)
+## 3) Build a production-ready FastAPI container image
 
-2. **Configure API Lifecycle Rules:**
+### 3.1 Multi-stage Dockerfile (non-root + healthcheck)
 
-   **Rule 1 - Keep Latest Production Images:**
-
-   ```
-   Rule priority: 1
-   Description: Keep latest 10 production images
-   Image status: Tagged (wildcard matching)
-   Image tag filters: v*
-
-   Match criteria:
-   - Count type: imageCountMoreThan
-   - Count number: 10
-
-   Action: expire
-   ```
-
-   **Rule 2 - Keep Latest Development Images:**
-
-   ```
-   Rule priority: 2
-   Description: Keep latest 5 development images
-   Image status: Tagged (wildcard matching)
-   Image tag filters: dev*, feature*, main*
-
-   Match criteria:
-   - Count type: imageCountMoreThan
-   - Count number: 5
-
-   Action: expire
-   ```
-
-   **Rule 3 - Remove Old Untagged Images:**
-
-   ```
-   Rule priority: 3
-   Description: Delete untagged images after 1 day
-   Image status: Untagged
-
-   Match criteria:
-   - Days since image created: 1
-
-   Action: expire
-   ```
-
-
-3. **Training Repository Lifecycle Policy:**
-
-![](/images/06-ecr-registry/08.png)
-
-### 1.3. Image Scanning & Push Commands
-
-1. **Check Scan Settings:**
-   - Chọn repository từ danh sách
-   - Kiểm tra "Scan on push" đã được enabled
-   - Review enhanced scanning options nếu cần
-
-2. **View Push Commands:**
-   - Click nút "View push commands" trong giao diện repository
-   - AWS sẽ hiển thị các lệnh để authenticate và push image
-   - Copy các lệnh này để sử dụng từ local machine hoặc CI/CD pipeline
-
-![](/images/06-ecr-registry/09.1.png)
-
-![](/images/06-ecr-registry/09.2.png)
-
-{{% notice success %}}
-**🎯 ECR Repositories Setup Complete!**
-
-**Created Repository:**
-
-- ✅ `mlops/retail-api`: FastAPI prediction service container
-- ✅ Repository URI: `<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api`
-- ✅ Private repository với tag immutability enabled
-- ✅ Image scanning enabled on push
-- ✅ Lifecycle policies configured for cost optimization
-- ✅ Push commands available trong console
-- ✅ IAM access policies for EKS integration
-{{% /notice %}}
-
-{{% notice tip %}}
-**Tip:** Ghi chú lifecycle rule priorities trong docs team và test rules trên non-prod repos trước khi áp dụng production để tránh xóa nhầm images.
-{{% /notice %}}
-
-## 2. API Containerization Workflow
-
-### 2.1. Dockerfile Configuration
-
-**Tạo `server/Dockerfile` - Multi-stage build:**
+Create `server/Dockerfile`:
 
 ```dockerfile
-# Multi-stage build
-FROM python:3.9-slim as builder
+# ---- builder ----
+FROM python:3.11-slim AS builder
 WORKDIR /app
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1     PIP_NO_CACHE_DIR=1     PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends     build-essential  && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
-RUN pip install --user -r requirements.txt
+RUN python -m venv /opt/venv  && /opt/venv/bin/pip install --upgrade pip  && /opt/venv/bin/pip install -r requirements.txt
 
-# Production stage  
-FROM python:3.9-slim as production
+# ---- runtime ----
+FROM python:3.11-slim AS runtime
 WORKDIR /app
 
-# Copy dependencies
-COPY --from=builder /root/.local /root/.local
+ENV PATH="/opt/venv/bin:$PATH"     PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1
 
 # Create non-root user
-RUN useradd --create-home --shell /bin/bash apiuser
-USER apiuser
+RUN addgroup --system app && adduser --system --ingroup app app
 
-# Copy application
+COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
-# Expose port
+# Healthcheck endpoint should exist in your FastAPI app
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()" || exit 1
+
 EXPOSE 8000
+USER app
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Start application
+# Uvicorn entrypoint
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-**Tạo `server/.dockerignore`:**
+Create `server/.dockerignore`:
 
-```
-# Development files
-.git
-.gitignore
+```gitignore
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.pyd
 *.log
-
-# Editor files  
-.idea/
-.vscode/
-
-# Large files (downloaded at runtime)
-*.joblib
-*.pkl
-model/
+.env
+.venv/
+venv/
+tests/
+dist/
+build/
+.git/
+.github/
+*.ipynb
 ```
 
-### 2.2. Local Build & Test
+---
+
+## 4) Authenticate and push to ECR
+
+### 4.1 Bash (Linux/macOS) script
+
+Create `scripts/ecr_push.sh`:
 
 ```bash
-# Navigate to server directory
-cd retail-price-sensitivity-prediction/server
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Build Docker image
-docker build -t mlops/retail-api:latest .
+AWS_REGION="ap-southeast-1"
+AWS_ACCOUNT_ID="842676018087"
+REPO_NAME="mlops/retail-api"
+IMAGE_TAG="${1:-latest}"
 
-# Test locally
-docker run -d --name test -p 8000:8000 mlops/retail-api:latest
-curl http://localhost:8000/health
-docker stop test && docker rm test
+ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}"
+
+echo "[1/4] ECR login..."
+aws ecr get-login-password --region "$AWS_REGION"   | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+echo "[2/4] Build image..."
+docker build -t "${REPO_NAME}:${IMAGE_TAG}" -f server/Dockerfile server/
+
+echo "[3/4] Tag image..."
+docker tag "${REPO_NAME}:${IMAGE_TAG}" "${ECR_URI}:${IMAGE_TAG}"
+
+echo "[4/4] Push image..."
+docker push "${ECR_URI}:${IMAGE_TAG}"
+
+echo "✅ Pushed: ${ECR_URI}:${IMAGE_TAG}"
 ```
 
-{{% notice warning %}}
-**Warning:** Docker login tokens (ECR auth) có thời hạn; CI agents nên refresh token (`aws ecr get-login-password`) per job. Tránh hardcode credentials in scripts or environment files.
-{{% /notice %}}
+### 4.2 PowerShell (Windows) script
 
-
-### 2.3. View Push Commands từ AWS Console
-
-1. **Trong ECR Console:**
-   - Chọn repository `mlops/retail-api`
-   - Click nút **"View push commands"**
-   - AWS sẽ hiển thị các lệnh để build và push
-
-2. **Các lệnh push commands sẽ như (Windows PowerShell):**
+Create `scripts/ecr_push.ps1`:
 
 ```powershell
-# 1. Retrieve an authentication token and authenticate Docker client
-(Get-ECRLoginCommand).Password | docker login --username AWS --password-stdin 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com
+param(
+  [string]$ImageTag = "latest"
+)
 
-# 2. Build your Docker image
-docker build -t mlops/retail-api .
+$AWS_REGION = "ap-southeast-1"
+$AWS_ACCOUNT_ID = "842676018087"
+$REPO_NAME = "mlops/retail-api"
+$ECR_URI = "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPO_NAME"
 
-# 3. Tag your image
-docker tag mlops/retail-api:latest 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+Write-Host "[1/4] ECR login..."
+aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
 
-# 4. Push image to ECR
-docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+Write-Host "[2/4] Build image..."
+docker build -t "$REPO_NAME:$ImageTag" -f server/Dockerfile server/
+
+Write-Host "[3/4] Tag image..."
+docker tag "$REPO_NAME:$ImageTag" "$ECR_URI:$ImageTag"
+
+Write-Host "[4/4] Push image..."
+docker push "$ECR_URI:$ImageTag"
+
+Write-Host "✅ Pushed: $ECR_URI:$ImageTag"
 ```
 
-   **Hoặc sử dụng AWS CLI:**
+---
+
+## 5) Verify in console / CLI
 
 ```bash
-# 1. Retrieve an authentication token and authenticate Docker client
-aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS --password-stdin 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com
+aws ecr describe-repositories --region ap-southeast-1 --query 'repositories[?repositoryName==`mlops/retail-api`].repositoryUri' --output text
 
-# 2. Build your Docker image
-docker build -t mlops/retail-api .
-
-# 3. Tag your image  
-docker tag mlops/retail-api:latest 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
-
-# 4. Push image to ECR
-docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+aws ecr describe-images   --region ap-southeast-1   --repository-name mlops/retail-api   --max-items 10
 ```
 
-{{% notice info %}}
-**Info:** Trên Windows/PowerShell, ưu tiên dùng `aws ecr get-login-password --region <region> | docker login --username AWS --password-stdin <registry>` trong CI để tránh các lệnh đã bị deprecated. Token ECR thường hết hạn sau ~12 giờ; xác thực lại cho các phiên chạy dài.
-{{% /notice %}}
+---
 
+## 6) Cleanup scripts (optional)
 
-### 2.2. Verify ECR Push Success
-
-**Kiểm tra trong AWS Console:**
-
-1. **Navigate to ECR Console:**
-   - Vào AWS Console → ECR service
-   - Chọn repository `mlops/retail-api`
-   - Check tab "Images" để xem image đã được push
-
-2. **Expected Result:**
-   - Image với tag `latest` xuất hiện trong danh sách
-   - Image size hiển thị (~927MB)
-   - Vulnerability scan status (if enabled)
-   - Push timestamp
-
-![](/images/06-ecr-registry/10.png)
-
-**Kiểm tra bằng CLI:**
-
-![](/images/06-ecr-registry/12.png)
-
-![](/images/06-ecr-registry/13.png)
-
-**Kiểm tra bằng console:**
-
-![](/images/06-ecr-registry/14.png)
-
-{{% notice tip %}}
-**Tip:** Giảm kích thước image bằng multi-stage builds và base images nhẹ (ví dụ `python:3.9-slim` hoặc distroless). Image nhỏ giúp đẩy/kéo nhanh hơn và giảm chi phí lưu trữ/truyền tải.
-{{% /notice %}}
-
-### 2.5. Container Environment & Testing
-
-**Environment Variables:**
+### 6.1 Delete local build caches (safe)
 
 ```bash
-# Basic configuration
-AWS_DEFAULT_REGION=ap-southeast-1
-MODEL_BUCKET=mlops-retail-forecast-models
-LOG_LEVEL=INFO
-PORT=8000
+docker image prune -f
+docker builder prune -f
 ```
 
-**Test Docker Image Locally:**
+### 6.2 Delete untagged images in ECR (manual)
 
 ```bash
-# Test API container locally
-docker run -d \
-    --name retail-api-test \
-    -p 8000:8000 \
-    -e AWS_DEFAULT_REGION=ap-southeast-1 \
-    -e MODEL_BUCKET=mlops-retail-prediction-dev-842676018087 \
-    842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+aws ecr list-images   --region ap-southeast-1   --repository-name mlops/retail-api   --filter tagStatus=UNTAGGED   --query 'imageIds[*]'   --output json > untagged.json
 
-# Test health endpoint
-curl http://localhost:8000/health
-
-# Test API documentation
-open http://localhost:8000/docs
-
-# Clean up
-docker stop retail-api-test && docker rm retail-api-test
+aws ecr batch-delete-image   --region ap-southeast-1   --repository-name mlops/retail-api   --image-ids file://untagged.json
 ```
 
-{{% notice warning %}}
-**Warning (Local):** Khi chạy image trên máy local, tránh mount secrets hoặc AWS credentials vào container. Dùng biến môi trường chỉ cho giá trị không nhạy cảm và ưu tiên IAM roles cho môi trường production.
-{{% /notice %}}
+---
 
-- Local container test for retail-api :
+## 7) Rough cost notes (ap-southeast-1)
 
-![](/images/06-ecr-registry/11.png)
-
-**Hoàn thành!** 🎉
-
-ECR registry đã được thiết lập và tích hợp với EKS cluster `mlops-retail-cluster`. Docker image của retail API đã sẵn sàng để deploy trên Kubernetes trong Task 10.
-
-## Kết quả Task 6
-
-✅ **ECR Repository** - mlops/retail-api repository  
-✅ **Container Image** - FastAPI prediction service  
-✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month  
+- **ECR storage** is billed per GB-month; lifecycle policies keep it low.
+- **Image scanning** is enabled; costs depend on usage (keep scans on push, but avoid pushing too frequently).
+- **Data transfer to EKS** is typically intra-region; cross-region pulls cost more (avoid by keeping everything in ap-southeast-1).
 
 {{% notice success %}}
-**🎯 Task 6 Complete - ECR Registry + API Containerization!**
+**✅ Task 6 Complete (ECR):**
 
-**✅ ECR Setup**: Repository với lifecycle policies & image scanning  
-**✅ Dockerfile**: Multi-stage build, non-root user, health checks  
-**✅ Build & Push**: Local build → ECR push workflow  
-**✅ Testing**: Container verification & API validation  
-**✅ Ready**: Sẵn sàng cho EKS deployment trong Task 7  
-{{% /notice %}}
-
-{{% notice info %}}
-**Info (Quét lỗ hổng):** Quét image cơ bản miễn phí; quét nâng cao (Inspector) có thể phát sinh phí theo image/tháng. Cân nhắc chỉ quét các tag production hoặc tích hợp quét vào CI với điều kiện để kiểm soát chi phí.
-{{% /notice %}}
-
-{{% notice tip %}}
-**🚀 Next Steps:**
-
-- **Task 7**: EKS cluster deployment với ECR integration
-- **Task 8**: Deploy API container lên EKS với ALB
-- **Task 9**: Load balancing và scaling configuration
-
-{{% /notice %}}
-
-{{% notice info %}}
-**Kết quả benchmark (Production):**
-
-- **Kích thước image**: FastAPI ~500MB (đã tối ưu multi-stage)
-- **Thời gian build**: ~3-5 phút (với cache)
-- **Chi phí lưu trữ**: ~$0.15/tháng (tổng ~1.5GB)
-- **Bảo mật**: Chạy non-root, đã quét lỗ hổng
-- **Khả dụng**: Multi-tag strategy (latest, commit, branch)
-- **CI/CD**: Tự động trên mỗi commit
-{{% /notice %}}
-
-## 3. Clean Up Resources (AWS CLI)
-
-### 3.1. Xóa Images từ ECR Repository
-
-```bash
-# Liệt kê images trong repository
-aws ecr describe-images --repository-name mlops/retail-api --region ap-southeast-1 --query 'imageDetails[*].[imageDigest,imageTags[0],imagePushedAt]' --output table
-
-# Xóa specific image tag
-aws ecr batch-delete-image \
-  --repository-name mlops/retail-api \
-  --image-ids imageTag=latest \
-  --region ap-southeast-1
-
-# Xóa tất cả images trong repository
-aws ecr batch-delete-image \
-  --repository-name mlops/retail-api \
-  --image-ids "$(aws ecr describe-images --repository-name mlops/retail-api --region ap-southeast-1 --query 'imageDetails[*].{imageDigest:imageDigest}' --output json)" \
-  --region ap-southeast-1
-```
-
-### 3.2. Xóa ECR Repositories
-
-```bash
-# Xóa repository (phải trống trước)
-aws ecr delete-repository --repository-name mlops/retail-api --region ap-southeast-1 --force
-
-# Verify repository đã bị xóa
-aws ecr describe-repositories --region ap-southeast-1 --query 'repositories[?repositoryName==`mlops/retail-api`]'
-```
-
-### 3.3. Xóa Lifecycle Policies
-
-```bash
-# Xóa lifecycle policy (tự động xóa khi xóa repository)
-aws ecr delete-lifecycle-policy --repository-name mlops/retail-api --region ap-southeast-1
-
-# List remaining repositories
-aws ecr describe-repositories --region ap-southeast-1 --query 'repositories[*].[repositoryName,repositoryUri]' --output table
-```
-
-### 3.4. Clean Up Local Docker Images
-
-```bash
-# Remove local Docker images
-docker rmi mlops/retail-api:latest
-docker rmi 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
-
-# Clean up Docker build cache
-docker system prune -f
-
-# Remove unused images
-docker image prune -a -f
-```
-
-### 3.5. ECR Cleanup Helper Script
-
-```bash
-#!/bin/bash
-# ecr-cleanup.sh
-
-REPOSITORY_NAME="mlops/retail-api"
-REGION="ap-southeast-1"
-
-echo "🧹 Cleaning up ECR repository: $REPOSITORY_NAME..."
-
-# 1. Delete all images
-echo "Deleting all images..."
-IMAGE_IDS=$(aws ecr describe-images --repository-name $REPOSITORY_NAME --region $REGION --query 'imageDetails[*].{imageDigest:imageDigest}' --output json)
-
-if [ "$IMAGE_IDS" != "[]" ]; then
-    aws ecr batch-delete-image \
-        --repository-name $REPOSITORY_NAME \
-        --image-ids "$IMAGE_IDS" \
-        --region $REGION
-    echo "Images deleted"
-else
-    echo "No images to delete"
-fi
-
-# 2. Delete repository
-echo "Deleting repository..."
-aws ecr delete-repository \
-    --repository-name $REPOSITORY_NAME \
-    --region $REGION \
-    --force
-
-# 3. Clean up local Docker
-echo "Cleaning up local Docker images..."
-docker rmi mlops/retail-api:latest 2>/dev/null || true
-docker rmi 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/$REPOSITORY_NAME:latest 2>/dev/null || true
-
-echo "✅ ECR cleanup completed"
-```
-
----
-
-## 4. Bảng giá ECR
-
-### 4.1. Chi phí ECR Storage
-
-| Storage Type | Giá (USD/GB/tháng) | Ghi chú |
-|--------------|-------------------|---------|
-| **ECR Storage** | $0.10 | Compressed image size |
-| **Free Tier** | 500MB free | First 12 months |
-| **Data Transfer IN** | Free | Push images to ECR |
-| **Data Transfer OUT** | $0.12/GB | Pull từ Internet |
-| **Data Transfer VPC** | Free | Pull qua VPC Endpoints |
-
-### 4.2. Chi phí Image Scanning
-
-| Scan Type | Giá (USD) | Ghi chú |
-|-----------|-----------|---------|
-| **Basic Scanning** | Free | CVE database scanning |
-| **Enhanced Scanning** | $0.09/image/month | Inspector integration |
-| **OS Package Scanning** | Free | Basic vulnerability detection |
-| **Language Package Scanning** | $0.09/image/month | Enhanced scanning only |
-
-### 4.3. Ước tính chi phí cho Task 6
-
-**Container Images:**
-- FastAPI image: ~500MB (compressed)
-- Total storage: ~0.5GB
-
-**Monthly Costs:**
-
-| Component | Size | Price | Monthly Cost |
-|-----------|------|-------|--------------|
-| **ECR Storage** | 0.5GB | $0.10/GB | $0.05 |
-| **Basic Scanning** | 1 image | Free | $0.00 |
-| **VPC Endpoint Transfer** | ~1GB/month | Free | $0.00 |
-| **Total** | | | **$0.05** |
-
-### 4.4. Cost Comparison với Alternatives
-
-**ECR vs Docker Hub:**
-
-| Feature | ECR | Docker Hub | Winner |
-|---------|-----|------------|--------|
-| **Storage (500MB)** | $0.05/month | Free (public) | Docker Hub |
-| **Private repos** | ✅ Native | $5/month | **ECR** |
-| **AWS Integration** | ✅ Native | Manual setup | **ECR** |
-| **VPC Endpoints** | ✅ Free transfer | ❌ Internet only | **ECR** |
-| **IAM Integration** | ✅ Native | ❌ Token-based | **ECR** |
-| **Vulnerability Scanning** | ✅ Built-in | ❌ Extra cost | **ECR** |
-
-### 4.5. Data Transfer Costs
-
-**ECR Pull Scenarios:**
-
-| Pull Location | Cost | Use Case |
-|---------------|------|----------|
-| **Same Region (VPC)** | Free | EKS production |
-| **Same Region (Internet)** | $0.12/GB | CI/CD outside AWS |
-| **Cross Region** | $0.12/GB + transfer | Multi-region deployment |
-| **Internet (outside AWS)** | $0.12/GB | Local development |
-
-### 4.6. Lifecycle Policy Cost Savings
-
-**Without Lifecycle Policies:**
-- 50 images × 500MB = 25GB storage
-- Cost: 25GB × $0.10 = $2.50/month
-
-**With Lifecycle Policies (Task 6):**
-- Keep 10 production images = 5GB
-- Keep 5 development images = 2.5GB  
-- Total: 7.5GB × $0.10 = $0.75/month
-- **Savings: $1.75/month (70%)**
-
-### 4.7. Cost Optimization Tips
-
-**Storage Optimization:**
-```bash
-# Multi-stage builds giảm image size
-FROM node:16 as builder
-# ... build steps
-FROM node:16-alpine as production  # Smaller base image
-COPY --from=builder /app/dist ./dist
-```
-
-**Registry Management:**
-```bash
-# Automated cleanup with lifecycle policies
-aws ecr put-lifecycle-policy \
-  --repository-name mlops/retail-api \
-  --lifecycle-policy-text file://lifecycle-policy.json
-```
-
-**Free Tier Usage:**
-- Sử dụng 500MB free tier cho development
-- Production images trong repositories riêng biệt
-- VPC Endpoints để tránh data transfer charges
-
-{{% notice info %}}
-**💰 Cost Summary cho Task 6:**
-- **Storage:** $0.05/month (500MB images)
-- **Scanning:** Free (basic vulnerability detection)
-- **Data Transfer:** Free (VPC Endpoints to EKS)
-- **Total:** **$0.05/month** (vs $5/month Docker Hub private)
-- **Savings:** $4.95/month với ECR + lifecycle policies
-{{% /notice %}}
-
----
-
-{{% notice tip %}}
-**Mẹo thành công:** Trước khi xóa repos/images để dọn dẹp, hãy snapshot deployment manifests và tham chiếu CI nếu cần lưu trữ. Ưu tiên sử dụng lifecycle policies để tự động quản lý retention thay vì xóa thủ công, tránh mất mát dữ liệu.
-{{% /notice %}}
-
-## 🎬 Video thực hiện Task 6
-
-<div style="position: relative; width: 100%; max-width: 800px; margin: 0 auto; padding-bottom: 56.25%; height: 0; overflow: hidden;">
-  <iframe 
-    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" 
-    src="https://www.youtube.com/embed/watch?v=b5OPwgR-rqI&list=PL53MEKrSAUpu0i5F-ttcVdKkSv0jb48Mc&index=5" 
-    title="YouTube video player" 
-    frameborder="0" 
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-    referrerpolicy="strict-origin-when-cross-origin" 
-    allowfullscreen>
-  </iframe>
-</div>
-
----
-
-**Next Step**: [Task 7: EKS Cluster Setup](../7-eks-cluster/) 
+- Private repo `mlops/retail-api` created in `ap-southeast-1`
+- Scan-on-push + tag immutability enabled
+- Lifecycle policy applied
+- FastAPI image built (multi-stage, non-root, healthcheck) and pushed to ECR
+  {{% /notice %}}

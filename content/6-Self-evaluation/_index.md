@@ -5,34 +5,37 @@ chapter: false
 pre: " <b> 6. </b> "
 ---
 
-{{% notice warning %}}
-⚠️ **Note:** The information below is for reference purposes only. Please **do not copy it verbatim** into your report, including this warning.
-{{% /notice %}}
+During the **Retail MLOps on AWS** workshop, I had the opportunity to apply Cloud/DevOps/MLOps knowledge to a practical end-to-end pipeline: from S3-based data organization, model training and evaluation on SageMaker, model versioning with SageMaker Model Registry, containerizing a FastAPI inference service, deploying to EKS, monitoring with CloudWatch, implementing CI/CD automation, and optimizing cost with teardown procedures after demos.
 
-During my internship at **[Company/Organization Name]** from **[start date]** to **[end date]**, I had the opportunity to learn, practice, and apply the knowledge acquired in school to a real-world working environment.  
-I participated in **[briefly describe the main project or task]**, through which I improved my skills in **[list skills: programming, analysis, reporting, communication, etc.]**.  
+Through this workshop, I improved the following skills:
 
-In terms of work ethic, I always strived to complete tasks well, complied with workplace regulations, and actively engaged with colleagues to improve work efficiency.
+- Designing a production-like MLOps architecture (networking, security, scalability)
+- Building data-to-model pipelines with clear quality metrics and verification steps
+- Working with AWS services: S3, SageMaker, ECR, EKS, IAM/IRSA, CloudWatch, VPC endpoints
+- Containerizing inference services (multi-stage builds, non-root, healthcheck, image scanning)
+- Deploying and operating Kubernetes workloads (manifests, Service/Ingress, HPA, debugging)
+- Cost optimization and operational hygiene (Spot, lifecycle policies, log retention, scheduled start/stop, teardown scripts)
 
-To objectively reflect on my internship period, I would like to evaluate myself based on the following criteria:
+To reflect objectively on my progress after completing the workshop, I self-assess using the criteria below:
 
-| No. | Criteria                            | Description                                                                                      | Good | Fair | Average |
-| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------ | ---- | ---- | ------- |
-| 1   | **Professional knowledge & skills** | Understanding of the field, applying knowledge in practice, proficiency with tools, work quality | ✅    | ☐    | ☐       |
-| 2   | **Ability to learn**                | Ability to absorb new knowledge and learn quickly                                                | ☐    | ✅    | ☐       |
-| 3   | **Proactiveness**                   | Taking initiative, seeking out tasks without waiting for instructions                            | ✅    | ☐    | ☐       |
-| 4   | **Sense of responsibility**         | Completing tasks on time and ensuring quality                                                    | ✅    | ☐    | ☐       |
-| 5   | **Discipline**                      | Adhering to schedules, rules, and work processes                                                 | ☐    | ☐    | ✅       |
-| 6   | **Progressive mindset**             | Willingness to receive feedback and improve oneself                                              | ☐    | ✅    | ☐       |
-| 7   | **Communication**                   | Presenting ideas and reporting work clearly                                                      | ☐    | ✅    | ☐       |
-| 8   | **Teamwork**                        | Working effectively with colleagues and participating in teams                                   | ✅    | ☐    | ☐       |
-| 9   | **Professional conduct**            | Respecting colleagues, partners, and the work environment                                        | ✅    | ☐    | ☐       |
-| 10  | **Problem-solving skills**          | Identifying problems, proposing solutions, and showing creativity                                | ☐    | ✅    | ☐       |
-| 11  | **Contribution to project/team**    | Work effectiveness, innovative ideas, recognition from the team                                  | ✅    | ☐    | ☐       |
-| 12  | **Overall**                         | General evaluation of the entire internship period                                               | ✅    | ☐    | ☐       |
+| No. | Criteria                            | Description                                                                                | Good | Fair | Average |
+| --- | ----------------------------------- | ------------------------------------------------------------------------------------------ | ---- | ---- | ------- |
+| 1   | **Professional knowledge & skills** | Understanding MLOps concepts, implementing training/deployment pipeline, output quality    | ✅   | ☐    | ☐       |
+| 2   | **Ability to learn**                | Learning and applying AWS/EKS/SageMaker/ECR/CloudWatch quickly                             | ✅   | ☐    | ☐       |
+| 3   | **Proactiveness**                   | Taking initiative in debugging (pods, image pull, IRSA), improving configs and cleanup     | ✅   | ☐    | ☐       |
+| 4   | **Sense of responsibility**         | Delivering based on task checklist, meeting model metrics and verification requirements    | ✅   | ☐    | ☐       |
+| 5   | **Discipline**                      | Following naming conventions, region consistency, and teardown steps to avoid cost leakage | ☐    | ✅   | ☐       |
+| 6   | **Progressive mindset**             | Accepting feedback and iterating (Spot, lifecycle, log retention, scheduling)              | ✅   | ☐    | ☐       |
+| 7   | **Communication**                   | Explaining architecture choices, reporting progress, documenting verification steps        | ☐    | ✅   | ☐       |
+| 8   | **Teamwork (if applicable)**        | Coordinating modules (data/training/deploy/monitor/cost) and integrating deliverables      | ☐    | ✅   | ☐       |
+| 9   | **Professional conduct**            | Working systematically, respecting conventions, emphasizing least privilege and security   | ✅   | ☐    | ☐       |
+| 10  | **Problem-solving skills**          | Identifying root causes and proposing fixes (VPC endpoints, IRSA/RBAC, LB/SG, logs)        | ☐    | ✅   | ☐       |
+| 11  | **Contribution to project/team**    | Producing a reusable end-to-end pipeline plus operational/teardown scripts                 | ✅   | ☐    | ☐       |
+| 12  | **Overall**                         | Overall completion level and ability to reproduce the system independently                 | ✅   | ☐    | ☐       |
 
-### Needs Improvement
+## Needs Improvement
 
-* Strengthen discipline and strictly comply with the rules and regulations of the company or any organization  
-* Improve problem-solving thinking  
-* Enhance communication skills in both daily interactions and professional contexts, including handling situations effectively
+- **Stronger documentation quality:** clearer architecture diagrams, prerequisites, and a structured troubleshooting checklist.
+- **More robust CI/CD gates:** add stronger quality checks (tests, policy checks, clear rollback strategy) and separate dev/stage/prod environments.
+- **Better observability maturity:** dashboards/alerts aligned with real SLOs (latency, error rate), log sampling, and optional tracing.
+- **Deeper cost controls:** automated schedules aligned with demo windows, stricter log ingestion control, and periodic ECR cleanup.

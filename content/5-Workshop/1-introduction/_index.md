@@ -1,5 +1,5 @@
 ---
-title: "Thiết kế kiến trúc MLOps"
+title: "MLOps Architecture Design"
 date: 2025-08-30T11:00:00+07:00
 weight: 1
 chapter: false
@@ -8,120 +8,121 @@ pre: "<b>1. </b>"
 
 # AWS MLOps Retail Prediction Platform
 
-**AWS MLOps Retail Prediction** là một hệ thống MLOps end-to-end hoàn chỉnh được xây dựng trên AWS Cloud, tự động hóa toàn bộ quy trình từ xây dựng hạ tầng, huấn luyện mô hình, triển khai inference API, đến giám sát và tối ưu chi phí. Dự án được thiết kế để đảm bảo tính mở rộng, độ tin cậy và bảo mật cao cho các ứng dụng Machine Learning trong thực tế.
+**AWS MLOps Retail Prediction** is a complete end-to-end MLOps system built on AWS Cloud, automating the entire lifecycle from infrastructure provisioning, model training, inference API deployment, to monitoring and cost optimization. The project is designed to ensure scalability, reliability, and strong security for real-world Machine Learning applications.
 
-## 1. Kiến trúc MLOps trên AWS Cloud
+## 1. MLOps Architecture on AWS Cloud
 
-![Kiến trúc MLOps end-to-end cho Retail Prediction trên AWS](/images/01-introduction/MLOps-AWS-Architecture.png)
+![End-to-end MLOps architecture for Retail Prediction on AWS](/images/01-introduction/MLOps-AWS-Architecture.png)
 
-### 1.1 Mục tiêu dự án
+### 1.1 Project Objectives
 
-**Tự động hóa hoàn toàn quy trình MLOps:**
-- 🏗️ **Infrastructure as Code**: Xây dựng hạ tầng tự động bằng Terraform (VPC, EKS, IAM, EC2, ECR, S3)
-- 🤖 **ML Training**: Huấn luyện mô hình phân tán trên SageMaker với model registry
-- 🚀 **Container Deployment**: Đóng gói & triển khai inference API trên EKS với autoscaling
-- 📊 **Monitoring & Security**: Giám sát bằng CloudWatch, bảo mật bằng KMS & CloudTrail
-- 🔄 **CI/CD Pipeline**: Pipeline tự động từ thay đổi code/data → build → train → deploy
-- 💰 **Cost Optimization**: Tích hợp DataOps và teardown để tối ưu chi phí
+**Fully automate the MLOps workflow:**
 
-### 1.2 Flow tổng quát
+- 🏗️ **Infrastructure as Code**: Automate infrastructure provisioning using Terraform (VPC, EKS, IAM, EC2, ECR, S3)
+- 🤖 **ML Training**: Distributed model training on SageMaker with Model Registry
+- 🚀 **Container Deployment**: Package & deploy the inference API on EKS with autoscaling
+- 📊 **Monitoring & Security**: Monitoring with CloudWatch, security with KMS & CloudTrail
+- 🔄 **CI/CD Pipeline**: Automated pipeline from code/data changes → build → train → deploy
+- 💰 **Cost Optimization**: Integrate DataOps and teardown strategies to optimize costs
+
+### 1.2 Overall Flow
 
 **Infrastructure → Training → Deployment → Monitoring → CI/CD → Cost Optimization**
 
-## 2. Bài toán dự đoán độ nhạy giá khách hàng
+## 2. Customer Price Sensitivity Prediction Problem
 
-### 2.1 Mô tả dataset - dunnhumby Source Files
+### 2.1 Dataset Description - dunnhumby Source Files
 
-**Nguồn dữ liệu**: [dunnhumby Source Files](https://www.dunnhumby.com/source-files/)  
-**Tập dữ liệu sử dụng**: `transaction.csv` (≈ 2.67 triệu dòng, 22 cột)  
-**Mô tả**: Mỗi dòng dữ liệu đại diện cho một sản phẩm trong một lần mua hàng của khách hàng.
+**Data source**: [dunnhumby Source Files](https://www.dunnhumby.com/source-files/)  
+**Dataset used**: `transaction.csv` (≈ 2.67 million rows, 22 columns)  
+**Description**: Each row represents a product in a customer's single shopping transaction.
 
-#### 2.1.1 Cấu trúc dữ liệu chi tiết
+#### 2.1.1 Detailed Data Schema
 
-| **Tên cột**                | **Kiểu dữ liệu** | **Mô tả / Ý nghĩa**                                                                                          | **Ví dụ giá trị** |
-| -------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------ | ----------------- |
-| `SHOP_WEEK`                | `int64`          | Tuần mua hàng (theo định dạng YYYYWW)                                                                        | 200807            |
-| `SHOP_DATE`                | `int64`          | Ngày mua hàng (định dạng YYYYMMDD)                                                                           | 20080407          |
-| `SHOP_WEEKDAY`             | `int64`          | Thứ trong tuần (1=Chủ nhật, 2=Thứ hai, …, 7=Thứ bảy)                                                         | 2                 |
-| `SHOP_HOUR`                | `int64`          | Giờ giao dịch (0–23)                                                                                         | 14                |
-| `QUANTITY`                 | `int64`          | Số lượng sản phẩm mua trong dòng giao dịch                                                                   | 1                 |
-| `SPEND`                    | `float64`        | **Số tiền chi tiêu (đơn vị: bảng Anh £)** cho dòng giao dịch (sản phẩm × số lượng)                           | 1.01              |
-| `PROD_CODE`                | `object`         | Mã sản phẩm chi tiết (cấp thấp nhất)                                                                         | PRD0900005        |
-| `PROD_CODE_10`             | `object`         | Mã nhóm sản phẩm cấp 1 (chuyên mục chính)                                                                    | CL00155           |
-| `PROD_CODE_20`             | `object`         | Mã nhóm sản phẩm cấp 2                                                                                       | DEP00053          |
-| `PROD_CODE_30`             | `object`         | Mã nhóm sản phẩm cấp 3                                                                                       | G00016            |
-| `PROD_CODE_40`             | `object`         | Mã nhóm sản phẩm cấp 4 (có thể mô tả danh mục con)                                                           | NaN / G00420      |
-| `CUST_CODE`                | `object`         | Mã định danh khách hàng (ẩn danh)                                                                            | CUST0000123       |
-| `seg_1`                    | `object`         | Nhóm phân khúc khách hàng cấp 1 (phân loại hành vi tổng quan)                                                | BG / AZ / NaN     |
-| `seg_2`                    | `object`         | Nhóm phân khúc khách hàng cấp 2 (chi tiết hơn `seg_1`)                                                       | DI / CZ / BU      |
-| `BASKET_ID`                | `int64`          | Mã định danh giỏ hàng (mỗi lần mua của khách)                                                                | 994110500233340   |
-| `BASKET_SIZE`              | `object`         | Kích thước giỏ hàng (Small/Medium/Large)                                                                     | S / M / L         |
-| `BASKET_PRICE_SENSITIVITY` | `object`         | **Mức độ nhạy cảm với giá** của khách hàng trong giao dịch (Low/Medium/High hoặc mã viết tắt như LA, MM, UM) | MM / LA / UM      |
-| `BASKET_TYPE`              | `object`         | Loại giỏ hàng (Full Shop / Small Shop / Top Up / Fresh / Nonfood...)                                         | Full Shop         |
-| `BASKET_DOMINANT_MISSION`  | `object`         | **Mục đích chính của giỏ hàng** (Mixed, Grocery, Fresh, Nonfood, ...), thể hiện loại sản phẩm chủ yếu        | Mixed / Fresh     |
-| `STORE_CODE`               | `object`         | Mã cửa hàng nơi giao dịch diễn ra                                                                            | STORE00001        |
-| `STORE_FORMAT`             | `object`         | **Định dạng cửa hàng** (LS = Large Store, SS = Small Store, Express, v.v.)                                   | LS                |
-| `STORE_REGION`             | `object`         | **Khu vực địa lý** của cửa hàng (E01–E05, tương ứng các vùng tại Anh quốc)                                   | E02               |
+| **Column Name**            | **Data Type** | **Description / Meaning**                                                                              | **Example Value** |
+| -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------ | ----------------- |
+| `SHOP_WEEK`                | `int64`       | Shopping week (format YYYYWW)                                                                          | 200807            |
+| `SHOP_DATE`                | `int64`       | Shopping date (format YYYYMMDD)                                                                        | 20080407          |
+| `SHOP_WEEKDAY`             | `int64`       | Day of week (1=Sunday, 2=Monday, …, 7=Saturday)                                                        | 2                 |
+| `SHOP_HOUR`                | `int64`       | Transaction hour (0–23)                                                                                | 14                |
+| `QUANTITY`                 | `int64`       | Quantity purchased in the transaction line                                                             | 1                 |
+| `SPEND`                    | `float64`     | **Amount spent (currency: British Pound £)** for the line (product × quantity)                         | 1.01              |
+| `PROD_CODE`                | `object`      | Detailed product code (lowest level)                                                                   | PRD0900005        |
+| `PROD_CODE_10`             | `object`      | Product group code level 1 (main category)                                                             | CL00155           |
+| `PROD_CODE_20`             | `object`      | Product group code level 2                                                                             | DEP00053          |
+| `PROD_CODE_30`             | `object`      | Product group code level 3                                                                             | G00016            |
+| `PROD_CODE_40`             | `object`      | Product group code level 4 (may represent a sub-category)                                              | NaN / G00420      |
+| `CUST_CODE`                | `object`      | Customer identifier (anonymized)                                                                       | CUST0000123       |
+| `seg_1`                    | `object`      | Customer segment level 1 (high-level behavior classification)                                          | BG / AZ / NaN     |
+| `seg_2`                    | `object`      | Customer segment level 2 (more detailed than `seg_1`)                                                  | DI / CZ / BU      |
+| `BASKET_ID`                | `int64`       | Basket ID (each purchase event of a customer)                                                          | 994110500233340   |
+| `BASKET_SIZE`              | `object`      | Basket size (Small/Medium/Large)                                                                       | S / M / L         |
+| `BASKET_PRICE_SENSITIVITY` | `object`      | **Customer price sensitivity** within the transaction (Low/Medium/High or short codes like LA, MM, UM) | MM / LA / UM      |
+| `BASKET_TYPE`              | `object`      | Basket type (Full Shop / Small Shop / Top Up / Fresh / Nonfood...)                                     | Full Shop         |
+| `BASKET_DOMINANT_MISSION`  | `object`      | **Primary basket mission** (Mixed, Grocery, Fresh, Nonfood, ...), indicating dominant product intent   | Mixed / Fresh     |
+| `STORE_CODE`               | `object`      | Store code where the transaction occurred                                                              | STORE00001        |
+| `STORE_FORMAT`             | `object`      | **Store format** (LS = Large Store, SS = Small Store, Express, etc.)                                   | LS                |
+| `STORE_REGION`             | `object`      | **Geographic region** of the store (E01–E05, corresponding to regions in the UK)                       | E02               |
 
-#### 2.1.2 Nhóm features theo nghiệp vụ
+#### 2.1.2 Feature Groups by Business Context
 
-| **Nhóm**    | **Cột**                                          | **Ý nghĩa**                       |
-| ----------- | ------------------------------------------------- | --------------------------------- |
-| 🛒 Giỏ hàng | `BASKET_SIZE`, `BASKET_TYPE`, `BASKET_DOMINANT_MISSION` | Kích cỡ, loại và mục đích giỏ hàng |
-| 💸 Chi tiêu | `SPEND`, `QUANTITY`                               | Số tiền và số lượng mua           |
-| 🏬 Cửa hàng | `STORE_REGION`, `STORE_FORMAT`                    | Khu vực và loại cửa hàng          |
-| 📦 Sản phẩm | `PROD_CODE_20`, `PROD_CODE_30`                    | Nhóm sản phẩm chính               |
-| 🎯 Nhãn     | `BASKET_PRICE_SENSITIVITY`                       | Độ nhạy giá – Low / Medium / High |
+| **Group**   | **Columns**                                             | **Meaning**                             |
+| ----------- | ------------------------------------------------------- | --------------------------------------- |
+| 🛒 Basket   | `BASKET_SIZE`, `BASKET_TYPE`, `BASKET_DOMINANT_MISSION` | Basket size, type, and shopping mission |
+| 💸 Spending | `SPEND`, `QUANTITY`                                     | Amount spent and quantity purchased     |
+| 🏬 Store    | `STORE_REGION`, `STORE_FORMAT`                          | Store region and store type             |
+| 📦 Product  | `PROD_CODE_20`, `PROD_CODE_30`                          | Main product group                      |
+| 🎯 Label    | `BASKET_PRICE_SENSITIVITY`                              | Price sensitivity – Low / Medium / High |
 
-### 2.2 Mục tiêu bài toán
+### 2.2 Problem Objective
 
-**Xây dựng mô hình machine learning phân loại đa lớp (multi-class) để dự đoán mức độ nhạy giá (Low / Medium / High) của khách hàng trong mỗi giao dịch, dựa trên đặc trưng của giỏ hàng, cửa hàng và hành vi mua sắm.**
+**Build a multi-class supervised machine learning classifier to predict customer price sensitivity (Low / Medium / High) for each transaction, based on basket features, store context, and shopping behavior.**
 
-💡 **Ứng dụng**: Phân nhóm khách hàng theo độ nhạy giá → định giá linh hoạt, cá nhân hoá khuyến mãi và tối ưu doanh thu.
+💡 **Use case**: Segment customers by price sensitivity → enable dynamic pricing, personalized promotions, and revenue optimization.
 
-### 2.3 Loại bài toán và mô hình
+### 2.3 Problem Type and Models
 
-**Loại**: Phân loại đa lớp (Supervised Learning)
+**Type**: Multi-class classification (Supervised Learning)
 
-**Mô hình dự kiến**:
+**Planned models**:
 
-| **Mô hình**                    | **Lý do**                              |
-| ------------------------------ | -------------------------------------- |
-| Decision Tree                  | Dễ giải thích feature impact           |
-| Random Forest                  | Độ chính xác cao, giảm overfitting     |
-| Logistic Regression (multi-class) | Baseline so sánh                       |
-| XGBoost                        | Hiệu quả với tabular data              |
+| **Model**                         | **Reason**                         |
+| --------------------------------- | ---------------------------------- |
+| Decision Tree                     | Easy to interpret feature impact   |
+| Random Forest                     | High accuracy, reduces overfitting |
+| Logistic Regression (multi-class) | Baseline for comparison            |
+| XGBoost                           | Strong performance on tabular data |
 
-**Đánh giá**: Accuracy, Precision, Recall, F1-score, Confusion Matrix
+**Evaluation**: Accuracy, Precision, Recall, F1-score, Confusion Matrix
 
-### 2.4 Kiến trúc tổng thể (AWS MLOps)
+### 2.4 Overall Architecture (AWS MLOps)
 
-**Thành phần chính**:
+**Core components**:
 
-- **Amazon S3**: Lưu raw/silver/gold dataset, partition theo `STORE_REGION`, `BASKET_TYPE`
-- **Glue/Athena**: ETL và khám phá dữ liệu
-- **SageMaker Feature Store**: Quản lý feature parity train ↔ inference
-- **SageMaker Training & Model Registry**: Huấn luyện và phiên bản mô hình
-- **EKS (FastAPI)**: Triển khai API real-time dự đoán độ nhạy giá
-- **CloudWatch**: Theo dõi độ trễ, accuracy thực tế, chi phí
+- **Amazon S3**: Store raw/silver/gold datasets, partitioned by `STORE_REGION`, `BASKET_TYPE`
+- **Glue/Athena**: ETL and data exploration
+- **SageMaker Feature Store**: Manage feature parity between training ↔ inference
+- **SageMaker Training & Model Registry**: Model training and versioning
+- **EKS (FastAPI)**: Deploy a real-time price sensitivity prediction API
+- **CloudWatch**: Track latency, real-world accuracy, and costs
 
-### 2.5 KPI và kết quả kỳ vọng
+### 2.5 KPIs and Expected Results
 
-| **Nhóm**  | **Chỉ số**              | **Mục tiêu** |
-| --------- | ------------------------ | ------------ |
-| ML        | Accuracy                 | ≥ 0.75       |
-| ML        | Macro F1                 | ≥ 0.70       |
-| ML        | Precision (per class)    | ≥ 0.65       |
-| Ops       | P95 latency (API)        | < 200 ms     |
-| Ops       | Throughput (requests/s)  | ≥ 100        |
-| Business  | Giảm sai sót định giá    | ≥ 10%        |
-| Cost      | Infrastructure cost/month | < $500       |
+| **Group** | **Metric**                | **Target** |
+| --------- | ------------------------- | ---------- |
+| ML        | Accuracy                  | ≥ 0.75     |
+| ML        | Macro F1                  | ≥ 0.70     |
+| ML        | Precision (per class)     | ≥ 0.65     |
+| Ops       | P95 latency (API)         | < 200 ms   |
+| Ops       | Throughput (requests/s)   | ≥ 100      |
+| Business  | Reduce pricing mistakes   | ≥ 10%      |
+| Cost      | Infrastructure cost/month | < $500     |
 
 ## 3. Project Structure
 
-Dự án được tổ chức theo cấu trúc modularity với separation of concerns rõ ràng:
+The project is organized in a modular structure with clear separation of concerns:
 
-```
+```text
 retail-forecast/
 ├── README.md                    # Project overview & setup guide
 ├── .gitignore                   # Git ignore patterns
@@ -164,146 +165,165 @@ retail-forecast/
     └── (test files)             # Unit & integration tests
 ```
 
-### 3.1 Cấu trúc thư mục chi tiết
+### 3.1 Detailed Folder Structure
 
 **📂 `aws/` - AWS Implementation**
+
 - `infra/`: Terraform Infrastructure as Code
-- `k8s/`: Kubernetes manifests cho EKS deployment
-- `script/`: Python scripts cho SageMaker automation
+- `k8s/`: Kubernetes manifests for EKS deployment
+- `script/`: Python scripts for SageMaker automation
 - CI/CD configurations (Jenkins, Travis)
 
-**📂 `azure/` - Azure Implementation** 
-- `infra/`: Bicep templates cho Azure resources
+**📂 `azure/` - Azure Implementation**
+
+- `infra/`: Bicep templates for Azure resources
 - `aml/`: Azure ML configurations
 - `k8s/`: AKS manifests
 - Azure DevOps pipeline
 
 **📂 `core/` - Shared Components**
-- Common ML utilities và libraries
-- Shared dependencies và configurations
+
+- Common ML utilities and libraries
+- Shared dependencies and configurations
 
 **📂 `server/` - Inference API**
+
 - FastAPI application
 - Docker containerization
 - API documentation
 
 **📂 `tests/` - Testing Framework**
-- Unit tests cho ML pipeline
-- Integration tests cho infrastructure
+
+- Unit tests for the ML pipeline
+- Integration tests for infrastructure
 - End-to-end testing scenarios
 
-## 4. Công nghệ sử dụng
+## 4. Technologies Used
 
 ### 4.1 Infrastructure & Platform Stack
-- **Infrastructure as Code**: Terraform cho automated provisioning
-- **Container Platform**: Amazon EKS (Kubernetes) với managed node groups
-- **Container Registry**: Amazon ECR với vulnerability scanning  
-- **Networking**: VPC multi-AZ, NAT gateways, security groups
-- **Load Balancing**: Application Load Balancer với health checks
+
+- **Infrastructure as Code**: Terraform for automated provisioning
+- **Container Platform**: Amazon EKS (Kubernetes) with managed node groups
+- **Container Registry**: Amazon ECR with vulnerability scanning
+- **Networking**: Multi-AZ VPC, NAT gateways, security groups
+- **Load Balancing**: Application Load Balancer with health checks
 
 ### 4.2 ML & Data Platform Stack
-- **ML Training**: Amazon SageMaker với distributed training
-- **Data Storage**: Amazon S3 data lake với versioning
-- **Model Registry**: SageMaker Model Registry cho version control
-- **Data Processing**: Automated preprocessing và feature engineering
-- **ML Framework**: TensorFlow/PyTorch trên SageMaker training jobs
+
+- **ML Training**: Amazon SageMaker with distributed training
+- **Data Storage**: Amazon S3 data lake with versioning
+- **Model Registry**: SageMaker Model Registry for version control
+- **Data Processing**: Automated preprocessing and feature engineering
+- **ML Framework**: TensorFlow/PyTorch on SageMaker training jobs
 
 ### 4.3 DevOps & Security Stack
-- **CI/CD Platform**: Jenkins hoặc Travis CI cho automated pipelines
-- **Monitoring**: CloudWatch (logs, metrics, dashboards, alarms)
-- **Security**: KMS encryption, CloudTrail audit, IAM với IRSA
-- **DataOps**: S3-based data versioning và lifecycle management
 
-## 5. Kiến trúc MLOps chi tiết
+- **CI/CD Platform**: Jenkins or Travis CI for automated pipelines
+- **Monitoring**: CloudWatch (logs, metrics, dashboards, alarms)
+- **Security**: KMS encryption, CloudTrail auditing, IAM with IRSA
+- **DataOps**: S3-based data versioning and lifecycle management
+
+## 5. Detailed MLOps Architecture
 
 ### 5.1 Phase 1: Infrastructure Foundation
 
 **Terraform Infrastructure as Code**
-- VPC với multi-AZ public/private subnets
-- EKS cluster với managed node groups (auto-scaling)
-- IAM roles với IRSA (IAM Roles for Service Accounts)
-- Security groups với least privilege access
-- ECR repositories cho container images
+
+- VPC with multi-AZ public/private subnets
+- EKS cluster with managed node groups (auto-scaling)
+- IAM roles with IRSA (IAM Roles for Service Accounts)
+- Security groups using least privilege access
+- ECR repositories for container images
 
 **Network Architecture**
+
 - Public subnets: NAT Gateway, Load Balancer
 - Private subnets: EKS worker nodes, SageMaker
-- VPC endpoints: S3, ECR, CloudWatch (giảm data transfer cost)
+- VPC endpoints: S3, ECR, CloudWatch (reduce data transfer costs)
 
 ### 5.2 Phase 2: ML Training & Model Management
 
 **SageMaker Training Pipeline**
-- **Data Ingestion**: S3 data lake với automated validation
-- **Distributed Training**: SageMaker training jobs với spot instances
-- **Model Registry**: Versioned model artifacts với metadata tracking
-- **Experiment Tracking**: Performance metrics và hyperparameter tuning
+
+- **Data Ingestion**: S3 data lake with automated validation
+- **Distributed Training**: SageMaker training jobs with Spot Instances
+- **Model Registry**: Versioned model artifacts with metadata tracking
+- **Experiment Tracking**: Performance metrics and hyperparameter tuning
 
 **Data Management Strategy**
+
 - Raw data → Processed data → Feature store → Model artifacts
-- S3 intelligent tiering cho cost optimization
-- Data lineage tracking và version control
+- S3 Intelligent-Tiering for cost optimization
+- Data lineage tracking and version control
 
 ### 5.3 Phase 3: Containerized Inference Platform
 
 **EKS Deployment Architecture**
+
 - **Docker Containers**: FastAPI inference service
-- **Kubernetes Deployment**: Rolling updates với zero downtime  
-- **Horizontal Pod Autoscaler**: Dynamic scaling dựa trên CPU/memory
+- **Kubernetes Deployment**: Rolling updates with zero downtime
+- **Horizontal Pod Autoscaler**: Dynamic scaling based on CPU/memory
 - **Service Discovery**: Internal service communication
-- **Application Load Balancer**: External access với SSL termination
+- **Application Load Balancer**: External access with SSL termination
 
 **Monitoring & Observability**
-- **CloudWatch Logs**: Centralized logging từ tất cả components
+
+- **CloudWatch Logs**: Centralized logging from all components
 - **Custom Metrics**: Model performance, latency, throughput
-- **Alarms & Notifications**: Automated alerting khi có issues
-- **Dashboards**: Real-time visualization của system health
+- **Alarms & Notifications**: Automated alerting when issues occur
+- **Dashboards**: Real-time visualization of system health
 
 ### 5.4 Phase 4: CI/CD & Automation
 
 **Automated Pipeline Flow**
+
 ```bash
 1. Code/Data Change → Git Webhook
 2. Jenkins/Travis Build → Run Tests
-3. SageMaker Training → Model Validation  
+3. SageMaker Training → Model Validation
 4. Docker Build → Push to ECR
 5. Kubernetes Deploy → Rolling Update
 6. Health Check → Monitor Performance
 ```
 
 **DataOps Workflow**
-- **Data Versioning**: S3 với metadata tracking
-- **Data Quality**: Automated validation và testing
+
+- **Data Versioning**: S3 with metadata tracking
+- **Data Quality**: Automated validation and testing
 - **Feature Engineering**: Reproducible pipelines
 - **Model Deployment**: A/B testing capabilities
 
 ## 6. Scope & Expected Outcomes
 
 ### 6.1 In Scope
-✅ **Complete Infrastructure**: Terraform IaC cho toàn bộ AWS resources  
-✅ **ML Training**: SageMaker distributed training với hyperparameter tuning  
-✅ **Container Deployment**: EKS với autoscaling và load balancing  
-✅ **Security Best Practices**: KMS encryption, CloudTrail audit, IAM least privilege  
-✅ **Monitoring & Alerting**: CloudWatch comprehensive monitoring  
-✅ **CI/CD Automation**: End-to-end pipeline từ code đến production  
-✅ **Cost Optimization**: Auto-scaling, spot instances, lifecycle policies  
+
+✅ **Complete Infrastructure**: Terraform IaC for all AWS resources  
+✅ **ML Training**: SageMaker distributed training with hyperparameter tuning  
+✅ **Container Deployment**: EKS with autoscaling and load balancing  
+✅ **Security Best Practices**: KMS encryption, CloudTrail auditing, IAM least privilege  
+✅ **Monitoring & Alerting**: Comprehensive CloudWatch monitoring  
+✅ **CI/CD Automation**: End-to-end pipeline from code to production  
+✅ **Cost Optimization**: Auto-scaling, Spot Instances, lifecycle policies
 
 ### 6.2 Out of Scope
+
 ❌ Multi-region deployment (focus on ap-southeast-1)  
 ❌ Advanced ML features (A/B testing, canary deployments)  
 ❌ Real-time streaming inference (batch-focused)  
-❌ Custom monitoring solutions (CloudWatch-only)  
+❌ Custom monitoring solutions (CloudWatch-only)
 
 ### 6.3 Expected Outcomes
+
 🎯 **Production-Ready MLOps Platform**: Scalable, reliable, cost-effective  
-🎯 **Automated ML Lifecycle**: Từ data ingestion đến model deployment  
+🎯 **Automated ML Lifecycle**: From data ingestion to model deployment  
 🎯 **Infrastructure Reproducibility**: Terraform state management  
-🎯 **Operational Excellence**: Comprehensive monitoring và alerting  
-🎯 **Cost Efficiency**: Optimized resource usage với auto-scaling  
+🎯 **Operational Excellence**: Comprehensive monitoring and alerting  
+🎯 **Cost Efficiency**: Optimized resource usage with auto-scaling
 
 {{% notice info %}}
-Kiến trúc này được thiết kế để support enterprise-grade ML workloads với khả năng scale từ proof-of-concept đến production với hàng triệu requests/day.
+This architecture is designed to support enterprise-grade ML workloads, scaling from proof-of-concept to production with millions of requests/day.
 {{% /notice %}}
 
 {{% notice warning %}}
-**Prerequisites**: AWS account với permissions cho EKS, SageMaker, ECR, S3, CloudWatch, IAM. Terraform >= 1.0, kubectl, AWS CLI, Docker, Python 3.8+.
+**Prerequisites**: AWS account with permissions for EKS, SageMaker, ECR, S3, CloudWatch, IAM. Terraform >= 1.0, kubectl, AWS CLI, Docker, Python 3.8+.
 {{% /notice %}}
