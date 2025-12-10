@@ -106,7 +106,6 @@ pre: "<b>5. </b>"
   <p style="color: #64748b; font-size: 16px; margin: 0 0 20px 0; max-width: 600px; margin-left: auto; margin-right: auto;">
     End-to-end MLOps pipeline từ Infrastructure as Code đến Model Deployment với Monitoring và Cost Optimization cho Retail Prediction
   </p>
-  
 
   <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 20px;">
     <div style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🏗️ Infrastructure</div>

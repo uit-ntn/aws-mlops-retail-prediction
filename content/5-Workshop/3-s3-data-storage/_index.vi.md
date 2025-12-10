@@ -29,7 +29,7 @@ Tập trung vào:
   {{% /notice %}}
 
 ---
- 
+
 📥 **Input từ Task 2:** `IAM Roles & Audit` — account ID, IAM roles/policies and CloudTrail/audit setup required to create buckets, Glue roles and permissions.
 
 ## 🔧 Môi trường lab thực tế
@@ -117,7 +117,7 @@ Default encryption: ✅ SSE-S3
 
 <!-- IMAGE PLACEHOLDER: Create-bucket - paste screenshot here -->
 
-![Placeholder - Create bucket](../images/s3-data-storage/placeholder-create-bucket.png)
+![Placeholder - Create bucket](/images/s3-data-storage/placeholder-create-bucket.png)
 
 ---
 
@@ -137,7 +137,7 @@ artifacts/
 
 <!-- IMAGE PLACEHOLDER: Create-folders - paste screenshot here -->
 
-![Placeholder - Create folders](../images/s3-data-storage/placeholder-folders.png)
+![Placeholder - Create folders](/images/s3-data-storage/placeholder-folders.png)
 
 ---
 
@@ -163,7 +163,7 @@ Scope: Entire bucket (hoặc prefix cụ thể: raw/, silver/, gold/, artifacts/
 
 <!-- IMAGE PLACEHOLDER: Intelligent-tiering - paste screenshot here -->
 
-![Placeholder - Intelligent Tiering](../images/s3-data-storage/placeholder-intelligent-tiering.png)
+![Placeholder - Intelligent Tiering](/images/s3-data-storage/placeholder-intelligent-tiering.png)
 
 ---
 
@@ -179,7 +179,7 @@ Trên S3 Console:
 
 <!-- IMAGE PLACEHOLDER: Upload-csv - paste screenshot here -->
 
-![Placeholder - Upload CSV](../images/s3-data-storage/placeholder-upload.png)
+![Placeholder - Upload CSV](/images/s3-data-storage/placeholder-upload.png)
 
 ---
 
@@ -239,7 +239,7 @@ Delimiter: ,
 
 <!-- IMAGE PLACEHOLDER: Glue Source config - paste screenshot here -->
 
-![Placeholder - Glue Source](../images/s3-data-storage/placeholder-glue-source.png)
+![Placeholder - Glue Source](/images/s3-data-storage/placeholder-glue-source.png)
 
 Tóm tắt:
 
@@ -270,7 +270,7 @@ Tóm tắt:
 
 <!-- IMAGE PLACEHOLDER: Transform schema - paste screenshot here -->
 
-![Placeholder - Transform schema](../images/s3-data-storage/placeholder-transform.png)
+![Placeholder - Transform schema](/images/s3-data-storage/placeholder-transform.png)
 
 **Lợi ích:**
 
@@ -296,18 +296,18 @@ Partition keys: SHOP_WEEK (khuyến nghị)
 
 _Minh họa:_
 
--- Target config: `../images/s3-data-storage/target-config.png`
--- Toàn pipeline: `../images/s3-data-storage/04-glue-etl.png`
+-- Target config: `/images/s3-data-storage/target-config.png`
+-- Toàn pipeline: `/images/s3-data-storage/04-glue-etl.png`
 
 <!-- IMAGE PLACEHOLDER: Glue Target / Pipeline - paste screenshot here -->
 
-![Placeholder - Glue Target](../images/s3-data-storage/placeholder-glue-target.png)
+![Placeholder - Glue Target](/images/s3-data-storage/placeholder-glue-target.png)
 
 4. **Save & Run job** → theo dõi **Job run details** → kiểm tra output trong `silver/`.
 
-![Placeholder - Glue Target](../images/s3-data-storage/04-glue-etl.png)
+![Placeholder - Glue Target](/images/s3-data-storage/04-glue-etl.png)
 
-![Placeholder - Glue Target](../images/s3-data-storage/result-in-silver.png)
+![Placeholder - Glue Target](/images/s3-data-storage/result-in-silver.png)
 
 ---
 
@@ -343,10 +343,10 @@ Log chi tiết đã hiện trong CloudShell.)
 {{% /notice %}}
 
 Kết quả đo đọc CSV:
-![Placeholder - CloudShell benchmark](../images/s3-data-storage/placeholder-cloudshell.png)
+![Placeholder - CloudShell benchmark](/images/s3-data-storage/placeholder-cloudshell.png)
 
 Kết quả đo đọc Parquet:
-![Placeholder - CloudShell benchmark](../images/s3-data-storage/placeholder-cloudshell-parquet.png)
+![Placeholder - CloudShell benchmark](/images/s3-data-storage/placeholder-cloudshell-parquet.png)
 
 ---
 
@@ -430,7 +430,7 @@ aws s3 cp s3://mlops-retail-prediction-dev-842676018087/silver/shop_week=200607/
 
 <!-- IMAGE PLACEHOLDER: Local download - paste screenshot here -->
 
-## ![Placeholder - Local download](../images/s3-data-storage/placeholder-local-download.png)
+## ![Placeholder - Local download](/images/s3-data-storage/placeholder-local-download.png)
 
 ### 6.2. Script benchmark
 
@@ -485,8 +485,7 @@ python local_benchmark.py
 
 ### 6.3. Log thực tế
 
-## ![Placeholder - Local download](../images/s3-data-storage/placeholder-result-readfile.png)
-
+## ![Placeholder - Local download](/images/s3-data-storage/placeholder-result-readfile.png)
 
 **Nhận xét:**
 
@@ -541,7 +540,7 @@ Ví dụ policy:
     }
   ]
 }
-````
+```
 
 ---
 
@@ -635,52 +634,55 @@ aws iam delete-role --role-name GlueETLRole
 
 ### 10.1. Chi phí lưu trữ theo class
 
-| Storage Class | Giá (USD/GB/tháng) | Minimum Duration | Ghi chú |
-|---------------|-------------------|------------------|---------|
-| **S3 Standard** | $0.025 | None | Frequent access |
-| **S3 Standard-IA** | $0.0138 | 30 days | Infrequent access |
-| **S3 One Zone-IA** | $0.011 | 30 days | Single AZ |
-| **S3 Glacier Instant** | $0.005 | 90 days | Archive, instant retrieval |
-| **S3 Glacier Flexible** | $0.0045 | 90 days | Archive, 1-12 hours retrieval |
-| **S3 Deep Archive** | $0.002 | 180 days | Long-term archive, 12+ hours |
+| Storage Class           | Giá (USD/GB/tháng) | Minimum Duration | Ghi chú                       |
+| ----------------------- | ------------------ | ---------------- | ----------------------------- |
+| **S3 Standard**         | $0.025             | None             | Frequent access               |
+| **S3 Standard-IA**      | $0.0138            | 30 days          | Infrequent access             |
+| **S3 One Zone-IA**      | $0.011             | 30 days          | Single AZ                     |
+| **S3 Glacier Instant**  | $0.005             | 90 days          | Archive, instant retrieval    |
+| **S3 Glacier Flexible** | $0.0045            | 90 days          | Archive, 1-12 hours retrieval |
+| **S3 Deep Archive**     | $0.002             | 180 days         | Long-term archive, 12+ hours  |
 
 ### 10.2. Chi phí requests
 
-| Request Type | Giá (USD/1000 requests) | Ghi chú |
-|--------------|-------------------------|---------|
-| **PUT/POST/LIST** | $0.0055 | Write operations |
-| **GET/SELECT** | $0.00044 | Read operations |
-| **Data Transfer OUT** | $0.12/GB | First 1GB free/month |
+| Request Type          | Giá (USD/1000 requests) | Ghi chú              |
+| --------------------- | ----------------------- | -------------------- |
+| **PUT/POST/LIST**     | $0.0055                 | Write operations     |
+| **GET/SELECT**        | $0.00044                | Read operations      |
+| **Data Transfer OUT** | $0.12/GB                | First 1GB free/month |
 
 ### 10.3. Ước tính chi phí cho project
 
 **Dữ liệu hiện tại:**
+
 - Raw CSV: 4.59 GB
-- Silver Parquet: 0.46 GB  
+- Silver Parquet: 0.46 GB
 - **Tổng:** ~5 GB
 
 **Chi phí hàng tháng (S3 Standard):**
 
-| Component | Size | Price/GB | Monthly Cost |
-|-----------|------|----------|--------------|
-| Raw data (CSV) | 4.59 GB | $0.025 | $0.11 |
-| Silver data (Parquet) | 0.46 GB | $0.025 | $0.01 |
-| Gold + artifacts | ~0.5 GB | $0.025 | $0.01 |
-| **Total Storage** | **~5.5 GB** | | **$0.14** |
-| Requests (ước tính) | ~1000 req | $0.0055 | $0.006 |
-| **Grand Total** | | | **≈ $0.15/month** |
+| Component             | Size        | Price/GB | Monthly Cost      |
+| --------------------- | ----------- | -------- | ----------------- |
+| Raw data (CSV)        | 4.59 GB     | $0.025   | $0.11             |
+| Silver data (Parquet) | 0.46 GB     | $0.025   | $0.01             |
+| Gold + artifacts      | ~0.5 GB     | $0.025   | $0.01             |
+| **Total Storage**     | **~5.5 GB** |          | **$0.14**         |
+| Requests (ước tính)   | ~1000 req   | $0.0055  | $0.006            |
+| **Grand Total**       |             |          | **≈ $0.15/month** |
 
 **Với Intelligent Tiering:**
+
 - Sau 30 ngày: Raw data chuyển Standard-IA → tiết kiệm ~45%
 - Sau 90 ngày: Old artifacts chuyển Glacier → tiết kiệm ~80%
 - **Ước tính tiết kiệm:** ~$0.05-0.08/month
 
 {{% notice info %}}
 **💰 Chi phí Storage tối ưu**
+
 - **Hiện tại:** ~$0.15/month cho 5.5GB
-- **Với Intelligent Tiering:** ~$0.07-0.10/month  
+- **Với Intelligent Tiering:** ~$0.07-0.10/month
 - **Parquet format:** Giảm 90% dung lượng so với CSV
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 
@@ -712,4 +714,4 @@ aws iam delete-role --role-name GlueETLRole
 
 ---
 
-**Next Step**: [Task 4: SageMaker Training](../4-sagemaker-training/) 
+**Next Step**: [Task 4: SageMaker Training](../4-sagemaker-training/)

@@ -26,7 +26,7 @@ aws logs create-log-group \
   --log-group-name /aws/containerinsights/mlops-retail-cluster/application \
   --retention-in-days 7
 ```
- 
+
 {{% notice tip %}}
 **Tip:** Chọn retention hợp lý (ví dụ 7–30 ngày) cho log groups dựa trên yêu cầu debug và compliance để cân bằng chi phí và khả năng truy vết.
 {{% /notice %}}
@@ -58,10 +58,10 @@ aws cloudwatch put-metric-alarm \
   --comparison-operator GreaterThanThreshold \
   --dimensions Name=ClusterName,Value=mlops-retail-cluster
 ```
- 
-  {{% notice info %}}
-  **Info:** Nên cấu hình action cho alarms (ví dụ SNS topic hoặc webhook tới PagerDuty) để tự động thông báo cho team khi alarm trigger. Kiểm tra kỹ metric namespace và dimension trước khi bật alarm.
-  {{% /notice %}}
+
+{{% notice info %}}
+**Info:** Nên cấu hình action cho alarms (ví dụ SNS topic hoặc webhook tới PagerDuty) để tự động thông báo cho team khi alarm trigger. Kiểm tra kỹ metric namespace và dimension trước khi bật alarm.
+{{% /notice %}}
 
 ## 3. SageMaker Training Logs
 
@@ -97,9 +97,9 @@ aws logs start-query \
   --start-time $(date -d '24 hour ago' +%s) \
   --end-time $(date +%s) \
   --query-string '
-    filter @message like "loss" 
-    | parse @message "loss: *," as loss_value 
-    | parse @message "epoch * " as epoch_num 
+    filter @message like "loss"
+    | parse @message "loss: *," as loss_value
+    | parse @message "epoch * " as epoch_num
     | stats avg(loss_value) as avg_loss by bin(1h)'
 
 # Tạo metric filter cho training loss
@@ -110,7 +110,7 @@ aws logs put-metric-filter \
   --metric-transformations \
       metricName=TrainingLoss,metricNamespace=RetailMLOps,metricValue=1,unit=None
 ```
- 
+
 {{% notice warning %}}
 **Warning:** SageMaker training logs có thể sinh lượng lớn dữ liệu (đặc biệt khi in nhiều dòng hoặc debug verbose). Giới hạn level logging trong training scripts và cân nhắc filter/metric extraction để tránh chi phí ingestion/storage đột biến.
 {{% /notice %}}
@@ -134,11 +134,12 @@ aws logs describe-log-streams \
 
 {{% notice success %}}
 **🎯 Task 10 Complete - CloudWatch Monitoring**
+
 - **Container Insights** enabled cho EKS cluster
 - **CloudWatch Alarms** configured cho CPU/Memory
 - **SageMaker training logs** với custom metrics
 - **Log Groups** với retention policy
-{{% /notice %}}
+  {{% /notice %}}
 
 {{% notice info %}}
 **Note:** Trước khi xóa log groups hoặc metric filters, export hoặc snapshot dashboard quan trọng (ví dụ Grafana/CSV) nếu cần lưu trữ cho audit hoặc so sánh sau này.
@@ -271,31 +272,31 @@ kubectl get namespaces | grep cloudwatch
 
 ### 6.1. CloudWatch Logs Pricing
 
-| Service | Ingestion | Storage | Analysis |
-|---------|-----------|---------|----------|
-| **Log Ingestion** | $0.67/GB | - | - |
-| **Log Storage** | - | $0.033/GB/month | - |
-| **Log Insights** | - | - | $0.0067/GB scanned |
+| Service           | Ingestion | Storage         | Analysis           |
+| ----------------- | --------- | --------------- | ------------------ |
+| **Log Ingestion** | $0.67/GB  | -               | -                  |
+| **Log Storage**   | -         | $0.033/GB/month | -                  |
+| **Log Insights**  | -         | -               | $0.0067/GB scanned |
 
 ### 6.2. Container Insights Pricing
 
-| Component | Volume | Monthly Cost | Description |
-|-----------|---------|--------------|-------------|
-| **Performance Logs** | ~2GB/month | $1.34 | Node và Pod metrics |
-| **Application Logs** | ~1GB/month | $0.67 | Container stdout/stderr |
-| **Storage (30 days)** | 3GB total | $0.099 | Log retention |
-| **Insights Queries** | ~0.5GB scanned | $0.0034 | Monthly analysis |
-| **Total Container Insights** | | **$2.11/month** | Per cluster |
+| Component                    | Volume         | Monthly Cost    | Description             |
+| ---------------------------- | -------------- | --------------- | ----------------------- |
+| **Performance Logs**         | ~2GB/month     | $1.34           | Node và Pod metrics     |
+| **Application Logs**         | ~1GB/month     | $0.67           | Container stdout/stderr |
+| **Storage (30 days)**        | 3GB total      | $0.099          | Log retention           |
+| **Insights Queries**         | ~0.5GB scanned | $0.0034         | Monthly analysis        |
+| **Total Container Insights** |                | **$2.11/month** | Per cluster             |
 
 ### 6.3. CloudWatch Alarms và Metrics
 
-| Feature | Quantity | Unit Cost | Monthly Cost |
-|---------|----------|-----------|--------------|
-| **Standard Metrics** | Free | $0 | $0 |
-| **Custom Metrics** | 10 metrics | $0.30/metric | $3.00 |
-| **Alarms** | 5 alarms | $0.10/alarm | $0.50 |
-| **API Calls** | 1M calls | $0.01/1000 calls | $10.00 |
-| **Total Monitoring** | | | **$13.50/month** |
+| Feature              | Quantity   | Unit Cost        | Monthly Cost     |
+| -------------------- | ---------- | ---------------- | ---------------- |
+| **Standard Metrics** | Free       | $0               | $0               |
+| **Custom Metrics**   | 10 metrics | $0.30/metric     | $3.00            |
+| **Alarms**           | 5 alarms   | $0.10/alarm      | $0.50            |
+| **API Calls**        | 1M calls   | $0.01/1000 calls | $10.00           |
+| **Total Monitoring** |            |                  | **$13.50/month** |
 
 ### 6.4. SageMaker Training Logs
 
@@ -305,21 +306,21 @@ kubectl get namespaces | grep cloudwatch
 # With 4 training jobs per month
 ```
 
-| Training Scenario | Log Volume | Ingestion Cost | Storage Cost | Total Cost |
-|-------------------|------------|----------------|--------------|------------|
-| **Single Training** | 100MB | $0.067 | $0.0033 | $0.070 |
-| **4 Jobs/month** | 400MB | $0.268 | $0.013 | $0.281 |
-| **Daily Training** | 3GB/month | $2.01 | $0.099 | $2.11 |
+| Training Scenario   | Log Volume | Ingestion Cost | Storage Cost | Total Cost |
+| ------------------- | ---------- | -------------- | ------------ | ---------- |
+| **Single Training** | 100MB      | $0.067         | $0.0033      | $0.070     |
+| **4 Jobs/month**    | 400MB      | $0.268         | $0.013       | $0.281     |
+| **Daily Training**  | 3GB/month  | $2.01          | $0.099       | $2.11      |
 
 ### 6.5. CloudWatch Dashboards
 
-| Dashboard Type | Widgets | Monthly Cost | Use Case |
-|----------------|---------|--------------|----------|
-| **Basic Dashboard** | 3 widgets | $3.00 | EKS cluster overview |
-| **Detailed Dashboard** | 10 widgets | $3.00 | Full MLOps monitoring |
-| **Custom Dashboard** | 20 widgets | $3.00 | Multi-service view |
+| Dashboard Type         | Widgets    | Monthly Cost | Use Case              |
+| ---------------------- | ---------- | ------------ | --------------------- |
+| **Basic Dashboard**    | 3 widgets  | $3.00        | EKS cluster overview  |
+| **Detailed Dashboard** | 10 widgets | $3.00        | Full MLOps monitoring |
+| **Custom Dashboard**   | 20 widgets | $3.00        | Multi-service view    |
 
-*Note: CloudWatch Dashboard pricing is $3.00/month per dashboard, regardless of widget count*
+_Note: CloudWatch Dashboard pricing is $3.00/month per dashboard, regardless of widget count_
 
 ### 6.6. Log Insights Query Costs
 
@@ -327,30 +328,30 @@ kubectl get namespaces | grep cloudwatch
 # Example query costs for different scenarios
 ```
 
-| Query Type | Data Scanned | Cost per Query | Monthly Queries | Monthly Cost |
-|------------|---------------|----------------|-----------------|--------------|
-| **Error Analysis** | 100MB | $0.00067 | 50 | $0.034 |
-| **Performance Review** | 500MB | $0.0034 | 20 | $0.068 |
-| **Full Log Search** | 2GB | $0.013 | 10 | $0.13 |
-| **Total Query Cost** | | | | **$0.23/month** |
+| Query Type             | Data Scanned | Cost per Query | Monthly Queries | Monthly Cost    |
+| ---------------------- | ------------ | -------------- | --------------- | --------------- |
+| **Error Analysis**     | 100MB        | $0.00067       | 50              | $0.034          |
+| **Performance Review** | 500MB        | $0.0034        | 20              | $0.068          |
+| **Full Log Search**    | 2GB          | $0.013         | 10              | $0.13           |
+| **Total Query Cost**   |              |                |                 | **$0.23/month** |
 
 ### 6.7. Data Transfer Costs
 
-| Transfer Type | Volume | Cost | Monthly Estimate |
-|---------------|---------|------|------------------|
-| **CloudWatch API** | 1GB/month | $0.12/GB | $0.12 |
-| **Log Streaming** | 500MB/month | $0.12/GB | $0.06 |
-| **Cross-AZ Logs** | 200MB/month | $0.01/GB | $0.002 |
-| **Total Transfer** | | | **$0.18/month** |
+| Transfer Type      | Volume      | Cost     | Monthly Estimate |
+| ------------------ | ----------- | -------- | ---------------- |
+| **CloudWatch API** | 1GB/month   | $0.12/GB | $0.12            |
+| **Log Streaming**  | 500MB/month | $0.12/GB | $0.06            |
+| **Cross-AZ Logs**  | 200MB/month | $0.01/GB | $0.002           |
+| **Total Transfer** |             |          | **$0.18/month**  |
 
 ### 6.8. Retention Cost Analysis
 
-| Retention Period | Storage Multiplier | Cost Impact | Use Case |
-|------------------|-------------------|-------------|----------|
-| **1 day** | 1x | Baseline | Development |
-| **7 days** | 7x | 7x storage cost | Testing |
-| **30 days** | 30x | 30x storage cost | Production |
-| **1 year** | 365x | 365x storage cost | Compliance |
+| Retention Period | Storage Multiplier | Cost Impact       | Use Case    |
+| ---------------- | ------------------ | ----------------- | ----------- |
+| **1 day**        | 1x                 | Baseline          | Development |
+| **7 days**       | 7x                 | 7x storage cost   | Testing     |
+| **30 days**      | 30x                | 30x storage cost  | Production  |
+| **1 year**       | 365x               | 365x storage cost | Compliance  |
 
 ```bash
 # Example: 1GB/day logs with different retention
@@ -362,6 +363,7 @@ kubectl get namespaces | grep cloudwatch
 ### 6.9. Cost Optimization Strategies
 
 **Log Filtering:**
+
 ```bash
 # Chỉ log ERROR và WARNING levels
 aws logs put-metric-filter \
@@ -372,6 +374,7 @@ aws logs put-metric-filter \
 ```
 
 **Intelligent Log Routing:**
+
 ```yaml
 # Kubernetes fluent-bit configuration
 apiVersion: v1
@@ -393,6 +396,7 @@ data:
 ```
 
 **Metric Sampling:**
+
 ```bash
 # Sample metrics every 5 minutes instead of 1 minute
 aws cloudwatch put-metric-alarm \
@@ -406,39 +410,39 @@ aws cloudwatch put-metric-alarm \
 
 **Scenario 1: Basic Monitoring (Development)**
 
-| Component | Monthly Cost |
-|-----------|--------------|
-| Container Insights (basic) | $2.11 |
-| 3 CloudWatch Alarms | $0.30 |
-| 1 Dashboard | $3.00 |
-| Log storage (7 days) | $0.23 |
-| **Total Development** | **$5.64/month** |
+| Component                  | Monthly Cost    |
+| -------------------------- | --------------- |
+| Container Insights (basic) | $2.11           |
+| 3 CloudWatch Alarms        | $0.30           |
+| 1 Dashboard                | $3.00           |
+| Log storage (7 days)       | $0.23           |
+| **Total Development**      | **$5.64/month** |
 
 **Scenario 2: Production Monitoring**
 
-| Component | Monthly Cost |
-|-----------|--------------|
-| Container Insights (full) | $6.00 |
-| 10 CloudWatch Alarms | $1.00 |
-| 2 Dashboards | $6.00 |
-| SageMaker training logs | $0.28 |
-| Log storage (30 days) | $0.99 |
-| Custom metrics | $3.00 |
-| Log Insights queries | $0.23 |
-| **Total Production** | **$17.50/month** |
+| Component                 | Monthly Cost     |
+| ------------------------- | ---------------- |
+| Container Insights (full) | $6.00            |
+| 10 CloudWatch Alarms      | $1.00            |
+| 2 Dashboards              | $6.00            |
+| SageMaker training logs   | $0.28            |
+| Log storage (30 days)     | $0.99            |
+| Custom metrics            | $3.00            |
+| Log Insights queries      | $0.23            |
+| **Total Production**      | **$17.50/month** |
 
 **Scenario 3: Enterprise Monitoring**
 
-| Component | Monthly Cost |
-|-----------|--------------|
-| Container Insights (multi-cluster) | $12.00 |
-| 25 CloudWatch Alarms | $2.50 |
-| 5 Dashboards | $15.00 |
-| Daily SageMaker training | $2.11 |
-| Extended log retention | $5.00 |
-| Heavy custom metrics | $10.00 |
-| Frequent queries | $2.00 |
-| **Total Enterprise** | **$48.61/month** |
+| Component                          | Monthly Cost     |
+| ---------------------------------- | ---------------- |
+| Container Insights (multi-cluster) | $12.00           |
+| 25 CloudWatch Alarms               | $2.50            |
+| 5 Dashboards                       | $15.00           |
+| Daily SageMaker training           | $2.11            |
+| Extended log retention             | $5.00            |
+| Heavy custom metrics               | $10.00           |
+| Frequent queries                   | $2.00            |
+| **Total Enterprise**               | **$48.61/month** |
 
 ### 6.11. Monitoring Cost Commands
 
@@ -464,11 +468,12 @@ aws cloudwatch list-metrics \
 
 {{% notice info %}}
 **💰 Cost Summary cho Task 10:**
+
 - **Development:** $5.64/month (basic monitoring)
-- **Production:** $17.50/month (full monitoring) 
+- **Production:** $17.50/month (full monitoring)
 - **Enterprise:** $48.61/month (extensive monitoring)
 - **Optimization potential:** 30-50% cost reduction với log filtering và retention tuning
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 🎬 Video thực hiện Task 10
 

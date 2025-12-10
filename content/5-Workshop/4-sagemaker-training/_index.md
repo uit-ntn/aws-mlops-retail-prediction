@@ -50,7 +50,7 @@ Train a model to predict **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) using Am
    artifacts/     # model outputs (to be created)
    ```
 
-![S3 bucket placeholder](../images/4-sagemake-training/01-s3-bucket.png)
+![S3 bucket placeholder](/images/4-sagemake-training/01-s3-bucket.png)
 
 ### 1.2. Verify the IAM Role (from Task 2)
 
@@ -62,7 +62,7 @@ Train a model to predict **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) using Am
    - ✅ `AmazonS3FullAccess`
    - ✅ `CloudWatchLogsFullAccess`
 
-![IAM role placeholder](../images/4-sagemake-training/02-iam-role.png)
+![IAM role placeholder](/images/4-sagemake-training/02-iam-role.png)
 
 {{% notice warning %}}
 Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permissions for the KMS key; if you use cross-account S3, also verify the trust policy.
@@ -80,7 +80,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
    - **Sign in with SSO** (if SSO is configured)
    - **Sign in with AWS IAM** (using an IAM user/role)
 
-![SageMaker Unified Studio Login](../images/4-sagemake-training/04.1-domain.png)
+![SageMaker Unified Studio Login](/images/4-sagemake-training/04.1-domain.png)
 
 4. After sign-in, you will see the **SageMaker Unified Studio** interface
 5. The dashboard shows:
@@ -90,7 +90,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
    - **Build section**: ML and generative AI model development, Generative AI app development
    - **Browse all projects** and **Create project** buttons
 
-![SageMaker Unified Studio Dashboard](../images/4-sagemake-training/04.2-domain.png)
+![SageMaker Unified Studio Dashboard](/images/4-sagemake-training/04.2-domain.png)
 
 {{% notice info %}}
 **💡 SageMaker Unified Studio:**
@@ -110,7 +110,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 1. In the **Build** section, click **"Create project"** (blue button)
 2. Or click **"Browse all projects"** → **"Create project"**
 
-![Project Name and Description](../images/4-sagemake-training/05.2.png)
+![Project Name and Description](/images/4-sagemake-training/05.2.png)
 
 **Step 2: Fill in Project info (Step 1)**
 
@@ -118,7 +118,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 2. **Description**: `Retail price sensitivity model training`
 3. Click **Next** to go to Step 2
 
-![Project Name and Description](../images/4-sagemake-training/05.3.png)
+![Project Name and Description](/images/4-sagemake-training/05.3.png)
 
 **Step 2.5: Choose a Project Profile (Step 2)**
 
@@ -128,7 +128,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
    - **+ 12 more** capabilities
 2. Other options: **Generative AI application development**, **SQL analytics**
 
-![Project Profile Selection](../images/4-sagemake-training/05.4.png)
+![Project Profile Selection](/images/4-sagemake-training/05.4.png)
 
 **Step 3: Blueprint Parameters**
 
@@ -137,13 +137,13 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 - **Enable Project Repository Auto Sync**: false
 - **Lakehouse Database**: `glue_db`
 
-![Blueprint Parameters](../images/4-sagemake-training/05.5.png)
+![Blueprint Parameters](/images/4-sagemake-training/05.5.png)
 
 **Step 4: Create Project**
 
 - Review all settings and click **"Create project"**
 
-![Project Creation Final](../images/4-sagemake-training/05.5.png)
+![Project Creation Final](/images/4-sagemake-training/05.5.png)
 
 - Wait ~2–3 minutes for the project to be provisioned
 
@@ -173,9 +173,9 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 1. Click the **"New"** dropdown (blue button) → select **"Notebook"**
 2. The **New** dropdown shows options (as in the screenshot):
 
-![Project Overview](../images/4-sagemake-training/05.6.png)
+![Project Overview](/images/4-sagemake-training/05.6.png)
 
-![New Notebook Creation](../images/4-sagemake-training/06.1.png)
+![New Notebook Creation](/images/4-sagemake-training/06.1.png)
 
 - **Notebook** (select this option)
 
@@ -460,7 +460,7 @@ if 'Contents' in response:
 3. Name the notebook: `notebooks/retail-model-training.ipynb`
 4. Click **Create**
 
-![Create notebook](../images/4-sagemake-training/05.7.png)
+![Create notebook](/images/4-sagemake-training/05.7.png)
 
 **💡 Note:** The notebook will be saved in the Project repository and can be committed to CodeCommit.
 
@@ -736,7 +736,7 @@ print(f"  📊 F1-score ≥ {f1_target}: {'✅' if results['f1_score'] >= f1_tar
 ```
 
 **Result**
-![Training result](../images/4-sagemake-training/00.png)
+![Training result](/images/4-sagemake-training/00.png)
 
 {{% notice success %}}
 ✅ **Training complete!** The model meets target performance and is ready for the Model Registry.
@@ -751,19 +751,19 @@ In **SageMaker Studio (Unified Studio)**:
 1. Open **Build** in the left sidebar
 2. Select **Training jobs**
 
-![Training logs example](../images/4-sagemake-training/08.1.png)
+![Training logs example](/images/4-sagemake-training/08.1.png)
 
 3. Find a job starting with: `retail-prediction-training-`
 4. Click the **Training Job name** to open details
 
-![Training logs example](../images/4-sagemake-training/08.2.png)
+![Training logs example](/images/4-sagemake-training/08.2.png)
 
 5. Open the **Logs** tab to view real-time logs
 6. (Optional) Click **“Open in CloudWatch”** for full logs
 
-![Training logs example](../images/4-sagemake-training/08.3.png)
+![Training logs example](/images/4-sagemake-training/08.3.png)
 
-![Training logs example](../images/4-sagemake-training/08.4.png)
+![Training logs example](/images/4-sagemake-training/08.4.png)
 
 {{% notice info %}}
 **Info:**  
@@ -781,9 +781,9 @@ In the new SageMaker Unified Studio, Model Registry lives **inside each Project*
 
 **SageMaker Studio → Projects → mlops-retail-prediction → Models → Registered models**
 
-![Model registry](../images/4-sagemake-training/09.1.png)
+![Model registry](/images/4-sagemake-training/09.1.png)
 
-![Model registry](../images/4-sagemake-training/09.2.png)
+![Model registry](/images/4-sagemake-training/09.2.png)
 
 ### 6.2. Create a Model Group
 
@@ -793,23 +793,23 @@ In the new SageMaker Unified Studio, Model Registry lives **inside each Project*
    - **Description**: `Model group for retail price sensitivity prediction`
 3. Click **Register model group**
 
-![Model registry](../images/4-sagemake-training/09.3.png)
+![Model registry](/images/4-sagemake-training/09.3.png)
 
 The Model Group will appear in the list.
 
-![Model registry](../images/4-sagemake-training/09.4.png)
+![Model registry](/images/4-sagemake-training/09.4.png)
 
 ---
 
 ### 6.3. Register a Model Version after training
 
-![Model registry](../images/4-sagemake-training/09.5.png)
+![Model registry](/images/4-sagemake-training/09.5.png)
 
-![Model registry](../images/4-sagemake-training/09.6.png)
+![Model registry](/images/4-sagemake-training/09.6.png)
 
 1. Go to **Models → Registered models versions → Model groups**
 
-![Model registry](../images/4-sagemake-training/09.7.png)
+![Model registry](/images/4-sagemake-training/09.7.png)
 
 2. Select the group: **retail-price-sensitivity-models**
 3. Click **Register model**
@@ -823,13 +823,13 @@ The Model Group will appear in the list.
    - **Approval status**: `Pending manual approval`
 5. Click **Register**
 
-![Model registry](../images/4-sagemake-training/09.8.png)
+![Model registry](/images/4-sagemake-training/09.8.png)
 
 A new _Model Version_ will be created.
 
-![Model registry](../images/4-sagemake-training/09.9.png)
+![Model registry](/images/4-sagemake-training/09.9.png)
 
-![Model registry](../images/4-sagemake-training/09.10.png)
+![Model registry](/images/4-sagemake-training/09.10.png)
 
 ---
 
@@ -842,7 +842,7 @@ A new _Model Version_ will be created.
    - **Approved**
 5. Save
 
-![Model registry](../images/4-sagemake-training/09.11.png)
+![Model registry](/images/4-sagemake-training/09.11.png)
 
 ### Task 4 Completed
 

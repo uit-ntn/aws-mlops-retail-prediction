@@ -29,7 +29,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 - ✅ **Public Subnets**: ALB only (public API demo access)
 - ✅ **Internal Communication**: EKS ↔ S3 qua VPC Endpoints
 - ✅ **Demo Ready**: Public API endpoint qua ALB với SSL/health checks
-{{% /notice %}}
+  {{% /notice %}}
 
 📥 **Input**
 
@@ -47,7 +47,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 1. **Truy cập VPC Dashboard:**
    - AWS Console → VPC service → "Create VPC"
 
-![Create VPC Console](../images/05-vpc-networking/01-create-vpc-console.png)
+![Create VPC Console](/images/05-vpc-networking/01-create-vpc-console.png)
 
 2. **VPC Configuration:**
    ```
@@ -59,7 +59,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Enable DNS resolution: ✅ (Required for VPC Endpoints)
    ```
 
-![VPC Configuration](../images/05-vpc-networking/02-vpc-configuration.png)
+![VPC Configuration](/images/05-vpc-networking/02-vpc-configuration.png)
 
 ### 1.2. Tạo Subnets
 
@@ -85,7 +85,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Purpose: ALB + Internet Gateway access
 ```
 
-![Create Public Subnets](../images/05-vpc-networking/03.1-create-subnets.png)
+![Create Public Subnets](/images/05-vpc-networking/03.1-create-subnets.png)
 
 2. **Private Subnets (EKS Production):**
 
@@ -107,7 +107,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Purpose: EKS API Pods
 ```
 
-![Create Private Subnets](../images/05-vpc-networking/03.2-create-subnets.png)
+![Create Private Subnets](/images/05-vpc-networking/03.2-create-subnets.png)
 
 ### 1.3. Internet Gateway Setup
 
@@ -118,13 +118,13 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Purpose: Public access for ALB demo endpoint
    ```
 
-![Internet Gateway Setup](../images/05-vpc-networking/04.1-internet-gateway.png)
+![Internet Gateway Setup](/images/05-vpc-networking/04.1-internet-gateway.png)
 
 2. **Attach to VPC:**
    - Select Internet Gateway → "Actions" → "Attach to VPC"
    - Select: mlops-retail-forecast-hybrid-vpc
 
-![Attach IGW to VPC](../images/05-vpc-networking/04.2-internet-gateway.png)
+![Attach IGW to VPC](/images/05-vpc-networking/04.2-internet-gateway.png)
 
 ### 1.4. Route Tables Configuration
 
@@ -137,17 +137,17 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Purpose: Route Internet traffic to ALB
    ```
 
-![Public Route Table](../images/05-vpc-networking/07.1-public-route-table.png)
+![Public Route Table](/images/05-vpc-networking/07.1-public-route-table.png)
 
 2. **Add Internet Gateway Route:**
    - Add route: `0.0.0.0/0` → Internet Gateway (mlops-hybrid-igw)
 
-![Public Route Configuration](../images/05-vpc-networking/07.2-public-route-table.png)
+![Public Route Configuration](/images/05-vpc-networking/07.2-public-route-table.png)
 
 3. **Associate Public Subnets:**
    - Associate both ALB public subnets
 
-![Associate Public Subnets](../images/05-vpc-networking/07.3-public-route-table.png)
+![Associate Public Subnets](/images/05-vpc-networking/07.3-public-route-table.png)
 
 #### 1.4.2. Private Route Table (Secure Workloads)
 
@@ -168,9 +168,9 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 3. **Associate Private Subnets:**
    - Associate both workload private subnets
 
-![Private Route Table](../images/05-vpc-networking/08-private-route-tables.png)
+![Private Route Table](/images/05-vpc-networking/08-private-route-tables.png)
 
-![Private Route Table](../images/05-vpc-networking/08-private-route-tables02.png)
+![Private Route Table](/images/05-vpc-networking/08-private-route-tables02.png)
 
 ### 1.5. Security Groups Setup (Layered Security)
 
@@ -192,7 +192,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 3. **Outbound Rules:**
    - **Rule**: All traffic to EKS Security Group (ALB → EKS communication)
 
-![ALB Security Group Basic](../images/05-vpc-networking/09.1-alb-security-group.png)
+![ALB Security Group Basic](/images/05-vpc-networking/09.1-alb-security-group.png)
 
 #### 1.5.2. EKS Worker Nodes Security Group (Private Workloads)
 
@@ -215,7 +215,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    - **Rule 1**: HTTPS (443) to VPC Endpoints SG (AWS services access)
    - **Rule 2**: All Traffic to self (inter-node communication)
 
-![EKS Nodes Security Group](../images/05-vpc-networking/09.4-eks-nodes-basic.png)
+![EKS Nodes Security Group](/images/05-vpc-networking/09.4-eks-nodes-basic.png)
 
 #### 1.5.3. EKS Control Plane Security Group
 
@@ -234,7 +234,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 3. **Outbound Rules:**
    - **Rule**: All Traffic to EKS Nodes SG (cluster management)
 
-![EKS Control Plane Security Group](../images/05-vpc-networking/09.7-eks-control-plane.png)
+![EKS Control Plane Security Group](/images/05-vpc-networking/09.7-eks-control-plane.png)
 
 #### 1.5.4. VPC Endpoints Security Group (AWS Services Access)
 
@@ -251,7 +251,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    - **Rule 2**: HTTPS (443) from SageMaker SG (SageMaker → S3/ECR)
    - **Rule 3**: HTTPS (443) from VPC CIDR (10.0.0.0/16) - fallback
 
-![VPC Endpoints Inbound Rules](../images/05-vpc-networking/09.9-vpc-endpoints-inbound.png)
+![VPC Endpoints Inbound Rules](/images/05-vpc-networking/09.9-vpc-endpoints-inbound.png)
 
 {{% notice success %}}
 **🎯 Security Groups Complete!**
@@ -279,7 +279,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    - Actions → "Modify auto-assign IP settings"
    - ✅ Enable auto-assign public IPv4 address
 
-![Auto-assign Public IP](../images/05-vpc-networking/06-auto-assign-public-ip.png)
+![Auto-assign Public IP](/images/05-vpc-networking/06-auto-assign-public-ip.png)
 
 {{% notice warning %}}
 **⚠️ Critical for ALB:** Public subnets must have auto-assign public IP enabled, otherwise ALB creation will fail.
@@ -287,8 +287,8 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 
 ### 1.7. Console Setup Complete
 
-![Security Groups Overview](../images/05-vpc-networking/10-security-groups-overview.png)
-![VPC Resource Map](../images/05-vpc-networking/11-vpc-resource-map.png)
+![Security Groups Overview](/images/05-vpc-networking/10-security-groups-overview.png)
+![VPC Resource Map](/images/05-vpc-networking/11-vpc-resource-map.png)
 
 {{% notice success %}}
 **🎯 Hybrid VPC Console Setup Complete!**
@@ -320,8 +320,8 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Policy: Full Access (demo purposes)
    ```
 
-![S3 Endpoint Configuration](../images/05-vpc-networking/10.2-s3-endpoint-config.png)
-![S3 Endpoint Configuration](../images/05-vpc-networking/10.2-s3-endpoint-config2.png)
+![S3 Endpoint Configuration](/images/05-vpc-networking/10.2-s3-endpoint-config.png)
+![S3 Endpoint Configuration](/images/05-vpc-networking/10.2-s3-endpoint-config2.png)
 
 **Purpose:** EKS Pods load model artifacts từ S3 < 50ms latency
 
@@ -338,8 +338,8 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Private DNS: ✅ Enabled
    ```
 
-![ECR API Endpoint](../images/05-vpc-networking/10.3-ecr-api-endpoint.png)
-![ECR API Configuration](../images/05-vpc-networking/10.4-ecr-api-config.png)
+![ECR API Endpoint](/images/05-vpc-networking/10.3-ecr-api-endpoint.png)
+![ECR API Configuration](/images/05-vpc-networking/10.4-ecr-api-config.png)
 
 **Purpose:** EKS pull container images từ ECR repository
 
@@ -356,8 +356,8 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Private DNS: ✅ Enabled
    ```
 
-![ECR DKR Endpoint](../images/05-vpc-networking/10.5-ecr-dkr-endpoint.png)
-![ECR DKR Endpoint](../images/05-vpc-networking/10.5-ecr-dkr-endpoint2.png)
+![ECR DKR Endpoint](/images/05-vpc-networking/10.5-ecr-dkr-endpoint.png)
+![ECR DKR Endpoint](/images/05-vpc-networking/10.5-ecr-dkr-endpoint2.png)
 
 **Purpose:** Docker layer downloads cho EKS container runtime
 
@@ -374,14 +374,14 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Private DNS: ✅ Enabled
    ```
 
-![CloudWatch Logs Endpoint](../images/05-vpc-networking/10.7-logs-endpoint.png)
-![CloudWatch Logs Endpoint](../images/05-vpc-networking/10.7-logs-endpoint2.png)
+![CloudWatch Logs Endpoint](/images/05-vpc-networking/10.7-logs-endpoint.png)
+![CloudWatch Logs Endpoint](/images/05-vpc-networking/10.7-logs-endpoint2.png)
 
 **Purpose:** Monitoring and logging cho EKS/SageMaker workloads
 
 ### 2.5. VPC Endpoints Verification
 
-![VPC Endpoints Overview](../images/05-vpc-networking/10.8-vpc-endpoints-overview.png)
+![VPC Endpoints Overview](/images/05-vpc-networking/10.8-vpc-endpoints-overview.png)
 
 **Expected Results:**
 
@@ -418,8 +418,8 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Security groups: mlops-hybrid-alb-sg
    ```
 
-![ALB Basic Configuration](../images/05-vpc-networking/11.1-alb-basic-config.png)
-![ALB Network Configuration](../images/05-vpc-networking/11.2-alb-network-config.png)
+![ALB Basic Configuration](/images/05-vpc-networking/11.1-alb-basic-config.png)
+![ALB Network Configuration](/images/05-vpc-networking/11.2-alb-network-config.png)
 
 ### 3.2. Create Target Group for EKS API
 
@@ -434,7 +434,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Health check port: 80
    ```
 
-![Target Group Configuration](../images/05-vpc-networking/11.3-target-group-config.png)
+![Target Group Configuration](/images/05-vpc-networking/11.3-target-group-config.png)
 
 2. **Health Check Settings:**
    ```
@@ -448,7 +448,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    Success codes: 200
    ```
 
-![Health Check Settings](../images/05-vpc-networking/11.4-health-check-config.png)
+![Health Check Settings](/images/05-vpc-networking/11.4-health-check-config.png)
 
 ### 3.3. Configure ALB Listeners
 
@@ -468,9 +468,9 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
    SSL certificate: ACM certificate (hoặc self-signed for demo)
    ```
 
-![ALB Listeners Configuration](../images/05-vpc-networking/11.5-alb-listeners.png)
-![ALB Listeners Configuration](../images/05-vpc-networking/11.5-alb-listeners2.png)
-![ALB Listeners Configuration](../images/05-vpc-networking/11.5-alb-listeners3.png)
+![ALB Listeners Configuration](/images/05-vpc-networking/11.5-alb-listeners.png)
+![ALB Listeners Configuration](/images/05-vpc-networking/11.5-alb-listeners2.png)
+![ALB Listeners Configuration](/images/05-vpc-networking/11.5-alb-listeners3.png)
 
 {{% notice info %}}
 **💡 SSL Certificate Options:**
@@ -482,7 +482,7 @@ Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng 
 
 ### 3.4. ALB Creation Complete
 
-![ALB Creation Complete](../images/05-vpc-networking/11.6-alb-complete.png)
+![ALB Creation Complete](/images/05-vpc-networking/11.6-alb-complete.png)
 
 **ALB DNS Name:** Will be used for public API demo access
 
@@ -751,6 +751,7 @@ output "api_demo_config" {
 ```
 
 ### 5.3. Deploy Terraform Outputs
+
 ```bash
 # Navigate to infrastructure directory
 cd aws/infra
@@ -1155,119 +1156,125 @@ echo "✅ VPC cleanup completed for $VPC_ID"
 
 ### 9.1. Chi phí VPC Core Components
 
-| Component | Giá (USD) | Ghi chú |
-|-----------|-----------|---------|
-| **VPC** | Free | Unlimited VPCs |
-| **Subnets** | Free | Unlimited subnets |
-| **Route Tables** | Free | Routing configuration |
-| **Internet Gateway** | Free | One per VPC |
-| **Security Groups** | Free | Firewall rules |
+| Component            | Giá (USD) | Ghi chú               |
+| -------------------- | --------- | --------------------- |
+| **VPC**              | Free      | Unlimited VPCs        |
+| **Subnets**          | Free      | Unlimited subnets     |
+| **Route Tables**     | Free      | Routing configuration |
+| **Internet Gateway** | Free      | One per VPC           |
+| **Security Groups**  | Free      | Firewall rules        |
 
 ### 9.2. Chi phí VPC Endpoints
 
-| Endpoint Type | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
-|---------------|----------------|-----------------|---------------|
-| **Gateway Endpoint (S3)** | Free | Free | Free |
-| **Interface Endpoint** | $0.01 | $7.2 | $0.01/GB |
-| **PrivateLink Endpoint** | $0.01 | $7.2 | $0.01/GB |
+| Endpoint Type             | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
+| ------------------------- | -------------- | --------------- | ------------- |
+| **Gateway Endpoint (S3)** | Free           | Free            | Free          |
+| **Interface Endpoint**    | $0.01          | $7.2            | $0.01/GB      |
+| **PrivateLink Endpoint**  | $0.01          | $7.2            | $0.01/GB      |
 
 **Chi phí VPC Endpoints cho Task 5:**
+
 - S3 Gateway: Free
 - ECR API Interface: $7.2/month
-- ECR DKR Interface: $7.2/month  
+- ECR DKR Interface: $7.2/month
 - CloudWatch Logs Interface: $7.2/month
 - **Tổng:** $21.6/month
 
 ### 9.3. Chi phí Application Load Balancer
 
-| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
-|-----------|----------------|-----------------|---------|
-| **ALB Fixed Cost** | $0.0225 | $16.2 | Always running |
-| **LCU (Load Balancer Capacity Unit)** | $0.008 | $5.76 | Per LCU-hour |
-| **Rule Evaluations** | $0.008 | $5.76 | Per million requests |
+| Component                             | Giá (USD/hour) | Giá (USD/month) | Ghi chú              |
+| ------------------------------------- | -------------- | --------------- | -------------------- |
+| **ALB Fixed Cost**                    | $0.0225        | $16.2           | Always running       |
+| **LCU (Load Balancer Capacity Unit)** | $0.008         | $5.76           | Per LCU-hour         |
+| **Rule Evaluations**                  | $0.008         | $5.76           | Per million requests |
 
 **Ước tính ALB chi phí:**
+
 - Base ALB: $16.2/month
 - 1 LCU (basic usage): $5.76/month
 - **Total ALB:** ~$22/month continuous
 
 ### 9.4. Chi phí NAT Gateway (Không dùng trong Task 5)
 
-| Component | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
-|-----------|----------------|-----------------|---------------|
-| **NAT Gateway** | $0.045 | $32.4 | $0.045/GB |
-| **Data Processing** | | | $0.045/GB |
+| Component           | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
+| ------------------- | -------------- | --------------- | ------------- |
+| **NAT Gateway**     | $0.045         | $32.4           | $0.045/GB     |
+| **Data Processing** |                |                 | $0.045/GB     |
 
 **Tiết kiệm:** $32.4/month bằng cách dùng VPC Endpoints thay NAT Gateway
 
 ### 9.5. Data Transfer Pricing
 
-| Transfer Type | Giá (USD/GB) | Ghi chú |
-|---------------|--------------|---------|
-| **VPC Internal** | Free | Same AZ |
-| **Cross-AZ** | $0.01 | Different AZ trong region |
-| **VPC Endpoints** | $0.01 | Interface endpoints |
-| **Internet OUT** | $0.12 | First 1GB free/month |
-| **S3 Transfer** | Free | Via Gateway endpoint |
+| Transfer Type     | Giá (USD/GB) | Ghi chú                   |
+| ----------------- | ------------ | ------------------------- |
+| **VPC Internal**  | Free         | Same AZ                   |
+| **Cross-AZ**      | $0.01        | Different AZ trong region |
+| **VPC Endpoints** | $0.01        | Interface endpoints       |
+| **Internet OUT**  | $0.12        | First 1GB free/month      |
+| **S3 Transfer**   | Free         | Via Gateway endpoint      |
 
 ### 9.6. Ước tính tổng chi phí Task 5
 
 **Monthly Baseline Cost:**
 
-| Component | Monthly Cost | Purpose |
-|-----------|--------------|---------|
-| VPC + Subnets + IGW | $0 | Core networking |
-| VPC Endpoints (3x Interface) | $21.6 | ECR + CloudWatch |
-| S3 Gateway Endpoint | $0 | Model access |
-| **Subtotal** | **$21.6** | Always running |
+| Component                    | Monthly Cost | Purpose          |
+| ---------------------------- | ------------ | ---------------- |
+| VPC + Subnets + IGW          | $0           | Core networking  |
+| VPC Endpoints (3x Interface) | $21.6        | ECR + CloudWatch |
+| S3 Gateway Endpoint          | $0           | Model access     |
+| **Subtotal**                 | **$21.6**    | Always running   |
 
 **Demo Usage Cost:**
 
-| Usage Pattern | ALB Cost | Total Cost | Use Case |
-|---------------|----------|------------|----------|
-| **Development (8h/day)** | $5.4/month | $27/month | Daily development |
-| **Demo only (3h/day)** | $2.0/month | $23.6/month | Presentation demos |
-| **Production (24/7)** | $22/month | $43.6/month | Live production |
-| **Testing (1h/day)** | $0.7/month | $22.3/month | Occasional testing |
+| Usage Pattern            | ALB Cost   | Total Cost  | Use Case           |
+| ------------------------ | ---------- | ----------- | ------------------ |
+| **Development (8h/day)** | $5.4/month | $27/month   | Daily development  |
+| **Demo only (3h/day)**   | $2.0/month | $23.6/month | Presentation demos |
+| **Production (24/7)**    | $22/month  | $43.6/month | Live production    |
+| **Testing (1h/day)**     | $0.7/month | $22.3/month | Occasional testing |
 
 ### 9.7. Cost Comparison với Traditional Setup
 
 **Task 5 (VPC Endpoints)** vs **Traditional (NAT Gateway)**:
 
-| Architecture | Monthly Cost | Performance | Security |
-|--------------|--------------|-------------|----------|
-| **VPC Endpoints** | $21.6 | < 50ms latency | Private network |
-| **NAT Gateway** | $32.4 + data | Variable | Internet routing |
-| **Savings** | **-$10.8** | **Better** | **Higher** |
+| Architecture      | Monthly Cost | Performance    | Security         |
+| ----------------- | ------------ | -------------- | ---------------- |
+| **VPC Endpoints** | $21.6        | < 50ms latency | Private network  |
+| **NAT Gateway**   | $32.4 + data | Variable       | Internet routing |
+| **Savings**       | **-$10.8**   | **Better**     | **Higher**       |
 
 ### 9.8. Cost Optimization Tips
 
 **Immediate Savings:**
+
 - ✅ Use S3 Gateway Endpoint (Free thay vì $7.2/month Interface)
 - ✅ Skip NAT Gateway (-$32.4/month)
 - ✅ Turn off ALB khi không demo (-$22/month)
 
 **Long-term Optimization:**
+
 - Use Spot instances cho EKS nodes (60-70% savings)
 - S3 Intelligent Tiering cho model storage
 - CloudWatch Logs retention policy (7-30 days)
 
 **Demo Cost Management:**
+
 ```bash
 # Bật ALB chỉ khi demo
 aws elbv2 create-load-balancer --name demo-alb --type application
 
-# Tắt ALB sau demo  
+# Tắt ALB sau demo
 aws elbv2 delete-load-balancer --load-balancer-arn <arn>
 ```
 
 {{% notice info %}}
 **💰 Cost Summary cho Task 5:**
+
 - **Baseline:** $21.6/month (VPC Endpoints, always on)
 - **Demo usage:** $0.02/hour ALB (chỉ khi cần)
 - **Savings:** $10.8/month so với NAT Gateway approach
 - **Performance:** < 50ms internal latency guaranteed
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 

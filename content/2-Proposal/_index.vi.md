@@ -5,12 +5,6 @@ chapter: false
 pre: " <b> 2. </b> "
 ---
 
-{{% notice warning %}}
-⚠️ **Lưu ý:** Nội dung dưới đây chỉ mang tính tham khảo. Vui lòng **không copy y nguyên** vào báo cáo của bạn, bao gồm cả cảnh báo này.
-{{% /notice %}}
-
-Trong phần này, bạn cần tóm tắt nội dung workshop mà bạn **dự định** thực hiện.
-
 # Nền tảng MLOps Dự đoán Price Sensitivity trên AWS
 
 ## End-to-End MLOps: Data Lake → Training → Model Registry → Container → EKS API → Monitoring → CI/CD → Tối ưu chi phí

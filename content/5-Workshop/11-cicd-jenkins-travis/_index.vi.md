@@ -19,6 +19,7 @@ Thiết lập pipeline CI/CD tự động cho toàn bộ vòng đời dự án M
 → Đảm bảo triển khai liên tục, giảm lỗi thủ công, tiết kiệm thời gian và chi phí.
 
 📥 **Input từ các Task trước:**
+
 - **Task 6 (ECR Container Registry):** Repository URIs, lifecycle policies, image scanning and push commands; credentials and ECR access for CI runners
 - **Task 8 (API Deployment on EKS):** Kubernetes manifests, service & deployment names, healthcheck endpoints, HPA and ServiceAccount/IRSA details used by CD stage
 - **Task 10 (CloudWatch Monitoring):** Log groups, alarms, dashboards and Container Insights configuration used for deployment verification and automated rollback triggers
@@ -29,6 +30,7 @@ Thiết lập pipeline CI/CD tự động cho toàn bộ vòng đời dự án M
 Pipeline CI/CD của dự án Retail Prediction sẽ tự động hóa toàn bộ quy trình từ commit code đến deploy lên production, bao gồm cả việc huấn luyện lại model khi cần thiết.
 
 Pipeline chia thành 3 môi trường:
+
 - **DEV**: Build, test và validate code
 - **STAGING**: Huấn luyện và đánh giá model
 - **PROD**: Deploy và monitor trên production
@@ -133,22 +135,13 @@ aws iam create-role \
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "sts:GetCallerIdentity",
-        "sts:AssumeRole"
-      ],
+      "Action": ["sts:GetCallerIdentity", "sts:AssumeRole"],
       "Resource": "*"
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "kms:Decrypt",
-        "kms:GenerateDataKey",
-        "kms:CreateGrant"
-      ],
-      "Resource": [
-        "arn:aws:kms:us-east-1:YOUR_ACCOUNT_ID:key/*"
-      ]
+      "Action": ["kms:Decrypt", "kms:GenerateDataKey", "kms:CreateGrant"],
+      "Resource": ["arn:aws:kms:us-east-1:YOUR_ACCOUNT_ID:key/*"]
     },
     {
       "Effect": "Allow",
@@ -260,7 +253,7 @@ echo "Initial admin password: $(cat /var/lib/jenkins/secrets/initialAdminPasswor
 // Jenkinsfile
 pipeline {
     agent any
-    
+
     environment {
         AWS_DEFAULT_REGION = 'us-east-1'
         AWS_ACCOUNT_ID = '123456789012'
@@ -271,7 +264,7 @@ pipeline {
         S3_ARTIFACTS_BUCKET = 'retail-forecast-artifacts-bucket'
         MODEL_PACKAGE_GROUP = 'retail-forecast-model-group'
     }
-    
+
     parameters {
         choice(
             name: 'DEPLOY_ENVIRONMENT',
@@ -289,27 +282,27 @@ pipeline {
             description: 'Skip test execution'
         )
     }
-    
+
     stages {
         stage('Setup') {
             steps {
                 script {
                     // Clean workspace
                     cleanWs()
-                    
+
                     // Checkout code
                     checkout scm
-                    
+
                     // Set build info
                     env.BUILD_VERSION = "${env.BUILD_NUMBER}-${env.GIT_COMMIT.take(7)}"
                     env.IMAGE_TAG = "v${env.BUILD_VERSION}"
-                    
+
                     echo "Build Version: ${env.BUILD_VERSION}"
                     echo "Image Tag: ${env.IMAGE_TAG}"
                 }
             }
         }
-        
+
         stage('Environment Setup') {
             steps {
                 script {
@@ -321,13 +314,13 @@ pipeline {
                         pip install -r requirements.txt
                         pip install pytest pytest-cov flake8
                     '''
-                    
+
                     // Configure AWS credentials
                     sh '''
                         aws sts get-caller-identity
                         aws configure set region $AWS_DEFAULT_REGION
                     '''
-                    
+
                     // Configure kubectl
                     sh '''
                         aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_DEFAULT_REGION
@@ -336,7 +329,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Code Quality & Testing') {
             when {
                 not { params.SKIP_TESTS }
@@ -350,20 +343,20 @@ pipeline {
                         '''
                     }
                 }
-                
+
                 stage('Unit Tests') {
                     steps {
                         sh '''
                             source venv/bin/activate
                             pytest tests/unit/ -v --cov=src --cov-report=xml --cov-report=html
                         '''
-                        
+
                         // Publish test results
                         publishTestResults testResultsPattern: 'test-results.xml'
                         publishCoverage adapters: [coberturaAdapter('coverage.xml')], sourceFileResolver: sourceFiles('STORE_LAST_BUILD')
                     }
                 }
-                
+
                 stage('Integration Tests') {
                     steps {
                         sh '''
@@ -374,7 +367,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Data Validation') {
             steps {
                 script {
@@ -385,13 +378,13 @@ pipeline {
                             --key training-data/train.csv \
                             --output data-validation-report.json
                     '''
-                    
+
                     // Archive validation report
                     archiveArtifacts artifacts: 'data-validation-report.json', fingerprint: true
                 }
             }
         }
-        
+
         stage('Model Training') {
             when {
                 anyOf {
@@ -410,7 +403,7 @@ pipeline {
                             --output-bucket $S3_ARTIFACTS_BUCKET \
                             --role-arn arn:aws:iam::$AWS_ACCOUNT_ID:role/SageMakerExecutionRole
                     '''
-                    
+
                     // Wait for training completion
                     sh '''
                         source venv/bin/activate
@@ -421,7 +414,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Model Validation & Registration') {
             when {
                 anyOf {
@@ -439,7 +432,7 @@ pipeline {
                             --baseline-accuracy 0.85 \
                             --output model-validation-report.json
                     '''
-                    
+
                     // Register model if validation passes
                     sh '''
                         source venv/bin/activate
@@ -449,12 +442,12 @@ pipeline {
                             --approval-status "PendingManualApproval" \
                             --model-version $BUILD_VERSION
                     '''
-                    
+
                     archiveArtifacts artifacts: 'model-validation-report.json', fingerprint: true
                 }
             }
         }
-        
+
         stage('Docker Build') {
             steps {
                 script {
@@ -463,7 +456,7 @@ pipeline {
                         # Get latest approved model
                         MODEL_URI=$(python scripts/get_latest_model.py --model-package-group $MODEL_PACKAGE_GROUP)
                         echo "Using model: $MODEL_URI"
-                        
+
                         # Build image with model URI
                         docker build \
                             --build-arg MODEL_URI=$MODEL_URI \
@@ -472,7 +465,7 @@ pipeline {
                             -t $ECR_REPOSITORY:latest \
                             .
                     '''
-                    
+
                     // Security scan
                     sh '''
                         docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
@@ -485,7 +478,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Push to ECR') {
             steps {
                 script {
@@ -494,14 +487,14 @@ pipeline {
                         aws ecr get-login-password --region $AWS_DEFAULT_REGION | \
                             docker login --username AWS --password-stdin \
                             $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
-                        
+
                         # Tag images
                         docker tag $ECR_REPOSITORY:$IMAGE_TAG \
                             $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
-                        
+
                         docker tag $ECR_REPOSITORY:latest \
                             $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY:latest
-                        
+
                         # Push images
                         docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
                         docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY:latest
@@ -509,7 +502,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Deploy to EKS') {
             steps {
                 script {
@@ -519,31 +512,31 @@ pipeline {
                         kubectl set image deployment/retail-forecast-api \
                             retail-forecast-api=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG \
                             -n $NAMESPACE
-                        
+
                         # Wait for rollout
                         kubectl rollout status deployment/retail-forecast-api -n $NAMESPACE --timeout=600s
-                        
+
                         # Verify deployment
                         kubectl get pods -n $NAMESPACE -l app=retail-forecast-api
                     '''
                 }
             }
         }
-        
+
         stage('Health Check') {
             steps {
                 script {
                     sh '''
                         # Get service endpoint
                         ENDPOINT=$(kubectl get service retail-forecast-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-                        
+
                         if [ -z "$ENDPOINT" ]; then
                             ENDPOINT=$(kubectl get service retail-forecast-service -n $NAMESPACE -o jsonpath='{.spec.clusterIP}')
                             kubectl port-forward service/retail-forecast-service 8080:80 -n $NAMESPACE &
                             ENDPOINT="localhost:8080"
                             PORT_FORWARD_PID=$!
                         fi
-                        
+
                         # Wait for service to be ready
                         echo "Waiting for service to be ready..."
                         for i in {1..30}; do
@@ -554,12 +547,12 @@ pipeline {
                             echo "Attempt $i/30 failed, retrying in 10 seconds..."
                             sleep 10
                         done
-                        
+
                         # Test prediction endpoint
                         curl -X POST http://$ENDPOINT/predict \
                             -H "Content-Type: application/json" \
                             -d '{"features": {"store_id": 1, "product_id": 123, "price": 29.99}}'
-                        
+
                         # Kill port-forward if used
                         if [ ! -z "$PORT_FORWARD_PID" ]; then
                             kill $PORT_FORWARD_PID
@@ -568,7 +561,7 @@ pipeline {
                 }
             }
         }
-        
+
         stage('Performance Testing') {
             when {
                 environment name: 'DEPLOY_ENVIRONMENT', value: 'prod'
@@ -583,13 +576,13 @@ pipeline {
                             --concurrent-users 10 \
                             --output load-test-report.json
                     '''
-                    
+
                     archiveArtifacts artifacts: 'load-test-report.json', fingerprint: true
                 }
             }
         }
     }
-    
+
     post {
         always {
             // Clean up
@@ -597,11 +590,11 @@ pipeline {
                 docker system prune -f
                 rm -rf venv
             '''
-            
+
             // Archive logs
             archiveArtifacts artifacts: 'logs/**', allowEmptyArchive: true
         }
-        
+
         success {
             script {
                 // Send success notification
@@ -613,7 +606,7 @@ pipeline {
                 '''
             }
         }
-        
+
         failure {
             script {
                 // Send failure notification
@@ -623,7 +616,7 @@ pipeline {
                         --message "❌ Deployment failed for build $BUILD_VERSION. Check Jenkins logs." \
                         --subject "Retail Forecast Deployment Failed"
                 '''
-                
+
                 // Rollback on production failure
                 if (params.DEPLOY_ENVIRONMENT == 'prod') {
                     sh '''
@@ -652,33 +645,33 @@ name: MLOps Retail Prediction Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
+      - "**.md"
+      - "docs/**"
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
     # Chạy mỗi tuần vào thứ 2 để kiểm tra độ chính xác của model
-    - cron: '0 2 * * 1'
+    - cron: "0 2 * * 1"
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Môi trường triển khai'
+        description: "Môi trường triển khai"
         required: true
-        default: 'dev'
+        default: "dev"
         type: choice
         options:
-        - dev
-        - staging
-        - prod
+          - dev
+          - staging
+          - prod
       retrain_model:
-        description: 'Huấn luyện lại model'
+        description: "Huấn luyện lại model"
         required: false
         default: false
         type: boolean
       deploy_only:
-        description: 'Chỉ triển khai, không build/huấn luyện mới'
+        description: "Chỉ triển khai, không build/huấn luyện mới"
         required: false
         default: false
         type: boolean
@@ -692,8 +685,8 @@ env:
   MODEL_PACKAGE_GROUP: retail-forecast-models
 
 permissions:
-  id-token: write   # Cần thiết cho OIDC với AWS
-  contents: read    # Cần thiết để checkout code
+  id-token: write # Cần thiết cho OIDC với AWS
+  contents: read # Cần thiết để checkout code
 
 jobs:
   setup:
@@ -704,181 +697,181 @@ jobs:
       environment: ${{ steps.set-env.outputs.environment }}
       should-train: ${{ steps.set-env.outputs.should_train }}
       should-deploy: ${{ steps.set-env.outputs.should_deploy }}
-    
+
     steps:
-    - name: Generate build ID
-      id: generate-id
-      run: |
-        BUILD_ID="build-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
-        echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
-        echo "Build ID: $BUILD_ID"
-    
-    - name: Set environment variables
-      id: set-env
-      run: |
-        # Xác định môi trường
-        if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-          ENV="${{ github.event.inputs.environment }}"
-        elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          ENV="prod"
-        elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-          ENV="staging"
-        else
-          ENV="dev"
-        fi
-        echo "environment=$ENV" >> $GITHUB_OUTPUT
-        
-        # Xác định có nên huấn luyện model hay không
-        if [[ "${{ github.event.inputs.retrain_model }}" == "true" ]] || \
-           [[ "${{ github.event_name }}" == "schedule" ]]; then
-          SHOULD_TRAIN="true"
-        else
-          SHOULD_TRAIN="false"
-        fi
-        echo "should_train=$SHOULD_TRAIN" >> $GITHUB_OUTPUT
-        
-        # Xác định có nên deploy hay không
-        if [[ "${{ github.event.inputs.deploy_only }}" == "true" ]] || \
-           [[ "$ENV" == "prod" && "${{ github.ref }}" == "refs/heads/main" ]] || \
-           [[ "$ENV" == "staging" && "${{ github.ref }}" == "refs/heads/develop" ]]; then
-          SHOULD_DEPLOY="true"
-        else
-          SHOULD_DEPLOY="false"
-        fi
-        echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
-        
-        # In thông tin
-        echo "Environment: $ENV"
-        echo "Should train model: $SHOULD_TRAIN"
-        echo "Should deploy: $SHOULD_DEPLOY"
+      - name: Generate build ID
+        id: generate-id
+        run: |
+          BUILD_ID="build-${GITHUB_RUN_NUMBER}-${GITHUB_SHA::7}"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Build ID: $BUILD_ID"
+
+      - name: Set environment variables
+        id: set-env
+        run: |
+          # Xác định môi trường
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ENV="prod"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            ENV="staging"
+          else
+            ENV="dev"
+          fi
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+
+          # Xác định có nên huấn luyện model hay không
+          if [[ "${{ github.event.inputs.retrain_model }}" == "true" ]] || \
+             [[ "${{ github.event_name }}" == "schedule" ]]; then
+            SHOULD_TRAIN="true"
+          else
+            SHOULD_TRAIN="false"
+          fi
+          echo "should_train=$SHOULD_TRAIN" >> $GITHUB_OUTPUT
+
+          # Xác định có nên deploy hay không
+          if [[ "${{ github.event.inputs.deploy_only }}" == "true" ]] || \
+             [[ "$ENV" == "prod" && "${{ github.ref }}" == "refs/heads/main" ]] || \
+             [[ "$ENV" == "staging" && "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            SHOULD_DEPLOY="true"
+          else
+            SHOULD_DEPLOY="false"
+          fi
+          echo "should_deploy=$SHOULD_DEPLOY" >> $GITHUB_OUTPUT
+
+          # In thông tin
+          echo "Environment: $ENV"
+          echo "Should train model: $SHOULD_TRAIN"
+          echo "Should deploy: $SHOULD_DEPLOY"
 
   test:
     name: Code Quality & Testing
     needs: setup
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r core/requirements.txt
-        pip install -r server/requirements.txt
-        pip install pytest pytest-cov pylint black
-    
-    - name: Code formatting check
-      run: |
-        black --check core/ server/
-    
-    - name: Lint code
-      run: |
-        pylint --disable=C0111,C0103 core/ server/
-    
-    - name: Run tests
-      run: |
-        pytest tests/ -v --cov=core --cov=server --cov-report=xml
-    
-    - name: Upload coverage report
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        fail_ci_if_error: false
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r core/requirements.txt
+          pip install -r server/requirements.txt
+          pip install pytest pytest-cov pylint black
+
+      - name: Code formatting check
+        run: |
+          black --check core/ server/
+
+      - name: Lint code
+        run: |
+          pylint --disable=C0111,C0103 core/ server/
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --cov=core --cov=server --cov-report=xml
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
 
   data_validation:
     name: Data Validation
     needs: [setup, test]
     runs-on: ubuntu-latest
     if: needs.setup.outputs.should_train == 'true'
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        pip install pandas boto3 great_expectations
-    
-    - name: Validate training data
-      run: |
-        python aws/script/validate_data.py \
-          --bucket ${{ env.S3_DATA_BUCKET }} \
-          --key training/sales_data.csv \
-          --output validation_report.json
-    
-    - name: Upload validation report
-      uses: actions/upload-artifact@v3
-      with:
-        name: data-validation-report
-        path: validation_report.json
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install pandas boto3 great_expectations
+
+      - name: Validate training data
+        run: |
+          python aws/script/validate_data.py \
+            --bucket ${{ env.S3_DATA_BUCKET }} \
+            --key training/sales_data.csv \
+            --output validation_report.json
+
+      - name: Upload validation report
+        uses: actions/upload-artifact@v3
+        with:
+          name: data-validation-report
+          path: validation_report.json
 
   model_training:
     name: Model Training
     needs: [setup, test, data_validation]
     runs-on: ubuntu-latest
     if: needs.setup.outputs.should_train == 'true' && success()
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        pip install boto3 sagemaker pandas scikit-learn
-    
-    - name: Create training job
-      id: training
-      run: |
-        python aws/script/create_training_job.py \
-          --job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
-          --data-bucket ${{ env.S3_DATA_BUCKET }} \
-          --output-bucket ${{ env.S3_MODEL_BUCKET }} \
-          --instance-type ml.m5.large \
-          --hyperparameters "{\"n_estimators\":\"200\",\"max_depth\":\"10\"}"
-      
-    - name: Wait for training completion
-      run: |
-        aws sagemaker wait training-job-completed-or-stopped \
-          --training-job-name "retail-forecast-${{ needs.setup.outputs.build-id }}"
-        
-        STATUS=$(aws sagemaker describe-training-job \
-          --training-job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
-          --query 'TrainingJobStatus' --output text)
-          
-        if [ "$STATUS" != "Completed" ]; then
-          echo "Training failed with status: $STATUS"
-          exit 1
-        fi
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install boto3 sagemaker pandas scikit-learn
+
+      - name: Create training job
+        id: training
+        run: |
+          python aws/script/create_training_job.py \
+            --job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
+            --data-bucket ${{ env.S3_DATA_BUCKET }} \
+            --output-bucket ${{ env.S3_MODEL_BUCKET }} \
+            --instance-type ml.m5.large \
+            --hyperparameters "{\"n_estimators\":\"200\",\"max_depth\":\"10\"}"
+
+      - name: Wait for training completion
+        run: |
+          aws sagemaker wait training-job-completed-or-stopped \
+            --training-job-name "retail-forecast-${{ needs.setup.outputs.build-id }}"
+
+          STATUS=$(aws sagemaker describe-training-job \
+            --training-job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
+            --query 'TrainingJobStatus' --output text)
+            
+          if [ "$STATUS" != "Completed" ]; then
+            echo "Training failed with status: $STATUS"
+            exit 1
+          fi
 
   model_evaluation:
     name: Model Evaluation & Registration
@@ -887,66 +880,66 @@ jobs:
     outputs:
       model_approved: ${{ steps.evaluate.outputs.model_approved }}
       model_version: ${{ steps.register.outputs.model_version }}
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Setup Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.10'
-        cache: 'pip'
-    
-    - name: Install dependencies
-      run: |
-        pip install boto3 sagemaker pandas scikit-learn matplotlib seaborn
-    
-    - name: Evaluate model
-      id: evaluate
-      run: |
-        python aws/script/processing_evaluate.py \
-          --job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
-          --evaluation-data s3://${{ env.S3_DATA_BUCKET }}/validation/sales_data.csv \
-          --baseline-metrics s3://${{ env.S3_MODEL_BUCKET }}/baselines/metrics.json \
-          --threshold 0.85
-          
-        # Check result
-        if [ -f "model_approved.txt" ]; then
-          MODEL_APPROVED=$(cat model_approved.txt)
-          echo "model_approved=$MODEL_APPROVED" >> $GITHUB_OUTPUT
-          echo "Model evaluation result: $MODEL_APPROVED"
-        else
-          echo "model_approved=false" >> $GITHUB_OUTPUT
-          echo "Model evaluation failed"
-          exit 1
-        fi
-    
-    - name: Register model
-      id: register
-      if: steps.evaluate.outputs.model_approved == 'true'
-      run: |
-        MODEL_VERSION=$(python aws/script/register_model.py \
-          --job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
-          --model-package-group ${{ env.MODEL_PACKAGE_GROUP }} \
-          --approval-status "Approved")
-          
-        echo "model_version=$MODEL_VERSION" >> $GITHUB_OUTPUT
-        echo "Model registered with version: $MODEL_VERSION"
-    
-    - name: Upload evaluation results
-      uses: actions/upload-artifact@v3
-      with:
-        name: model-evaluation-report
-        path: |
-          evaluation_results.json
-          plots/*.png
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install boto3 sagemaker pandas scikit-learn matplotlib seaborn
+
+      - name: Evaluate model
+        id: evaluate
+        run: |
+          python aws/script/processing_evaluate.py \
+            --job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
+            --evaluation-data s3://${{ env.S3_DATA_BUCKET }}/validation/sales_data.csv \
+            --baseline-metrics s3://${{ env.S3_MODEL_BUCKET }}/baselines/metrics.json \
+            --threshold 0.85
+            
+          # Check result
+          if [ -f "model_approved.txt" ]; then
+            MODEL_APPROVED=$(cat model_approved.txt)
+            echo "model_approved=$MODEL_APPROVED" >> $GITHUB_OUTPUT
+            echo "Model evaluation result: $MODEL_APPROVED"
+          else
+            echo "model_approved=false" >> $GITHUB_OUTPUT
+            echo "Model evaluation failed"
+            exit 1
+          fi
+
+      - name: Register model
+        id: register
+        if: steps.evaluate.outputs.model_approved == 'true'
+        run: |
+          MODEL_VERSION=$(python aws/script/register_model.py \
+            --job-name "retail-forecast-${{ needs.setup.outputs.build-id }}" \
+            --model-package-group ${{ env.MODEL_PACKAGE_GROUP }} \
+            --approval-status "Approved")
+            
+          echo "model_version=$MODEL_VERSION" >> $GITHUB_OUTPUT
+          echo "Model registered with version: $MODEL_VERSION"
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v3
+        with:
+          name: model-evaluation-report
+          path: |
+            evaluation_results.json
+            plots/*.png
 
   build_docker:
     name: Build & Push Docker Image
@@ -954,63 +947,63 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.build.outputs.image_tag }}
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-    
-    - name: Build and push Docker image
-      id: build
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      run: |
-        # Set tag
-        IMAGE_TAG="${{ needs.setup.outputs.build-id }}"
-        echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-        
-        # Get latest model URI (or use placeholder for dev environment)
-        if [[ "${{ needs.setup.outputs.environment }}" == "dev" ]]; then
-          MODEL_URI="placeholder"
-        else
-          MODEL_URI=$(aws sagemaker list-model-packages \
-            --model-package-group-name ${{ env.MODEL_PACKAGE_GROUP }} \
-            --sort-by CreationTime --sort-order Descending --max-items 1 \
-            --query 'ModelPackageSummaries[0].ModelPackageArn' --output text)
-        fi
-        
-        echo "Using model URI: $MODEL_URI"
-        
-        # Build image
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-          --build-arg MODEL_URI=$MODEL_URI \
-          --build-arg BUILD_ID=$IMAGE_TAG \
-          --build-arg ENV=${{ needs.setup.outputs.environment }} \
-          server/
-        
-        # Also tag as latest-{environment}
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-          $ECR_REGISTRY/$ECR_REPOSITORY:latest-${{ needs.setup.outputs.environment }}
-        
-        # Security scan
-        docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-          aquasec/trivy:latest image --severity HIGH,CRITICAL \
-          $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        
-        # Push images
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest-${{ needs.setup.outputs.environment }}
-        
-        echo "Image built and pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and push Docker image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          # Set tag
+          IMAGE_TAG="${{ needs.setup.outputs.build-id }}"
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          # Get latest model URI (or use placeholder for dev environment)
+          if [[ "${{ needs.setup.outputs.environment }}" == "dev" ]]; then
+            MODEL_URI="placeholder"
+          else
+            MODEL_URI=$(aws sagemaker list-model-packages \
+              --model-package-group-name ${{ env.MODEL_PACKAGE_GROUP }} \
+              --sort-by CreationTime --sort-order Descending --max-items 1 \
+              --query 'ModelPackageSummaries[0].ModelPackageArn' --output text)
+          fi
+
+          echo "Using model URI: $MODEL_URI"
+
+          # Build image
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --build-arg MODEL_URI=$MODEL_URI \
+            --build-arg BUILD_ID=$IMAGE_TAG \
+            --build-arg ENV=${{ needs.setup.outputs.environment }} \
+            server/
+
+          # Also tag as latest-{environment}
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            $ECR_REGISTRY/$ECR_REPOSITORY:latest-${{ needs.setup.outputs.environment }}
+
+          # Security scan
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image --severity HIGH,CRITICAL \
+            $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          # Push images
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest-${{ needs.setup.outputs.environment }}
+
+          echo "Image built and pushed: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
   deploy_eks:
     name: Deploy to EKS
@@ -1019,187 +1012,187 @@ jobs:
     if: needs.setup.outputs.should_deploy == 'true'
     environment:
       name: ${{ needs.setup.outputs.environment }}
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
-    
-    - name: Update kubeconfig
-      run: |
-        aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
-    
-    - name: Check if need to deploy new model
-      id: check-model
-      run: |
-        if [[ "${{ needs.model_evaluation.outputs.model_approved }}" == "true" ]]; then
-          echo "deploy_new_model=true" >> $GITHUB_OUTPUT
-        else
-          echo "deploy_new_model=false" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Deploy to EKS
-      run: |
-        # Set environment variables
-        NAMESPACE="retail-forecast-${{ needs.setup.outputs.environment }}"
-        IMAGE_TAG="${{ needs.build_docker.outputs.image_tag }}"
-        ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
-        
-        # Update kustomization file with new image
-        cd aws/k8s
-        kustomize edit set image retail-forecast-api=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        
-        # Apply changes
-        kubectl apply -k overlays/${{ needs.setup.outputs.environment }}/ --namespace $NAMESPACE
-        
-        # Wait for deployment to complete
-        kubectl rollout status deployment/retail-forecast-api -n $NAMESPACE --timeout=300s
-    
-    - name: Create SageMaker endpoint (if new model approved)
-      if: steps.check-model.outputs.deploy_new_model == 'true'
-      run: |
-        python aws/script/deploy_endpoint.py \
-          --model-package-arn "arn:aws:sagemaker:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:model-package/${{ env.MODEL_PACKAGE_GROUP }}/${{ needs.model_evaluation.outputs.model_version }}" \
-          --endpoint-name "retail-forecast-${{ needs.setup.outputs.environment }}" \
-          --instance-type ml.t2.medium \
-          --instance-count 1
-    
-    - name: Health check
-      run: |
-        # Get service endpoint
-        NAMESPACE="retail-forecast-${{ needs.setup.outputs.environment }}"
-        SERVICE_HOST=$(kubectl get ingress -n $NAMESPACE retail-forecast-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-        
-        # If running locally, use port-forwarding
-        if [ -z "$SERVICE_HOST" ]; then
-          echo "No external hostname found, using port-forwarding"
-          kubectl port-forward svc/retail-forecast-service 8080:80 -n $NAMESPACE &
-          sleep 5
-          SERVICE_HOST="localhost:8080"
-        fi
-        
-        # Check health endpoint
-        echo "Testing health endpoint: http://$SERVICE_HOST/health"
-        HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$SERVICE_HOST/health)
-        
-        if [ "$HEALTH_STATUS" -eq 200 ]; then
-          echo "Health check passed: $HEALTH_STATUS"
-        else
-          echo "Health check failed: $HEALTH_STATUS"
-          exit 1
-        fi
-        
-        # Test prediction endpoint
-        echo "Testing prediction endpoint"
-        PREDICTION_RESULT=$(curl -s -X POST \
-          -H "Content-Type: application/json" \
-          -d '{"store_id": 1, "item_id": 123, "date": "2023-06-15"}' \
-          http://$SERVICE_HOST/predict)
-        
-        echo "Prediction result: $PREDICTION_RESULT"
-        
-        # Check if response contains prediction
-        if [[ $PREDICTION_RESULT == *"prediction"* ]]; then
-          echo "Prediction endpoint working correctly"
-        else
-          echo "Prediction endpoint not returning expected response"
-          exit 1
-        fi
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Check if need to deploy new model
+        id: check-model
+        run: |
+          if [[ "${{ needs.model_evaluation.outputs.model_approved }}" == "true" ]]; then
+            echo "deploy_new_model=true" >> $GITHUB_OUTPUT
+          else
+            echo "deploy_new_model=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to EKS
+        run: |
+          # Set environment variables
+          NAMESPACE="retail-forecast-${{ needs.setup.outputs.environment }}"
+          IMAGE_TAG="${{ needs.build_docker.outputs.image_tag }}"
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+
+          # Update kustomization file with new image
+          cd aws/k8s
+          kustomize edit set image retail-forecast-api=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          # Apply changes
+          kubectl apply -k overlays/${{ needs.setup.outputs.environment }}/ --namespace $NAMESPACE
+
+          # Wait for deployment to complete
+          kubectl rollout status deployment/retail-forecast-api -n $NAMESPACE --timeout=300s
+
+      - name: Create SageMaker endpoint (if new model approved)
+        if: steps.check-model.outputs.deploy_new_model == 'true'
+        run: |
+          python aws/script/deploy_endpoint.py \
+            --model-package-arn "arn:aws:sagemaker:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:model-package/${{ env.MODEL_PACKAGE_GROUP }}/${{ needs.model_evaluation.outputs.model_version }}" \
+            --endpoint-name "retail-forecast-${{ needs.setup.outputs.environment }}" \
+            --instance-type ml.t2.medium \
+            --instance-count 1
+
+      - name: Health check
+        run: |
+          # Get service endpoint
+          NAMESPACE="retail-forecast-${{ needs.setup.outputs.environment }}"
+          SERVICE_HOST=$(kubectl get ingress -n $NAMESPACE retail-forecast-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+          # If running locally, use port-forwarding
+          if [ -z "$SERVICE_HOST" ]; then
+            echo "No external hostname found, using port-forwarding"
+            kubectl port-forward svc/retail-forecast-service 8080:80 -n $NAMESPACE &
+            sleep 5
+            SERVICE_HOST="localhost:8080"
+          fi
+
+          # Check health endpoint
+          echo "Testing health endpoint: http://$SERVICE_HOST/health"
+          HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://$SERVICE_HOST/health)
+
+          if [ "$HEALTH_STATUS" -eq 200 ]; then
+            echo "Health check passed: $HEALTH_STATUS"
+          else
+            echo "Health check failed: $HEALTH_STATUS"
+            exit 1
+          fi
+
+          # Test prediction endpoint
+          echo "Testing prediction endpoint"
+          PREDICTION_RESULT=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"store_id": 1, "item_id": 123, "date": "2023-06-15"}' \
+            http://$SERVICE_HOST/predict)
+
+          echo "Prediction result: $PREDICTION_RESULT"
+
+          # Check if response contains prediction
+          if [[ $PREDICTION_RESULT == *"prediction"* ]]; then
+            echo "Prediction endpoint working correctly"
+          else
+            echo "Prediction endpoint not returning expected response"
+            exit 1
+          fi
 
   monitoring:
     name: Setup Monitoring
     needs: [setup, deploy_eks]
     runs-on: ubuntu-latest
     if: always() && needs.deploy_eks.result == 'success'
-    
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Setup CloudWatch alarms for new deployment
-      run: |
-        # Create/update CloudWatch alarms for API and model performance
-        NAMESPACE="retail-forecast-${{ needs.setup.outputs.environment }}"
-        DEPLOYMENT_ID="${{ needs.setup.outputs.build-id }}"
-        
-        aws cloudwatch put-metric-alarm \
-          --alarm-name "RetailForecast-API-Error-Rate-$NAMESPACE" \
-          --alarm-description "Monitor error rate for Retail Forecast API" \
-          --metric-name "ErrorRate" \
-          --namespace "RetailForecast/$NAMESPACE" \
-          --statistic "Average" \
-          --period 60 \
-          --threshold 5 \
-          --comparison-operator "GreaterThanThreshold" \
-          --evaluation-periods 3 \
-          --alarm-actions "arn:aws:sns:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:retail-forecast-alerts" \
-          --dimensions "Name=DeploymentId,Value=$DEPLOYMENT_ID"
-        
-        aws cloudwatch put-metric-alarm \
-          --alarm-name "RetailForecast-API-Latency-$NAMESPACE" \
-          --alarm-description "Monitor latency for Retail Forecast API" \
-          --metric-name "Latency" \
-          --namespace "RetailForecast/$NAMESPACE" \
-          --statistic "Average" \
-          --period 60 \
-          --threshold 1000 \
-          --comparison-operator "GreaterThanThreshold" \
-          --evaluation-periods 3 \
-          --alarm-actions "arn:aws:sns:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:retail-forecast-alerts" \
-          --dimensions "Name=DeploymentId,Value=$DEPLOYMENT_ID"
-        
-        echo "CloudWatch alarms configured successfully"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup CloudWatch alarms for new deployment
+        run: |
+          # Create/update CloudWatch alarms for API and model performance
+          NAMESPACE="retail-forecast-${{ needs.setup.outputs.environment }}"
+          DEPLOYMENT_ID="${{ needs.setup.outputs.build-id }}"
+
+          aws cloudwatch put-metric-alarm \
+            --alarm-name "RetailForecast-API-Error-Rate-$NAMESPACE" \
+            --alarm-description "Monitor error rate for Retail Forecast API" \
+            --metric-name "ErrorRate" \
+            --namespace "RetailForecast/$NAMESPACE" \
+            --statistic "Average" \
+            --period 60 \
+            --threshold 5 \
+            --comparison-operator "GreaterThanThreshold" \
+            --evaluation-periods 3 \
+            --alarm-actions "arn:aws:sns:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:retail-forecast-alerts" \
+            --dimensions "Name=DeploymentId,Value=$DEPLOYMENT_ID"
+
+          aws cloudwatch put-metric-alarm \
+            --alarm-name "RetailForecast-API-Latency-$NAMESPACE" \
+            --alarm-description "Monitor latency for Retail Forecast API" \
+            --metric-name "Latency" \
+            --namespace "RetailForecast/$NAMESPACE" \
+            --statistic "Average" \
+            --period 60 \
+            --threshold 1000 \
+            --comparison-operator "GreaterThanThreshold" \
+            --evaluation-periods 3 \
+            --alarm-actions "arn:aws:sns:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:retail-forecast-alerts" \
+            --dimensions "Name=DeploymentId,Value=$DEPLOYMENT_ID"
+
+          echo "CloudWatch alarms configured successfully"
 
   notify:
     name: Send Notifications
     needs: [setup, deploy_eks, monitoring]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
-    - name: Determine workflow status
-      id: status
-      run: |
-        if [[ "${{ needs.deploy_eks.result }}" == "success" ]]; then
-          echo "result=success" >> $GITHUB_OUTPUT
-          echo "message=✅ Deployment successful for ${{ needs.setup.outputs.environment }} environment (Build ${{ needs.setup.outputs.build-id }})" >> $GITHUB_OUTPUT
-        elif [[ "${{ needs.deploy_eks.result }}" == "failure" ]]; then
-          echo "result=failure" >> $GITHUB_OUTPUT
-          echo "message=❌ Deployment failed for ${{ needs.setup.outputs.environment }} environment (Build ${{ needs.setup.outputs.build-id }})" >> $GITHUB_OUTPUT
-        else
-          echo "result=skipped" >> $GITHUB_OUTPUT
-          echo "message=ℹ️ Deployment skipped for ${{ needs.setup.outputs.environment }} environment (Build ${{ needs.setup.outputs.build-id }})" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Configure AWS credentials
-      if: steps.status.outputs.result != 'skipped'
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Send SNS notification
-      if: steps.status.outputs.result != 'skipped'
-      run: |
-        aws sns publish \
-          --topic-arn "arn:aws:sns:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:retail-forecast-alerts" \
-          --subject "Retail Forecast Deployment: ${{ steps.status.outputs.result }}" \
-          --message "${{ steps.status.outputs.message }}"
+      - name: Determine workflow status
+        id: status
+        run: |
+          if [[ "${{ needs.deploy_eks.result }}" == "success" ]]; then
+            echo "result=success" >> $GITHUB_OUTPUT
+            echo "message=✅ Deployment successful for ${{ needs.setup.outputs.environment }} environment (Build ${{ needs.setup.outputs.build-id }})" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.deploy_eks.result }}" == "failure" ]]; then
+            echo "result=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ Deployment failed for ${{ needs.setup.outputs.environment }} environment (Build ${{ needs.setup.outputs.build-id }})" >> $GITHUB_OUTPUT
+          else
+            echo "result=skipped" >> $GITHUB_OUTPUT
+            echo "message=ℹ️ Deployment skipped for ${{ needs.setup.outputs.environment }} environment (Build ${{ needs.setup.outputs.build-id }})" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.status.outputs.result != 'skipped'
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Send SNS notification
+        if: steps.status.outputs.result != 'skipped'
+        run: |
+          aws sns publish \
+            --topic-arn "arn:aws:sns:${{ env.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:retail-forecast-alerts" \
+            --subject "Retail Forecast Deployment: ${{ steps.status.outputs.result }}" \
+            --message "${{ steps.status.outputs.message }}"
 ```
 
 ## 3. IAM Role và Quyền hạn
@@ -1247,11 +1240,7 @@ aws iam create-role --role-name GitHubActionsRole \
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:ListBucket"
-      ],
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
       "Resource": [
         "arn:aws:s3:::retail-forecast-data*",
         "arn:aws:s3:::retail-forecast-data*/*",
@@ -1307,10 +1296,7 @@ aws iam create-role --role-name GitHubActionsRole \
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "eks:DescribeCluster",
-        "eks:ListClusters"
-      ],
+      "Action": ["eks:DescribeCluster", "eks:ListClusters"],
       "Resource": "*"
     },
     {
@@ -1336,9 +1322,7 @@ aws iam create-role --role-name GitHubActionsRole \
     },
     {
       "Effect": "Allow",
-      "Action": [
-        "sns:Publish"
-      ],
+      "Action": ["sns:Publish"],
       "Resource": "arn:aws:sns:*:*:retail-forecast-*"
     }
   ]
@@ -1379,14 +1363,14 @@ import json
 import os
 from datetime import datetime
 
-def create_training_job(job_name, data_bucket, output_bucket, 
-                        instance_type='ml.m5.large', 
+def create_training_job(job_name, data_bucket, output_bucket,
+                        instance_type='ml.m5.large',
                         hyperparameters=None):
     """
     Tạo SageMaker training job cho Retail Forecast model
     """
     sagemaker = boto3.client('sagemaker')
-    
+
     if hyperparameters is None:
         hyperparameters = {
             'n_estimators': '100',
@@ -1395,7 +1379,7 @@ def create_training_job(job_name, data_bucket, output_bucket,
         }
     elif isinstance(hyperparameters, str):
         hyperparameters = json.loads(hyperparameters)
-    
+
     # Lấy SageMaker execution role từ môi trường hoặc tạo mới
     role_arn = os.environ.get('SAGEMAKER_ROLE_ARN')
     if not role_arn:
@@ -1407,10 +1391,10 @@ def create_training_job(job_name, data_bucket, output_bucket,
                 if 'AmazonSageMaker-ExecutionRole' in role['RoleName']:
                     role_arn = role['Arn']
                     break
-    
+
     if not role_arn:
         raise ValueError("Không tìm thấy SageMaker execution role")
-    
+
     # Cấu hình training job
     training_params = {
         'TrainingJobName': job_name,
@@ -1461,17 +1445,17 @@ def create_training_job(job_name, data_bucket, output_bucket,
             {'Key': 'Environment', 'Value': os.environ.get('ENVIRONMENT', 'dev')}
         ]
     }
-    
+
     # Tạo training job
     response = sagemaker.create_training_job(**training_params)
     print(f"Training job created: {job_name}")
     print(f"ARN: {response['TrainingJobArn']}")
-    
+
     return response['TrainingJobArn']
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Create SageMaker training job')
-    parser.add_argument('--job-name', type=str, required=True, 
+    parser.add_argument('--job-name', type=str, required=True,
                         help='Name for the training job')
     parser.add_argument('--data-bucket', type=str, required=True,
                         help='S3 bucket containing training data')
@@ -1481,9 +1465,9 @@ if __name__ == "__main__":
                         help='SageMaker instance type')
     parser.add_argument('--hyperparameters', type=str, default=None,
                         help='JSON string of hyperparameters')
-    
+
     args = parser.parse_args()
-    
+
     create_training_job(
         args.job_name,
         args.data_bucket,
@@ -1509,21 +1493,21 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
 def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0.85):
     """Đánh giá model và so sánh với baseline metrics"""
-    
+
     # Tạo thư mục cho plots
     os.makedirs('plots', exist_ok=True)
-    
+
     sagemaker = boto3.client('sagemaker')
     s3 = boto3.client('s3')
-    
+
     # Lấy thông tin training job
     response = sagemaker.describe_training_job(TrainingJobName=job_name)
     if response['TrainingJobStatus'] != 'Completed':
         raise Exception(f"Training job {job_name} chưa hoàn thành")
-    
+
     model_artifacts = response['ModelArtifacts']['S3ModelArtifacts']
     print(f"Model artifacts: {model_artifacts}")
-    
+
     # Download dữ liệu đánh giá từ S3
     if evaluation_data.startswith('s3://'):
         bucket, key = evaluation_data.replace('s3://', '').split('/', 1)
@@ -1531,18 +1515,18 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
         s3.download_file(bucket, key, local_path)
     else:
         local_path = evaluation_data
-    
+
     # Load dữ liệu đánh giá
     eval_data = pd.read_csv(local_path)
-    
+
     # Trong dự án thực tế, ở đây sẽ load model từ S3 và đánh giá
     # Ví dụ đơn giản này giả định chúng ta đã có kết quả dự đoán
-    
+
     # Giả định kết quả đánh giá
     # Trong thực tế, bạn sẽ load model và thực hiện dự đoán
     y_true = eval_data['target'].values
     y_pred = y_true * 0.9 + np.random.normal(0, 0.2, size=y_true.shape)
-    
+
     # Tính toán metrics
     metrics = {
         'mse': mean_squared_error(y_true, y_pred),
@@ -1551,7 +1535,7 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
         'r2_score': r2_score(y_true, y_pred),
         'accuracy': 0.88  # Giả định cho forecasting task
     }
-    
+
     # So sánh với baseline metrics nếu có
     baseline = {}
     if baseline_metrics:
@@ -1570,7 +1554,7 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
                     baseline = json.load(f)
             except:
                 print(f"Không tìm thấy baseline metrics: {baseline_metrics}")
-    
+
     # Quyết định model có được chấp nhận hay không
     approved = True
     if baseline:
@@ -1579,7 +1563,7 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
             if key in baseline:
                 improvement = (metrics[key] - baseline[key]) / baseline[key] * 100
                 print(f"{key}: {metrics[key]:.4f} (baseline: {baseline[key]:.4f}, {improvement:+.2f}%)")
-                
+
                 # Kiểm tra tiêu chí cải thiện
                 if key == 'accuracy' and metrics[key] < threshold:
                     approved = False
@@ -1587,7 +1571,7 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
                     approved = False
     else:
         print("Không có baseline để so sánh")
-    
+
     # Tạo visualizations
     plt.figure(figsize=(10, 6))
     plt.scatter(y_true, y_pred, alpha=0.5)
@@ -1596,7 +1580,7 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
     plt.ylabel('Predicted')
     plt.title('Actual vs Predicted Values')
     plt.savefig('plots/actual_vs_predicted.png')
-    
+
     # Residual plot
     residuals = y_true - y_pred
     plt.figure(figsize=(10, 6))
@@ -1606,7 +1590,7 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
     plt.ylabel('Residuals')
     plt.title('Residual Plot')
     plt.savefig('plots/residuals.png')
-    
+
     # Lưu kết quả đánh giá
     result = {
         'job_name': job_name,
@@ -1615,14 +1599,14 @@ def evaluate_model(job_name, evaluation_data, baseline_metrics=None, threshold=0
         'approved': approved,
         'model_uri': model_artifacts
     }
-    
+
     with open('evaluation_results.json', 'w') as f:
         json.dump(result, f, indent=2)
-    
+
     # Lưu kết quả approved để GitHub Actions có thể đọc
     with open('model_approved.txt', 'w') as f:
         f.write(str(approved).lower())
-    
+
     print(f"Model approved: {approved}")
     return approved
 
@@ -1636,9 +1620,9 @@ if __name__ == "__main__":
                         help='S3 URI or local path to baseline metrics')
     parser.add_argument('--threshold', type=float, default=0.85,
                         help='Accuracy threshold for model approval')
-    
+
     args = parser.parse_args()
-    
+
     evaluate_model(
         args.job_name,
         args.evaluation_data,
@@ -1658,9 +1642,9 @@ import time
 
 def register_model(job_name, model_package_group, approval_status='PendingManualApproval'):
     """Đăng ký model vào Model Registry"""
-    
+
     sagemaker = boto3.client('sagemaker')
-    
+
     # Kiểm tra xem Model Package Group đã tồn tại chưa
     try:
         sagemaker.describe_model_package_group(ModelPackageGroupName=model_package_group)
@@ -1674,15 +1658,15 @@ def register_model(job_name, model_package_group, approval_status='PendingManual
                 {'Key': 'Project', 'Value': 'RetailForecast'}
             ]
         )
-    
+
     # Lấy thông tin training job
     training_job = sagemaker.describe_training_job(TrainingJobName=job_name)
     model_data_url = training_job['ModelArtifacts']['S3ModelArtifacts']
     image_uri = training_job['AlgorithmSpecification']['TrainingImage']
-    
+
     # Đăng ký model package
     model_package_name = f"{model_package_group}-{int(time.time())}"
-    
+
     create_model_package_input_dict = {
         'ModelPackageGroupName': model_package_group,
         'ModelPackageDescription': f"Model trained by job {job_name}",
@@ -1705,19 +1689,19 @@ def register_model(job_name, model_package_group, approval_status='PendingManual
             {'Key': 'Project', 'Value': 'RetailForecast'}
         ]
     }
-    
+
     # Thêm model metrics nếu có
     try:
         with open('evaluation_results.json', 'r') as f:
             eval_results = json.load(f)
-        
+
         model_metrics = []
         for metric_name, value in eval_results.get('metrics', {}).items():
             model_metrics.append({
                 'Name': metric_name,
                 'Value': float(value)
             })
-        
+
         if model_metrics:
             create_model_package_input_dict['ModelMetrics'] = {
                 'ModelQuality': {
@@ -1729,15 +1713,15 @@ def register_model(job_name, model_package_group, approval_status='PendingManual
             }
     except Exception as e:
         print(f"Không thể đọc kết quả đánh giá: {e}")
-    
+
     response = sagemaker.create_model_package(**create_model_package_input_dict)
-    
+
     print(f"Model package đã được tạo: {response['ModelPackageArn']}")
-    
+
     # Lấy version từ ARN
     model_version = response['ModelPackageArn'].split('/')[-1]
     print(f"Model version: {model_version}")
-    
+
     return model_version
 
 if __name__ == "__main__":
@@ -1749,15 +1733,15 @@ if __name__ == "__main__":
     parser.add_argument('--approval-status', type=str, default='PendingManualApproval',
                         choices=['Approved', 'Rejected', 'PendingManualApproval'],
                         help='Initial model approval status')
-    
+
     args = parser.parse_args()
-    
+
     model_version = register_model(
         args.job_name,
         args.model_package_group,
         args.approval_status
     )
-    
+
     print(model_version)
 ```
 
@@ -1772,14 +1756,14 @@ import uuid
 
 def deploy_endpoint(model_package_arn, endpoint_name, instance_type, instance_count=1):
     """Deploy model to SageMaker endpoint"""
-    
+
     sagemaker = boto3.client('sagemaker')
     timestamp = int(time.time())
-    
+
     # Tạo model
     model_name = f"{endpoint_name}-model-{timestamp}"
     print(f"Creating model {model_name} from {model_package_arn}")
-    
+
     model_response = sagemaker.create_model(
         ModelName=model_name,
         PrimaryContainer={
@@ -1787,11 +1771,11 @@ def deploy_endpoint(model_package_arn, endpoint_name, instance_type, instance_co
         },
         ExecutionRoleArn=sagemaker.get_caller_identity()['RoleArn']
     )
-    
+
     # Tạo endpoint config
     config_name = f"{endpoint_name}-config-{timestamp}"
     print(f"Creating endpoint config {config_name}")
-    
+
     endpoint_config_response = sagemaker.create_endpoint_config(
         EndpointConfigName=config_name,
         ProductionVariants=[
@@ -1807,7 +1791,7 @@ def deploy_endpoint(model_package_arn, endpoint_name, instance_type, instance_co
             {'Key': 'Project', 'Value': 'RetailForecast'}
         ]
     )
-    
+
     # Kiểm tra xem endpoint đã tồn tại chưa
     endpoint_exists = False
     try:
@@ -1815,7 +1799,7 @@ def deploy_endpoint(model_package_arn, endpoint_name, instance_type, instance_co
         endpoint_exists = True
     except sagemaker.exceptions.ClientError:
         endpoint_exists = False
-    
+
     # Tạo hoặc cập nhật endpoint
     if endpoint_exists:
         print(f"Updating endpoint {endpoint_name}")
@@ -1832,16 +1816,16 @@ def deploy_endpoint(model_package_arn, endpoint_name, instance_type, instance_co
                 {'Key': 'Project', 'Value': 'RetailForecast'}
             ]
         )
-    
+
     # Đợi endpoint sẵn sàng
     print(f"Waiting for endpoint {endpoint_name} to be in service...")
     waiter = sagemaker.get_waiter('endpoint_in_service')
     waiter.wait(EndpointName=endpoint_name)
-    
+
     # Lấy thông tin endpoint
     endpoint_info = sagemaker.describe_endpoint(EndpointName=endpoint_name)
     print(f"Endpoint {endpoint_name} is ready (status: {endpoint_info['EndpointStatus']})")
-    
+
     return {
         'endpoint_name': endpoint_name,
         'endpoint_arn': endpoint_info['EndpointArn'],
@@ -1858,16 +1842,16 @@ if __name__ == "__main__":
                         help='Instance type for inference')
     parser.add_argument('--instance-count', type=int, default=1,
                         help='Number of instances')
-    
+
     args = parser.parse_args()
-    
+
     result = deploy_endpoint(
         args.model_package_arn,
         args.endpoint_name,
         args.instance_type,
         args.instance_count
     )
-    
+
     print(f"Endpoint deployment complete: {result}")
 ```
 
@@ -1881,26 +1865,26 @@ import json
 import time
 import datetime
 
-def setup_autoscaling(endpoint_name, min_capacity=1, max_capacity=4, 
-                      target_value=70.0, scale_in_cooldown=300, 
+def setup_autoscaling(endpoint_name, min_capacity=1, max_capacity=4,
+                      target_value=70.0, scale_in_cooldown=300,
                       scale_out_cooldown=60):
     """Thiết lập autoscaling cho SageMaker endpoint"""
-    
+
     # Lấy variant name và ARN của endpoint
     sm = boto3.client('sagemaker')
     endpoint = sm.describe_endpoint(EndpointName=endpoint_name)
     endpoint_arn = endpoint['EndpointArn']
-    
+
     config_name = endpoint['EndpointConfigName']
     config = sm.describe_endpoint_config(EndpointConfigName=config_name)
     variant_name = config['ProductionVariants'][0]['VariantName']
-    
+
     # Chuẩn bị resource ID cho autoscaling
     resource_id = f"endpoint/{endpoint_name}/variant/{variant_name}"
-    
+
     # Thiết lập application autoscaling
     aas = boto3.client('application-autoscaling')
-    
+
     # Đăng ký scalable target
     aas.register_scalable_target(
         ServiceNamespace='sagemaker',
@@ -1909,7 +1893,7 @@ def setup_autoscaling(endpoint_name, min_capacity=1, max_capacity=4,
         MinCapacity=min_capacity,
         MaxCapacity=max_capacity
     )
-    
+
     # Tạo scaling policy
     response = aas.put_scaling_policy(
         PolicyName=f"{endpoint_name}-scaling-policy",
@@ -1926,11 +1910,11 @@ def setup_autoscaling(endpoint_name, min_capacity=1, max_capacity=4,
             'ScaleOutCooldown': scale_out_cooldown
         }
     )
-    
+
     print(f"Autoscaling configured for endpoint {endpoint_name}")
     print(f"Min capacity: {min_capacity}, Max capacity: {max_capacity}")
     print(f"Target value: {target_value} invocations per instance")
-    
+
     return {
         'endpoint_name': endpoint_name,
         'resource_id': resource_id,
@@ -1939,36 +1923,36 @@ def setup_autoscaling(endpoint_name, min_capacity=1, max_capacity=4,
 
 def load_test_endpoint(endpoint_name, test_data_path, duration=60, rate=10):
     """Test tải endpoint để kiểm tra hiệu suất và autoscaling"""
-    
+
     sagemaker_runtime = boto3.client('sagemaker-runtime')
-    
+
     # Load test data
     with open(test_data_path, 'r') as f:
         test_data = json.load(f)
-    
+
     # Nếu test data là list, lấy phần tử đầu tiên
     if isinstance(test_data, list):
         sample = test_data[0]
     else:
         sample = test_data
-    
+
     # Chuẩn bị test
     start_time = time.time()
     end_time = start_time + duration
     request_count = 0
     success_count = 0
     latencies = []
-    
+
     print(f"Starting load test on endpoint {endpoint_name}")
     print(f"Duration: {duration} seconds, Rate: {rate} requests/second")
-    
+
     # Thực hiện load test
     while time.time() < end_time:
         batch_start = time.time()
         for _ in range(rate):
             if time.time() >= end_time:
                 break
-                
+
             try:
                 # Gửi request
                 request_start = time.time()
@@ -1977,35 +1961,35 @@ def load_test_endpoint(endpoint_name, test_data_path, duration=60, rate=10):
                     ContentType='application/json',
                     Body=json.dumps(sample)
                 )
-                
+
                 # Đo latency
                 latency = (time.time() - request_start) * 1000  # milliseconds
                 latencies.append(latency)
-                
+
                 # Đọc kết quả
                 result = json.loads(response['Body'].read().decode())
-                
+
                 # Cập nhật counter
                 request_count += 1
                 success_count += 1
-                
+
                 if request_count % 50 == 0:
                     print(f"Processed {request_count} requests...")
-                
+
             except Exception as e:
                 request_count += 1
                 print(f"Error invoking endpoint: {e}")
-        
+
         # Đợi đến đầu giây tiếp theo
         elapsed = time.time() - batch_start
         if elapsed < 1.0:
             time.sleep(1.0 - elapsed)
-    
+
     # Tính toán kết quả
     total_time = time.time() - start_time
     avg_rate = request_count / total_time
     success_rate = (success_count / request_count) * 100 if request_count > 0 else 0
-    
+
     if latencies:
         avg_latency = sum(latencies) / len(latencies)
         min_latency = min(latencies)
@@ -2014,7 +1998,7 @@ def load_test_endpoint(endpoint_name, test_data_path, duration=60, rate=10):
         p99_latency = sorted(latencies)[int(len(latencies) * 0.99)]
     else:
         avg_latency = min_latency = max_latency = p95_latency = p99_latency = 0
-    
+
     # In kết quả
     results = {
         'endpoint': endpoint_name,
@@ -2031,35 +2015,35 @@ def load_test_endpoint(endpoint_name, test_data_path, duration=60, rate=10):
             'p99': p99_latency
         }
     }
-    
+
     print("\nLoad Test Results:")
     print(json.dumps(results, indent=2))
-    
+
     with open('load_test_results.json', 'w') as f:
         json.dump(results, f, indent=2)
-    
+
     return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Setup autoscaling and test SageMaker endpoint')
     subparsers = parser.add_subparsers(dest='command')
-    
+
     # Subparser cho autoscaling
     autoscaling_parser = subparsers.add_parser('autoscale')
     autoscaling_parser.add_argument('--endpoint-name', type=str, required=True)
     autoscaling_parser.add_argument('--min-capacity', type=int, default=1)
     autoscaling_parser.add_argument('--max-capacity', type=int, default=4)
     autoscaling_parser.add_argument('--target-value', type=float, default=70.0)
-    
+
     # Subparser cho load testing
     loadtest_parser = subparsers.add_parser('loadtest')
     loadtest_parser.add_argument('--endpoint-name', type=str, required=True)
     loadtest_parser.add_argument('--test-data', type=str, required=True)
     loadtest_parser.add_argument('--duration', type=int, default=60)
     loadtest_parser.add_argument('--rate', type=int, default=10)
-    
+
     args = parser.parse_args()
-    
+
     if args.command == 'autoscale':
         setup_autoscaling(
             args.endpoint_name,
@@ -2092,7 +2076,7 @@ aws sns subscribe \
   --protocol email \
   --notification-endpoint team@example.com
 
-# Đăng ký webhook Slack 
+# Đăng ký webhook Slack
 aws sns subscribe \
   --topic-arn arn:aws:sns:us-east-1:<ACCOUNT_ID>:retail-forecast-alerts \
   --protocol https \
@@ -2199,13 +2183,13 @@ from datetime import datetime, timedelta
 
 def publish_pipeline_metrics(deploy_success=True, lead_time=None):
     """Publish CI/CD pipeline metrics to CloudWatch"""
-    
+
     cloudwatch = boto3.client('cloudwatch')
-    
+
     # Get date parts for daily metrics
     now = datetime.utcnow()
     today = now.strftime('%Y-%m-%d')
-    
+
     # Increment deployment count
     cloudwatch.put_metric_data(
         Namespace='RetailForecast/Pipeline',
@@ -2223,7 +2207,7 @@ def publish_pipeline_metrics(deploy_success=True, lead_time=None):
             }
         ]
     )
-    
+
     # Add deployment success/failure
     cloudwatch.put_metric_data(
         Namespace='RetailForecast/Pipeline',
@@ -2241,7 +2225,7 @@ def publish_pipeline_metrics(deploy_success=True, lead_time=None):
             }
         ]
     )
-    
+
     # Add lead time if provided
     if lead_time is not None:
         cloudwatch.put_metric_data(
@@ -2260,16 +2244,16 @@ def publish_pipeline_metrics(deploy_success=True, lead_time=None):
                 }
             ]
         )
-    
+
     print(f"Pipeline metrics published successfully")
-    
+
 def calculate_pipeline_kpis(days=30):
     """Calculate KPIs for CI/CD pipeline"""
-    
+
     cloudwatch = boto3.client('cloudwatch')
     end_time = datetime.utcnow()
     start_time = end_time - timedelta(days=days)
-    
+
     # Get deployment frequency
     deploy_count_response = cloudwatch.get_metric_statistics(
         Namespace='RetailForecast/Pipeline',
@@ -2279,7 +2263,7 @@ def calculate_pipeline_kpis(days=30):
         Period=86400 * days,  # entire period
         Statistics=['Sum']
     )
-    
+
     # Get deployment success/failure
     deploy_success_response = cloudwatch.get_metric_statistics(
         Namespace='RetailForecast/Pipeline',
@@ -2289,7 +2273,7 @@ def calculate_pipeline_kpis(days=30):
         Period=86400 * days,  # entire period
         Statistics=['Sum']
     )
-    
+
     # Get lead time
     lead_time_response = cloudwatch.get_metric_statistics(
         Namespace='RetailForecast/Pipeline',
@@ -2299,16 +2283,16 @@ def calculate_pipeline_kpis(days=30):
         Period=86400 * days,  # entire period
         Statistics=['Average']
     )
-    
+
     # Calculate KPIs
     deploy_count = deploy_count_response['Datapoints'][0]['Sum'] if deploy_count_response['Datapoints'] else 0
     deploy_success = deploy_success_response['Datapoints'][0]['Sum'] if deploy_success_response['Datapoints'] else 0
-    
+
     # Calculate metrics
     deployments_per_day = deploy_count / days if days > 0 else 0
     failure_rate = (deploy_count - deploy_success) / deploy_count * 100 if deploy_count > 0 else 0
     avg_lead_time = lead_time_response['Datapoints'][0]['Average'] if lead_time_response['Datapoints'] else 0
-    
+
     kpis = {
         'period_days': days,
         'total_deployments': deploy_count,
@@ -2317,25 +2301,25 @@ def calculate_pipeline_kpis(days=30):
         'failure_rate_percent': failure_rate,
         'avg_lead_time_minutes': avg_lead_time
     }
-    
+
     print(json.dumps(kpis, indent=2))
     return kpis
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Manage CI/CD pipeline metrics')
     subparsers = parser.add_subparsers(dest='command')
-    
+
     # Subparser cho publish metrics
     publish_parser = subparsers.add_parser('publish')
     publish_parser.add_argument('--success', type=bool, default=True)
     publish_parser.add_argument('--lead-time', type=float, help='Lead time in minutes')
-    
+
     # Subparser cho calculate KPIs
     kpi_parser = subparsers.add_parser('kpi')
     kpi_parser.add_argument('--days', type=int, default=30)
-    
+
     args = parser.parse_args()
-    
+
     if args.command == 'publish':
         publish_pipeline_metrics(args.success, args.lead_time)
     elif args.command == 'kpi':
@@ -2353,7 +2337,7 @@ Các thành phần chính đã triển khai:
 - **Pipeline GitHub Actions**: Workflow đã được cấu hình với các job đầy đủ
 - **IAM Role & Permissions**: Role cho GitHub Actions với OIDC xác thực
 - **Automated Testing**: Unit tests, code quality check, data validation
-- **Model Training**: Tự động trigger SageMaker training jobs 
+- **Model Training**: Tự động trigger SageMaker training jobs
 - **Model Evaluation & Registry**: Đánh giá model và đăng ký vào Model Registry
 - **Docker Build**: Tự động build và push image lên ECR
 - **EKS Deployment**: Tự động cập nhật Kubernetes deployment
@@ -2366,18 +2350,20 @@ Các thành phần chính đã triển khai:
 Để xác nhận pipeline hoạt động chính xác, thực hiện các bước sau:
 
 1. **Kích hoạt pipeline thông qua commit mới**
+
    ```bash
    # Commit code mới
    echo "# Test CI/CD pipeline" >> README.md
    git add README.md
    git commit -m "Test: Trigger CI/CD pipeline"
    git push origin main
-   
+
    # Kiểm tra GitHub Actions
    # Pipeline sẽ tự động kích hoạt trong vòng 1 phút
    ```
 
 2. **Kích hoạt pipeline thủ công với huấn luyện model**
+
    ```bash
    # Sử dụng GitHub UI để kích hoạt workflow với các tùy chọn:
    # - environment: prod
@@ -2385,12 +2371,13 @@ Các thành phần chính đã triển khai:
    ```
 
 3. **Kiểm tra ECR repository**
+
    ```bash
    # Kiểm tra image mới trên ECR
    aws ecr describe-images \
      --repository-name retail-forecast \
      --query 'sort_by(imageDetails,& imagePushedAt)[-5:]'
-   
+
    # Kiểm tra tag mới nhất
    aws ecr list-images \
      --repository-name retail-forecast \
@@ -2399,48 +2386,51 @@ Các thành phần chính đã triển khai:
    ```
 
 4. **Kiểm tra SageMaker model và deployment**
+
    ```bash
    # Kiểm tra training job mới nhất
    aws sagemaker list-training-jobs \
      --sort-by CreationTime \
      --sort-order Descending \
      --max-items 5
-   
+
    # Kiểm tra model package mới nhất
    aws sagemaker list-model-packages \
      --model-package-group-name retail-forecast-models \
      --sort-by CreationTime \
      --sort-order Descending \
      --max-items 5
-   
+
    # Kiểm tra endpoint
    aws sagemaker describe-endpoint \
      --endpoint-name retail-forecast-prod
    ```
 
 5. **Kiểm tra EKS deployment**
+
    ```bash
    # Kiểm tra deployment mới
    kubectl get deployments -n retail-forecast-prod
-   
+
    # Kiểm tra pods
    kubectl get pods -n retail-forecast-prod
-   
+
    # Kiểm tra image được sử dụng
    kubectl describe deployment retail-forecast-api -n retail-forecast-prod | grep Image:
-   
+
    # Kiểm tra history rollout
    kubectl rollout history deployment/retail-forecast-api -n retail-forecast-prod
    ```
 
 6. **Test API endpoint**
+
    ```bash
    # Lấy endpoint URL
    ENDPOINT=$(kubectl get ingress -n retail-forecast-prod retail-forecast-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-   
+
    # Kiểm tra health endpoint
    curl -v http://$ENDPOINT/health
-   
+
    # Test prediction endpoint
    curl -X POST \
      -H "Content-Type: application/json" \
@@ -2534,13 +2524,14 @@ Pipeline này đảm bảo quy trình MLOps đáng tin cậy, tự động, và 
 
 {{% notice success %}}
 **🎯 Task 11 Complete - CI/CD Pipeline**
+
 - **GitHub Actions workflow** configured với đầy đủ CI/CD stages
 - **IAM Role & OIDC** setup cho secure authentication
 - **Automated testing** và quality gates
 - **SageMaker integration** cho model training & registry
 - **EKS deployment** automation với health checks
 - **CloudWatch monitoring** và notifications
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 8. Clean Up CI/CD Resources
 
@@ -2652,7 +2643,7 @@ if [ "$SNS_TOPIC_ARN" != "" ]; then
             aws sns unsubscribe --subscription-arn "$sub_arn"
         fi
     done
-    
+
     # Xóa topic
     aws sns delete-topic --topic-arn "$SNS_TOPIC_ARN"
 fi
@@ -2790,54 +2781,58 @@ gh run list --limit 5 --status completed
 
 ### 9.1. GitHub Actions Pricing
 
-| Plan | Included Minutes | Price per minute | Storage |
-|------|------------------|------------------|---------|
-| **Free (Public repos)** | Unlimited | $0 | 500MB |
-| **Free (Private repos)** | 2,000 min/month | $0.008 | 500MB |
-| **Pro** | 3,000 min/month | $0.008 | 1GB |
-| **Team** | 10,000 min/month | $0.008 | 2GB |
-| **Enterprise** | 50,000 min/month | $0.008 | 50GB |
+| Plan                     | Included Minutes | Price per minute | Storage |
+| ------------------------ | ---------------- | ---------------- | ------- |
+| **Free (Public repos)**  | Unlimited        | $0               | 500MB   |
+| **Free (Private repos)** | 2,000 min/month  | $0.008           | 500MB   |
+| **Pro**                  | 3,000 min/month  | $0.008           | 1GB     |
+| **Team**                 | 10,000 min/month | $0.008           | 2GB     |
+| **Enterprise**           | 50,000 min/month | $0.008           | 50GB    |
 
 **Runner costs:**
+
 - Ubuntu: Standard rate
-- macOS: 10x Standard rate  
+- macOS: 10x Standard rate
 - Windows: 2x Standard rate
 - Self-hosted: Free compute, infrastructure cost only
 
 ### 9.2. AWS IAM và Security Costs
 
-| Service | Cost | Description |
-|---------|------|-------------|
-| **IAM Roles & Policies** | Free | Unlimited roles and policies |
-| **STS AssumeRole calls** | $0.002/1000 calls | OIDC authentication |
-| **AWS Config (compliance)** | $0.003/configuration item | Policy compliance tracking |
+| Service                     | Cost                      | Description                  |
+| --------------------------- | ------------------------- | ---------------------------- |
+| **IAM Roles & Policies**    | Free                      | Unlimited roles and policies |
+| **STS AssumeRole calls**    | $0.002/1000 calls         | OIDC authentication          |
+| **AWS Config (compliance)** | $0.003/configuration item | Policy compliance tracking   |
 
 **Example calculation:**
+
 - 100 CI/CD runs/month × 5 STS calls = 500 calls = $0.001/month
 
 ### 9.3. SageMaker Training Costs trong CI/CD
 
-| Instance Type | Cost per Hour | Typical Job Duration | Cost per Run |
-|---------------|---------------|---------------------|--------------|
-| **ml.m5.large** | $0.134 | 15 minutes | $0.034 |
-| **ml.m5.xlarge** | $0.269 | 10 minutes | $0.045 |
-| **ml.c5.xlarge** | $0.238 | 8 minutes | $0.032 |
-| **ml.p3.2xlarge** | $4.284 | 5 minutes | $0.357 |
+| Instance Type     | Cost per Hour | Typical Job Duration | Cost per Run |
+| ----------------- | ------------- | -------------------- | ------------ |
+| **ml.m5.large**   | $0.134        | 15 minutes           | $0.034       |
+| **ml.m5.xlarge**  | $0.269        | 10 minutes           | $0.045       |
+| **ml.c5.xlarge**  | $0.238        | 8 minutes            | $0.032       |
+| **ml.p3.2xlarge** | $4.284        | 5 minutes            | $0.357       |
 
 **Monthly costs by frequency:**
+
 - Daily training: 30 runs × $0.045 = $1.35
-- Weekly training: 4 runs × $0.045 = $0.18  
+- Weekly training: 4 runs × $0.045 = $0.18
 - On-demand training: 2 runs × $0.045 = $0.09
 
 ### 9.4. ECR Storage và Transfer Costs
 
-| Component | Cost | Volume | Monthly Cost |
-|-----------|------|---------|--------------|
-| **Storage** | $0.10/GB/month | 5GB images | $0.50 |
-| **Data Transfer IN** | Free | Upload images | $0 |
-| **Data Transfer OUT** | $0.12/GB | Download to EKS | Variable |
+| Component             | Cost           | Volume          | Monthly Cost |
+| --------------------- | -------------- | --------------- | ------------ |
+| **Storage**           | $0.10/GB/month | 5GB images      | $0.50        |
+| **Data Transfer IN**  | Free           | Upload images   | $0           |
+| **Data Transfer OUT** | $0.12/GB       | Download to EKS | Variable     |
 
 **Image management costs:**
+
 ```bash
 # Example: 10 images × 500MB each = 5GB storage
 # Monthly cost: 5GB × $0.10 = $0.50
@@ -2846,88 +2841,90 @@ gh run list --limit 5 --status completed
 
 ### 9.5. CloudWatch Monitoring cho CI/CD
 
-| Metric Type | Quantity | Unit Cost | Monthly Cost |
-|-------------|----------|-----------|--------------|
-| **Custom Metrics** | 20 metrics | $0.30/metric | $6.00 |
-| **API Calls** | 100K calls | $0.01/1K calls | $1.00 |
-| **Alarms** | 10 alarms | $0.10/alarm | $1.00 |
-| **Dashboard** | 1 dashboard | $3.00/dashboard | $3.00 |
-| **Total Monitoring** | | | **$11.00** |
+| Metric Type          | Quantity    | Unit Cost       | Monthly Cost |
+| -------------------- | ----------- | --------------- | ------------ |
+| **Custom Metrics**   | 20 metrics  | $0.30/metric    | $6.00        |
+| **API Calls**        | 100K calls  | $0.01/1K calls  | $1.00        |
+| **Alarms**           | 10 alarms   | $0.10/alarm     | $1.00        |
+| **Dashboard**        | 1 dashboard | $3.00/dashboard | $3.00        |
+| **Total Monitoring** |             |                 | **$11.00**   |
 
 ### 9.6. SNS Notification Costs
 
-| Notification Type | Volume | Cost per Message | Monthly Cost |
-|-------------------|---------|------------------|--------------|
-| **Email** | 200 notifications | $0.75/million | $0.0002 |
-| **SMS** | 50 notifications | $0.8/message | $40.00 |
-| **Slack Webhook** | 200 notifications | $0.75/million | $0.0002 |
-| **Push Mobile** | 100 notifications | $0.75/million | $0.0001 |
+| Notification Type | Volume            | Cost per Message | Monthly Cost |
+| ----------------- | ----------------- | ---------------- | ------------ |
+| **Email**         | 200 notifications | $0.75/million    | $0.0002      |
+| **SMS**           | 50 notifications  | $0.8/message     | $40.00       |
+| **Slack Webhook** | 200 notifications | $0.75/million    | $0.0002      |
+| **Push Mobile**   | 100 notifications | $0.75/million    | $0.0001      |
 
 ### 9.7. Jenkins Infrastructure Costs (nếu self-hosted)
 
-| Component | Instance Type | Monthly Hours | Monthly Cost |
-|-----------|---------------|---------------|--------------|
-| **Jenkins Master** | t3.medium | 730 hours | $30.37 |
-| **Build Agents** | t3.large (2 agents) | 100 hours | $13.25 |
-| **EBS Storage** | 100GB gp3 | - | $8.00 |
-| **Data Transfer** | 50GB/month | $0.12/GB | $6.00 |
-| **Total Jenkins** | | | **$57.62** |
+| Component          | Instance Type       | Monthly Hours | Monthly Cost |
+| ------------------ | ------------------- | ------------- | ------------ |
+| **Jenkins Master** | t3.medium           | 730 hours     | $30.37       |
+| **Build Agents**   | t3.large (2 agents) | 100 hours     | $13.25       |
+| **EBS Storage**    | 100GB gp3           | -             | $8.00        |
+| **Data Transfer**  | 50GB/month          | $0.12/GB      | $6.00        |
+| **Total Jenkins**  |                     |               | **$57.62**   |
 
 ### 9.8. CI/CD Pipeline Scenarios
 
 **Scenario 1: Small Team (GitHub Actions)**
 
-| Component | Usage | Monthly Cost |
-|-----------|-------|--------------|
-| GitHub Actions (private) | 2,000 min included | $0 |
-| SageMaker training | 4 runs/month | $0.18 |
-| ECR storage | 2GB images | $0.20 |
-| CloudWatch basic | 5 metrics, 3 alarms | $1.80 |
-| SNS notifications | Email only | $0.0002 |
-| **Total Small Team** | | **$2.18/month** |
+| Component                | Usage               | Monthly Cost    |
+| ------------------------ | ------------------- | --------------- |
+| GitHub Actions (private) | 2,000 min included  | $0              |
+| SageMaker training       | 4 runs/month        | $0.18           |
+| ECR storage              | 2GB images          | $0.20           |
+| CloudWatch basic         | 5 metrics, 3 alarms | $1.80           |
+| SNS notifications        | Email only          | $0.0002         |
+| **Total Small Team**     |                     | **$2.18/month** |
 
 **Scenario 2: Medium Team (GitHub Actions Pro)**
 
-| Component | Usage | Monthly Cost |
-|-----------|-------|--------------|
-| GitHub Actions Pro | 3,000 min + 500 extra | $4.00 |
-| SageMaker training | 12 runs/month | $0.54 |
-| ECR storage | 8GB images | $0.80 |
-| CloudWatch full | 15 metrics, 8 alarms | $5.30 |
-| SNS notifications | Email + Slack | $0.0004 |
-| **Total Medium Team** | | **$10.64/month** |
+| Component             | Usage                 | Monthly Cost     |
+| --------------------- | --------------------- | ---------------- |
+| GitHub Actions Pro    | 3,000 min + 500 extra | $4.00            |
+| SageMaker training    | 12 runs/month         | $0.54            |
+| ECR storage           | 8GB images            | $0.80            |
+| CloudWatch full       | 15 metrics, 8 alarms  | $5.30            |
+| SNS notifications     | Email + Slack         | $0.0004          |
+| **Total Medium Team** |                       | **$10.64/month** |
 
 **Scenario 3: Enterprise (Self-hosted Jenkins)**
 
-| Component | Usage | Monthly Cost |
-|-----------|-------|--------------|
-| Jenkins infrastructure | t3.medium + agents | $57.62 |
-| SageMaker training | 60 runs/month | $2.70 |
-| ECR storage | 20GB images | $2.00 |
-| CloudWatch enterprise | 50 metrics, 25 alarms | $17.50 |
-| SNS notifications | Multi-channel | $40.50 |
-| **Total Enterprise** | | **$120.32/month** |
+| Component              | Usage                 | Monthly Cost      |
+| ---------------------- | --------------------- | ----------------- |
+| Jenkins infrastructure | t3.medium + agents    | $57.62            |
+| SageMaker training     | 60 runs/month         | $2.70             |
+| ECR storage            | 20GB images           | $2.00             |
+| CloudWatch enterprise  | 50 metrics, 25 alarms | $17.50            |
+| SNS notifications      | Multi-channel         | $40.50            |
+| **Total Enterprise**   |                       | **$120.32/month** |
 
 ### 9.9. Cost Optimization Strategies
 
 **GitHub Actions Optimization:**
+
 ```yaml
 # Use matrix strategy để giảm runtime
 strategy:
   matrix:
     python-version: [3.8, 3.9, 3.10]
-    
+
 # Cache dependencies
 - uses: actions/cache@v3
   with:
     path: ~/.cache/pip
     key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-    
+
 # Conditional jobs
 if: github.ref == 'refs/heads/main'
 ```
 
 **SageMaker Training Optimization:**
+
 ```python
 # Sử dụng Spot instances cho training
 training_params = {
@@ -2943,6 +2940,7 @@ training_params = {
 ```
 
 **ECR Cost Optimization:**
+
 ```bash
 # Lifecycle policy để tự động xóa old images
 aws ecr put-lifecycle-policy \
@@ -2967,14 +2965,15 @@ aws ecr put-lifecycle-policy \
 
 ### 9.10. ROI Analysis cho CI/CD Investment
 
-| Benefit | Manual Process | Automated CI/CD | Time Saved | Cost Benefit |
-|---------|----------------|-----------------|------------|--------------|
-| **Code Testing** | 2 hours/week | 5 minutes | 1.9 hours | $95/week |
-| **Model Training** | 30 min setup | Automatic | 2 hours/month | $100/month |
-| **Deployment** | 1 hour/deploy | 5 minutes | 55 min/deploy | $45/deploy |
-| **Rollback** | 2 hours | 5 minutes | 1.9 hours | $95/incident |
+| Benefit            | Manual Process | Automated CI/CD | Time Saved    | Cost Benefit |
+| ------------------ | -------------- | --------------- | ------------- | ------------ |
+| **Code Testing**   | 2 hours/week   | 5 minutes       | 1.9 hours     | $95/week     |
+| **Model Training** | 30 min setup   | Automatic       | 2 hours/month | $100/month   |
+| **Deployment**     | 1 hour/deploy  | 5 minutes       | 55 min/deploy | $45/deploy   |
+| **Rollback**       | 2 hours        | 5 minutes       | 1.9 hours     | $95/incident |
 
 **Annual ROI calculation:**
+
 - **Investment:** $127.68/month × 12 = $1,532
 - **Savings:** (2 hours/week × 52 weeks + 2 hours/month × 12) × $50/hour = $6,400
 - **ROI:** 322% return on investment
@@ -3007,12 +3006,13 @@ aws ce get-cost-and-usage \
 
 {{% notice info %}}
 **💰 Cost Summary cho Task 11:**
+
 - **Small Team (GitHub Free):** $2.18/month
-- **Medium Team (GitHub Pro):** $10.64/month  
+- **Medium Team (GitHub Pro):** $10.64/month
 - **Enterprise (Self-hosted):** $120.32/month
 - **ROI:** 322% với automation benefits
 - **Break-even point:** ~3 months cho medium team setup
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 

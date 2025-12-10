@@ -13,6 +13,7 @@ Triển khai Retail Prediction API (FastAPI) lên EKS Cluster, kết nối model
 → Đảm bảo dịch vụ chạy ổn định, tự động scale, bảo mật, và có thể demo API thật.
 
 📥 **Input từ các Task trước:**
+
 - **Task 5 (Production VPC):** VPC design, subnets, VPC Endpoints and ALB networking required for cluster and load balancer
 - **Task 6 (ECR Container Registry):** Container images and repository URIs to deploy
 - **Task 2 (IAM Roles & Audit):** IRSA roles and policies for Pods to access S3 and other AWS services
@@ -33,7 +34,8 @@ Client → ALB → EKS Service → API Pods → S3 Models
 ```
 
 **Components:**
-- **Namespace**: `mlops` 
+
+- **Namespace**: `mlops`
 - **ServiceAccount**: IRSA cho SageMaker access
 - **Deployment**: API pods với ECR Singapore image
 - **Service**: LoadBalancer service
@@ -42,6 +44,7 @@ Client → ALB → EKS Service → API Pods → S3 Models
 ## 2. Kubernetes Manifests
 
 **Cần tạo 5 file chính:**
+
 - `namespace.yaml` - Tạo namespace mlops
 - `serviceaccount.yaml` - IRSA service account
 - `deployment.yaml` - API application với SageMaker Registry
@@ -98,36 +101,36 @@ spec:
     spec:
       serviceAccountName: retail-api-sa
       containers:
-      - name: retail-api
-        image: 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
-        ports:
-        - containerPort: 8000
-        env:
-        - name: PORT
-          value: "8000"
-        - name: AWS_DEFAULT_REGION
-          value: "ap-southeast-1"
-        - name: MODEL_PACKAGE_GROUP
-          value: "retail-price-sensitivity-models"
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 8000
-          initialDelaySeconds: 10
-          periodSeconds: 5
+        - name: retail-api
+          image: 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: AWS_DEFAULT_REGION
+              value: "ap-southeast-1"
+            - name: MODEL_PACKAGE_GROUP
+              value: "retail-price-sensitivity-models"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
 ---
 ```
 
@@ -146,9 +149,9 @@ spec:
   selector:
     app: retail-api
   ports:
-  - name: http
-    port: 80
-    targetPort: 8000
+    - name: http
+      port: 80
+      targetPort: 8000
   type: LoadBalancer
 ```
 
@@ -169,12 +172,12 @@ spec:
   minReplicas: 2
   maxReplicas: 5
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 60
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
 ```
 
 ## 5. Deploy to EKS
@@ -199,7 +202,7 @@ kubectl get pods -n mlops
 # Kiểm tra service và load balancer
 kubectl get svc -n mlops
 
-# Kiểm tra horizontal pod autoscaler  
+# Kiểm tra horizontal pod autoscaler
 kubectl get hpa -n mlops
 
 # Kiểm tra logs của pod
@@ -212,7 +215,7 @@ kubectl logs -l app=retail-api -n mlops --tail=50
 # Lấy URL của LoadBalancer
 kubectl get svc retail-api-service -n mlops -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
 
-# Test health check endpoint  
+# Test health check endpoint
 curl http://[LOAD_BALANCER_URL]/health
 
 # Test API documentation
@@ -223,7 +226,7 @@ curl -X POST http://[LOAD_BALANCER_URL]/predict \
   -H "Content-Type: application/json" \
   -d '{
     "BASKET_SIZE": "M",
-    "BASKET_TYPE": "MIXED", 
+    "BASKET_TYPE": "MIXED",
     "STORE_REGION": "LONDON",
     "STORE_FORMAT": "LS",
     "SPEND": 125.50,
@@ -238,44 +241,48 @@ curl -X POST http://[LOAD_BALANCER_URL]/predict \
 ### 6.1 EKS Console - Kiểm tra Cluster Status
 
 1. **Truy cập EKS Console:**
+
 ```
    AWS Console → EKS → Clusters → mlops-retail-cluster
 ```
-   
-![](../images/08-deploy-kubernetes/01.png)
+
+![](/images/08-deploy-kubernetes/01.png)
 
 2. **Kiểm tra Resources Tab:**
    ```
    mlops-retail-cluster → Resources → All namespaces → Filter: mlops
    ```
-![](../images/08-deploy-kubernetes/02.png)
+   ![](/images/08-deploy-kubernetes/02.png)
 
 ### 6.2 EKS Workloads - Chi tiết Deployment
 
 1. **Kiểm tra Deployment:**
+
 ```
    Resources → Deployments → retail-api
 ```
 
-![](../images/08-deploy-kubernetes/03.png)
+![](/images/08-deploy-kubernetes/03.png)
 
 2. **Kiểm tra Pods:**
    - Click vào Deployment → Pods tab
    - **Pod status:** Running (nếu Pending thì có vấn đề về resources)
    - **Restart count:** 0 (nếu > 0 thì có crash)
 
-![](../images/08-deploy-kubernetes/04.png)
+![](/images/08-deploy-kubernetes/04.png)
 
 ### 6.3 Debug khi Pods Pending
 
 1. **Nếu Pods ở trạng thái Pending:**
+
    - Check Events section để xem lỗi:
      - **Insufficient CPU/Memory:** Cần scale nodes
      - **Image pull error:** ECR permissions issue
      - **PodSecurityPolicy:** IAM role issue
 
 2. **Nếu LoadBalancer timeout/connection refused:**
-   - **Target Groups unhealthy:** Pods chưa pass health check (/health endpoint)  
+
+   - **Target Groups unhealthy:** Pods chưa pass health check (/health endpoint)
    - **Security Groups:** EKS worker nodes phải allow inbound từ Load Balancer
    - **Subnets:** Load Balancer cần ít nhất 2 public subnets
 
@@ -303,7 +310,7 @@ curl http://localhost:8080/health
 # Kiểm tra model info endpoint
 curl http://[LOAD_BALANCER_URL]/model/info
 
-# Kiểm tra model metrics từ SageMaker Registry  
+# Kiểm tra model metrics từ SageMaker Registry
 curl http://[LOAD_BALANCER_URL]/model/metrics
 
 # Expected response: Accuracy 84.7%, F1-Score 83.2% từ Registry
@@ -326,14 +333,13 @@ kubectl get hpa retail-api-hpa -n mlops -w
 kubectl get pods -n mlops -w
 ```
 
-
 ## 8. Chi phí ước tính
 
-| Thành phần | Ước tính | Ghi chú |
-|------------|----------|---------|
-| EKS Pod (2 replica Spot node) | ~0.012 USD/h | Chi phí compute |
-| ALB/NLB (public) | ~0.02 USD/h | Chỉ bật khi demo |
-| **Tổng (1h demo)** | **≈ 0.03–0.04 USD** | Cực thấp nếu tắt ngay sau demo |
+| Thành phần                    | Ước tính            | Ghi chú                        |
+| ----------------------------- | ------------------- | ------------------------------ |
+| EKS Pod (2 replica Spot node) | ~0.012 USD/h        | Chi phí compute                |
+| ALB/NLB (public)              | ~0.02 USD/h         | Chỉ bật khi demo               |
+| **Tổng (1h demo)**            | **≈ 0.03–0.04 USD** | Cực thấp nếu tắt ngay sau demo |
 
 {{% notice info %}}
 Chi phí tính toán dựa trên Spot instances t3.medium và NLB tại region ap-southeast-1. Chi phí thực tế có thể thay đổi tùy theo cấu hình và thời gian sử dụng.
@@ -341,11 +347,12 @@ Chi phí tính toán dựa trên Spot instances t3.medium và NLB tại region a
 
 {{% notice success %}}
 **🎯 Task 9 Complete - API Deployment on EKS**
+
 - **Kubernetes manifests** ready
 - **EKS deployment** configured với IRSA
 - **Load Balancer service** cho external access
 - **Auto-scaling** với HPA
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 9. Clean Up Resources
 
@@ -401,43 +408,46 @@ aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(LoadBalancerN
 
 ### 10.1. Chi phí Pod Resources
 
-| Resource Type | Request | Limit | Cost Impact |
-|---------------|---------|-------|--------------|
-| **CPU** | 250m | 500m | ~25% of node CPU |
-| **Memory** | 512Mi | 1Gi | ~25% of node memory |
-| **Storage (EBS)** | - | - | From EBS pricing |
+| Resource Type     | Request | Limit | Cost Impact         |
+| ----------------- | ------- | ----- | ------------------- |
+| **CPU**           | 250m    | 500m  | ~25% of node CPU    |
+| **Memory**        | 512Mi   | 1Gi   | ~25% of node memory |
+| **Storage (EBS)** | -       | -     | From EBS pricing    |
 
 **Với t2.micro node (1 vCPU, 1GB RAM):**
+
 - 1 API pod sử dụng ~50% resources
 - Có thể chạy 2 pods với resource requests
 - Scaling bị giới hạn bởi node capacity
 
 ### 10.2. Chi phí Load Balancer
 
-| Load Balancer Type | Giá (USD/hour) | Giá (USD/month) | Data Processing |
-|-------------------|----------------|-----------------|------------------|
-| **Classic LB** | $0.025 | $18.25 | $0.008/GB |
-| **Application LB** | $0.0225 | $16.43 | $0.008/LCU-hour |
-| **Network LB** | $0.0225 | $16.43 | $0.006/NLCU-hour |
+| Load Balancer Type | Giá (USD/hour) | Giá (USD/month) | Data Processing  |
+| ------------------ | -------------- | --------------- | ---------------- |
+| **Classic LB**     | $0.025         | $18.25          | $0.008/GB        |
+| **Application LB** | $0.0225        | $16.43          | $0.008/LCU-hour  |
+| **Network LB**     | $0.0225        | $16.43          | $0.006/NLCU-hour |
 
 ### 10.3. Chi phí Service Types
 
-| Service Type | AWS Resource | Monthly Cost | Use Case |
-|--------------|--------------|--------------|----------|
-| **ClusterIP** | None | $0 | Internal communication |
-| **NodePort** | EC2 Security Groups | $0 | Development testing |
-| **LoadBalancer** | ELB/ALB/NLB | $16.43+ | Production external access |
-| **ExternalName** | None | $0 | External service mapping |
+| Service Type     | AWS Resource        | Monthly Cost | Use Case                   |
+| ---------------- | ------------------- | ------------ | -------------------------- |
+| **ClusterIP**    | None                | $0           | Internal communication     |
+| **NodePort**     | EC2 Security Groups | $0           | Development testing        |
+| **LoadBalancer** | ELB/ALB/NLB         | $16.43+      | Production external access |
+| **ExternalName** | None                | $0           | External service mapping   |
 
 ### 10.4. Auto-scaling Costs
 
 **Horizontal Pod Autoscaler (HPA):**
+
 - HPA controller: Free (part of EKS)
 - Additional pods: EC2 instance costs
 - Scaling triggers: CPU/Memory metrics (free)
 
 **Cluster Autoscaler:**
-- Controller: Free 
+
+- Controller: Free
 - New nodes: Full EC2 instance pricing
 - Scale-down: Automatic cost reduction
 
@@ -445,30 +455,30 @@ aws elbv2 describe-load-balancers --query 'LoadBalancers[?contains(LoadBalancerN
 
 **Basic Deployment (2 replicas):**
 
-| Component | Quantity | Resource Usage | Monthly Cost |
-|-----------|----------|----------------|---------------|
-| **API Pods** | 2 replicas | 500m CPU, 1Gi RAM | Included in node cost |
-| **LoadBalancer Service** | 1 ALB | Base + LCU usage | $16.43 + usage |
-| **HPA** | 1 autoscaler | Controller only | $0 |
-| **Ingress** | Optional | Same ALB | $0 additional |
-| **Total** | | | **~$16.43 + LCU** |
+| Component                | Quantity     | Resource Usage    | Monthly Cost          |
+| ------------------------ | ------------ | ----------------- | --------------------- |
+| **API Pods**             | 2 replicas   | 500m CPU, 1Gi RAM | Included in node cost |
+| **LoadBalancer Service** | 1 ALB        | Base + LCU usage  | $16.43 + usage        |
+| **HPA**                  | 1 autoscaler | Controller only   | $0                    |
+| **Ingress**              | Optional     | Same ALB          | $0 additional         |
+| **Total**                |              |                   | **~$16.43 + LCU**     |
 
 **With Auto-scaling (2-5 replicas):**
 
-| Scenario | Pods | Node Requirements | Additional Cost |
-|----------|------|-------------------|----------------|
-| **Low load** | 2 pods | 2x t2.micro (free) | $0 |
-| **Medium load** | 3-4 pods | 1x t3.small | $15.18 |
-| **High load** | 5 pods | 1x t3.medium | $30.37 |
+| Scenario        | Pods     | Node Requirements  | Additional Cost |
+| --------------- | -------- | ------------------ | --------------- |
+| **Low load**    | 2 pods   | 2x t2.micro (free) | $0              |
+| **Medium load** | 3-4 pods | 1x t3.small        | $15.18          |
+| **High load**   | 5 pods   | 1x t3.medium       | $30.37          |
 
 ### 10.6. Data Transfer Costs
 
-| Transfer Type | Cost | Use Case |
-|---------------|------|----------|
-| **Pod-to-Pod (same AZ)** | Free | Internal communication |
-| **Pod-to-Pod (cross-AZ)** | $0.01/GB | Multi-AZ deployment |
+| Transfer Type                | Cost     | Use Case                 |
+| ---------------------------- | -------- | ------------------------ |
+| **Pod-to-Pod (same AZ)**     | Free     | Internal communication   |
+| **Pod-to-Pod (cross-AZ)**    | $0.01/GB | Multi-AZ deployment      |
 | **LoadBalancer to Internet** | $0.12/GB | API responses to clients |
-| **VPC Endpoints** | Free | S3/ECR access |
+| **VPC Endpoints**            | Free     | S3/ECR access            |
 
 ### 10.7. Storage Costs cho Persistent Volumes
 
@@ -489,6 +499,7 @@ spec:
 ```
 
 **Storage pricing:**
+
 - 10GB gp3: $0.80/month
 - Snapshots: $0.50/month (10GB)
 - IOPS (if > 3000): $0.065/IOPS/month
@@ -496,31 +507,34 @@ spec:
 ### 10.8. Cost Optimization cho Deployments
 
 **Resource Right-sizing:**
+
 ```yaml
 resources:
   requests:
-    memory: "256Mi"    # Start smaller
-    cpu: "100m"        # Minimal CPU request
+    memory: "256Mi" # Start smaller
+    cpu: "100m" # Minimal CPU request
   limits:
-    memory: "512Mi"    # Reasonable limit
-    cpu: "250m"        # Allow bursting
+    memory: "512Mi" # Reasonable limit
+    cpu: "250m" # Allow bursting
 ```
 
 **Efficient Pod Scheduling:**
+
 ```yaml
 # Node affinity for cost optimization
 affinity:
   nodeAffinity:
     preferredDuringSchedulingIgnoredDuringExecution:
-    - weight: 100
-      preference:
-        matchExpressions:
-        - key: kubernetes.io/instance-type
-          operator: In
-          values: ["t3.micro", "t3.small"]  # Prefer cheaper instances
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: kubernetes.io/instance-type
+              operator: In
+              values: ["t3.micro", "t3.small"] # Prefer cheaper instances
 ```
 
 **LoadBalancer Optimization:**
+
 ```yaml
 # Use single ALB for multiple services
 apiVersion: networking.k8s.io/v1
@@ -531,20 +545,20 @@ metadata:
     kubernetes.io/ingress.class: alb
 spec:
   rules:
-  - http:
-      paths:
-      - path: /api/v1/*
-        backend:
-          service:
-            name: retail-api-service
-            port:
-              number: 80
-      - path: /admin/*
-        backend:
-          service:
-            name: admin-service
-            port:
-              number: 80
+    - http:
+        paths:
+          - path: /api/v1/*
+            backend:
+              service:
+                name: retail-api-service
+                port:
+                  number: 80
+          - path: /admin/*
+            backend:
+              service:
+                name: admin-service
+                port:
+                  number: 80
 ```
 
 ### 10.9. Monitoring Costs
@@ -564,6 +578,7 @@ aws elbv2 describe-load-balancers --names <alb-name>
 ```
 
 **Cost tracking commands:**
+
 ```bash
 # ELB costs
 aws ce get-cost-and-usage \
@@ -583,12 +598,13 @@ aws ce get-cost-and-usage \
 
 {{% notice info %}}
 **💰 Cost Summary cho Task 8:**
+
 - **Pods:** Included in node cost (no additional charge)
 - **LoadBalancer:** $16.43/month base + usage
 - **Auto-scaling:** $0-30.37/month depending on load
 - **Storage:** $0.80/month per 10GB PVC
 - **Total:** $17-47/month depending on scaling
-{{% /notice %}}
+  {{% /notice %}}
 
 ## 🎬 Video thực hiện Task 8
 

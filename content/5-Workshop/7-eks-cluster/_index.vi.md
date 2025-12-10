@@ -18,6 +18,7 @@ Triển khai Amazon Elastic Kubernetes Service (EKS) để làm nền tảng ch�
 → Đảm bảo hệ thống ổn định, mở rộng linh hoạt (scalable), và tích hợp bảo mật với IAM (IRSA).
 
 📥 **Input từ các Task trước:**
+
 - **Task 5 (Production VPC):** Hybrid VPC, subnets, VPC Endpoints and security groups used for EKS networking
 - **Task 2 (IAM Roles & Audit):** IAM roles and policies (cluster role, node role, IRSA foundations)
 - **Task 6 (ECR Registry):** ECR repository for container images that EKS will pull
@@ -73,7 +74,7 @@ Triển khai Amazon Elastic Kubernetes Service (EKS) để làm nền tảng ch�
    Security groups: mlops-hybrid-eks-control-plane-sg
    ```
 
-![EKS Console Configuration](../images/07-eks-cluster/02-eks-console-config.png)
+![EKS Console Configuration](/images/07-eks-cluster/02-eks-console-config.png)
 
 4. **Control Plane Logging:**
    ```
@@ -84,7 +85,7 @@ Triển khai Amazon Elastic Kubernetes Service (EKS) để làm nền tảng ch�
    ✅ Scheduler
    ```
 
-![Control Plane Logging Settings](../images/07-eks-cluster/03-control-plane-logging.png)
+![Control Plane Logging Settings](/images/07-eks-cluster/03-control-plane-logging.png)
 
 5. **Add-ons Configuration:**
    ```
@@ -94,7 +95,7 @@ Triển khai Amazon Elastic Kubernetes Service (EKS) để làm nền tảng ch�
    ✅ Amazon EBS CSI Driver: v1.30.0-eksbuild.1
    ```
 
-![Add-ons Configuration](../images/07-eks-cluster/04-addons-configuration.png)
+![Add-ons Configuration](/images/07-eks-cluster/04-addons-configuration.png)
 
 ### 1.2. Update kubeconfig
 
@@ -117,7 +118,7 @@ Kubernetes control plane is running at https://ABC123.gr7.ap-southeast-1.eks.ama
 CoreDNS is running at https://ABC123.gr7.ap-southeast-1.eks.amazonaws.com/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
 ```
 
-![kubeconfig Verification](../images/07-eks-cluster/05-kubeconfig-verification.png)
+![kubeconfig Verification](/images/07-eks-cluster/05-kubeconfig-verification.png)
 
 ### 1.3. Verify Add-ons
 
@@ -138,7 +139,7 @@ kubectl get daemonset -n kube-system kube-proxy
 kubectl get deployment -n kube-system ebs-csi-controller
 ```
 
-![Add-ons Status Verification](../images/07-eks-cluster/06-addons-verification.png)
+![Add-ons Status Verification](/images/07-eks-cluster/06-addons-verification.png)
 
 {{% notice success %}}
 **🎯 EKS Control Plane Ready!**
@@ -179,7 +180,7 @@ eksctl utils associate-iam-oidc-provider \
 ✅ Created OIDC identity provider for cluster "mlops-retail-cluster" in region "ap-southeast-1"
 ```
 
-![OIDC Provider Setup](../images/07-eks-cluster/07-oidc-provider-setup.png)
+![OIDC Provider Setup](/images/07-eks-cluster/07-oidc-provider-setup.png)
 
 ### 2.2. Create IRSA Role for S3 Access
 
@@ -476,7 +477,7 @@ kubectl describe serviceaccount s3-access-sa -n mlops-retail-forecast
    Source security groups: mlops-hybrid-eks-nodes-sg
    ```
 
-![Node Group Console Configuration](../images/07-eks-cluster/08-nodegroup-console-config.png)
+![Node Group Console Configuration](/images/07-eks-cluster/08-nodegroup-console-config.png)
 
 ### 3.2. Alternative: eksctl Node Group (Command Line)
 
@@ -538,7 +539,7 @@ ip-10-0-101-123.ap-southeast-1.compute.internal   Ready    <none>   5m    v1.30.
 ip-10-0-102-456.ap-southeast-1.compute.internal   Ready    <none>   5m    v1.30.0-eks-xyz
 ```
 
-![Nodes Ready Status](../images/07-eks-cluster/11-nodes-ready-status.png)
+![Nodes Ready Status](/images/07-eks-cluster/11-nodes-ready-status.png)
 
 {{% notice success %}}
 **🎯 Node Group Ready!**
@@ -820,7 +821,6 @@ aws logs describe-log-groups \
   --log-group-name-prefix /aws/eks/mlops-retail-forecast-dev-cluster
 ```
 
-
 ### 7.2. Setup CloudWatch Container Insights
 
 **File: `aws/k8s/cloudwatch-insights.yaml`**
@@ -1094,35 +1094,36 @@ echo "✅ EKS cleanup completed successfully!"
 
 ### 10.1. Chi phí EKS Control Plane
 
-| Component | Giá (USD/cluster/giờ) | Giá (USD/cluster/tháng) | Ghi chú |
-|-----------|------------------------|-------------------------|----------|
-| **EKS Control Plane** | $0.10 | $73.00 | Chi phí cố định bất kể mức sử dụng |
-| **Fargate** | $0.04048/vCPU/giờ | Biến đổi | Trả theo tài nguyên pod |
-| **EC2 Worker Nodes** | Giá EC2 | Biến đổi | t2.micro có FREE tier |
+| Component             | Giá (USD/cluster/giờ) | Giá (USD/cluster/tháng) | Ghi chú                            |
+| --------------------- | --------------------- | ----------------------- | ---------------------------------- |
+| **EKS Control Plane** | $0.10                 | $73.00                  | Chi phí cố định bất kể mức sử dụng |
+| **Fargate**           | $0.04048/vCPU/giờ     | Biến đổi                | Trả theo tài nguyên pod            |
+| **EC2 Worker Nodes**  | Giá EC2               | Biến đổi                | t2.micro có FREE tier              |
 
 ### 10.2. Chi phí EC2 Worker Nodes
 
-| Loại Instance | vCPU | Memory | Giá (USD/giờ) | Giá (USD/tháng) | Free Tier |
-|---------------|------|--------|----------------|-----------------|------------|
-| **t2.micro** | 1 | 1GB | $0.0116 | $8.50 | ✅ 750h/tháng |
-| **t3.micro** | 2 | 1GB | $0.0104 | $7.61 | ❌ |
-| **t3.small** | 2 | 2GB | $0.0208 | $15.22 | ❌ |
-| **t3.medium** | 2 | 4GB | $0.0416 | $30.45 | ❌ |
-| **m5.large** | 2 | 8GB | $0.096 | $70.27 | ❌ |
+| Loại Instance | vCPU | Memory | Giá (USD/giờ) | Giá (USD/tháng) | Free Tier     |
+| ------------- | ---- | ------ | ------------- | --------------- | ------------- |
+| **t2.micro**  | 1    | 1GB    | $0.0116       | $8.50           | ✅ 750h/tháng |
+| **t3.micro**  | 2    | 1GB    | $0.0104       | $7.61           | ❌            |
+| **t3.small**  | 2    | 2GB    | $0.0208       | $15.22          | ❌            |
+| **t3.medium** | 2    | 4GB    | $0.0416       | $30.45          | ❌            |
+| **m5.large**  | 2    | 8GB    | $0.096        | $70.27          | ❌            |
 
 ### 10.3. Chi phí VPC Endpoints cho EKS
 
-| Loại Endpoint | Giá (USD/giờ/endpoint) | Chi phí hàng tháng (2 AZ) | Ghi chú |
-|---------------|-------------------------|---------------------|----------|
-| **S3 Gateway** | Miễn phí | $0.00 | Không phí theo giờ |
-| **ECR API** | $0.01 | $14.40 | Bắt buộc cho image pulls |
-| **ECR Docker** | $0.01 | $14.40 | Bắt buộc cho image pulls |
-| **CloudWatch Logs** | $0.01 | $14.40 | Tùy chọn cho logging |
-| **EC2** | $0.01 | $14.40 | Tùy chọn cho instance metadata |
+| Loại Endpoint       | Giá (USD/giờ/endpoint) | Chi phí hàng tháng (2 AZ) | Ghi chú                        |
+| ------------------- | ---------------------- | ------------------------- | ------------------------------ |
+| **S3 Gateway**      | Miễn phí               | $0.00                     | Không phí theo giờ             |
+| **ECR API**         | $0.01                  | $14.40                    | Bắt buộc cho image pulls       |
+| **ECR Docker**      | $0.01                  | $14.40                    | Bắt buộc cho image pulls       |
+| **CloudWatch Logs** | $0.01                  | $14.40                    | Tùy chọn cho logging           |
+| **EC2**             | $0.01                  | $14.40                    | Tùy chọn cho instance metadata |
 
 ### 10.4. Ước tính chi phí cho Task 7
 
 **Cấu hình EKS Cluster:**
+
 - Control Plane: 1 cluster
 - Worker Nodes: 2x t2.micro instances
 - VPC Endpoints: ECR API + ECR Docker
@@ -1130,52 +1131,53 @@ echo "✅ EKS cleanup completed successfully!"
 
 **Chi phí hàng tháng:**
 
-| Component | Cấu hình | Chi phí hàng tháng | Giảm giá Free Tier |
-|-----------|---------------|--------------|--------------------|
-| **EKS Control Plane** | 1 cluster | $73.00 | ❌ |
-| **t2.micro Instances** | 2x instances (1,500h) | $17.00 | **-$17.00** (MIỄN PHÍ) |
-| **EBS Storage** | 40GB gp3 | $3.20 | **-$3.20** (30GB MIỄN PHÍ) |
-| **ECR VPC Endpoints** | 2 endpoints × 2 AZ | $28.80 | ❌ |
-| **Data Transfer** | VPC nội bộ | $0.00 | ✅ MIỄN PHÍ |
-| **Tổng cộng** | | **$122.00** | **-$20.20** |
-| **Chi phí thực tế** | | | **$101.80** |
+| Component              | Cấu hình              | Chi phí hàng tháng | Giảm giá Free Tier         |
+| ---------------------- | --------------------- | ------------------ | -------------------------- |
+| **EKS Control Plane**  | 1 cluster             | $73.00             | ❌                         |
+| **t2.micro Instances** | 2x instances (1,500h) | $17.00             | **-$17.00** (MIỄN PHÍ)     |
+| **EBS Storage**        | 40GB gp3              | $3.20              | **-$3.20** (30GB MIỄN PHÍ) |
+| **ECR VPC Endpoints**  | 2 endpoints × 2 AZ    | $28.80             | ❌                         |
+| **Data Transfer**      | VPC nội bộ            | $0.00              | ✅ MIỄN PHÍ                |
+| **Tổng cộng**          |                       | **$122.00**        | **-$20.20**                |
+| **Chi phí thực tế**    |                       |                    | **$101.80**                |
 
 ### 10.5. So sánh chi phí với các lựa chọn khác
 
 **EKS vs Self-Managed Kubernetes:**
 
-| Tính năng | EKS | Self-Managed K8s | Tiết kiệm |
-|---------|-----|------------------|----------|
-| **Control Plane** | $73/tháng | $0 (tự làm) | -$73 |
-| **Quản lý hệ thống** | ✅ Được quản lý | ❌ Cập nhật thủ công | Tiết kiệm thời gian |
-| **Bản vá bảo mật** | ✅ Tự động | ❌ Thủ công | Bảo mật |
-| **Multi-AZ HA** | ✅ Sẵn có | ❌ Thiết lập phức tạp | Độ tin cậy |
-| **Tích hợp AWS** | ✅ Native | ❌ Thủ công | Dễ sử dụng |
+| Tính năng            | EKS             | Self-Managed K8s      | Tiết kiệm           |
+| -------------------- | --------------- | --------------------- | ------------------- |
+| **Control Plane**    | $73/tháng       | $0 (tự làm)           | -$73                |
+| **Quản lý hệ thống** | ✅ Được quản lý | ❌ Cập nhật thủ công  | Tiết kiệm thời gian |
+| **Bản vá bảo mật**   | ✅ Tự động      | ❌ Thủ công           | Bảo mật             |
+| **Multi-AZ HA**      | ✅ Sẵn có       | ❌ Thiết lập phức tạp | Độ tin cậy          |
+| **Tích hợp AWS**     | ✅ Native       | ❌ Thủ công           | Dễ sử dụng          |
 
 **EKS vs ECS Fargate:**
 
-| Loại workload | Chi phí EKS | Chi phí ECS Fargate | Thắng |
-|----------|----------|------------------|--------|
-| **APIs nhỏ (0.25 vCPU)** | $73 + instance | $7.30/tháng | **Fargate** |
-| **Batch Jobs** | $73 + compute | Trả theo lần chạy | **Fargate** |
-| **Dịch vụ luôn chạy** | $73 + compute | $29.20/tháng | **EKS** |
-| **Ứng dụng nhiều service** | $73 + compute | $N × chi phí service | **EKS** |
+| Loại workload              | Chi phí EKS    | Chi phí ECS Fargate  | Thắng       |
+| -------------------------- | -------------- | -------------------- | ----------- |
+| **APIs nhỏ (0.25 vCPU)**   | $73 + instance | $7.30/tháng          | **Fargate** |
+| **Batch Jobs**             | $73 + compute  | Trả theo lần chạy    | **Fargate** |
+| **Dịch vụ luôn chạy**      | $73 + compute  | $29.20/tháng         | **EKS**     |
+| **Ứng dụng nhiều service** | $73 + compute  | $N × chi phí service | **EKS**     |
 
 ### 10.6. Chi phí Data Transfer
 
 **Các tình huống EKS Data Transfer:**
 
-| Loại Transfer | Chi phí | Trường hợp sử dụng |
-|---------------|------|----------|
-| **Pod to Pod (cùng AZ)** | Miễn phí | Giao tiếp microservices |
-| **Pod to Pod (khác AZ)** | $0.01/GB | Triển khai multi-AZ |
-| **Pod to Internet** | $0.12/GB | API responses cho users |
-| **Pod to S3 (VPC Endpoint)** | Miễn phí | Truy cập model/data |
-| **Pod to S3 (Internet)** | $0.12/GB | Không có VPC endpoint |
+| Loại Transfer                | Chi phí  | Trường hợp sử dụng      |
+| ---------------------------- | -------- | ----------------------- |
+| **Pod to Pod (cùng AZ)**     | Miễn phí | Giao tiếp microservices |
+| **Pod to Pod (khác AZ)**     | $0.01/GB | Triển khai multi-AZ     |
+| **Pod to Internet**          | $0.12/GB | API responses cho users |
+| **Pod to S3 (VPC Endpoint)** | Miễn phí | Truy cập model/data     |
+| **Pod to S3 (Internet)**     | $0.12/GB | Không có VPC endpoint   |
 
 ### 10.7. Chiến lược tối ưu chi phí
 
 **Right-sizing Instance:**
+
 ```bash
 # Use Kubernetes resource requests/limits
 resources:
@@ -1188,6 +1190,7 @@ resources:
 ```
 
 **Node Scaling:**
+
 ```bash
 # Cluster Autoscaler configuration
 desired_size = 2
@@ -1200,6 +1203,7 @@ scale_down_unneeded_time   = "2m"
 ```
 
 **Spot Instances:**
+
 ```bash
 # Mix spot và on-demand cho cost savings
 capacity_type = "SPOT"     # 60-70% savings
@@ -1210,24 +1214,27 @@ capacity_type = "ON_DEMAND" # Stable pricing
 ### 10.8. Tối ưu hóa Free Tier
 
 **Lợi ích Free Tier 12 tháng:**
+
 - **750 giờ/tháng** t2.micro EC2 instances
 - **30 GB** EBS General Purpose (SSD) storage
 - **2 triệu** requests tới Lambda (nếu dùng cho automation)
 - **1 GB** CloudWatch Logs (5GB đầu miễn phí)
 
 **Miễn phí vĩnh viễn:**
+
 - **1 triệu** AWS Lambda requests mỗi tháng
 - **5 GB** CloudWatch monitoring data
 - **S3 transfers** trong cùng region qua VPC endpoints
 
 {{% notice info %}}
 **💰 Tóm tắt chi phí cho Task 7:**
+
 - **Chi phí cố định:** $73/tháng (EKS control plane)
 - **Chi phí biến đổi:** $28.80/tháng (VPC endpoints)
 - **Tiết kiệm Free Tier:** $20.20/tháng (instances + storage)
 - **Tổng cộng:** **$81.60/tháng** với free tier optimizations
 - **Mở rộng production:** Thêm instance types dựa vào workload needs
-{{% /notice %}}
+  {{% /notice %}}
 
 {{% notice success %}}
 **Success tip:** Theo dõi cluster costs với AWS Cost Explorer và thiết lập billing alerts. Sử dụng eksctl hoặc Terraform cho infrastructure as code để đảm bảo triển khai consistent và reproducible.
@@ -1266,10 +1273,10 @@ EKS cluster foundation đã sẵn sàng để deploy:
 **🔐 Lưu ý Bảo mật & Bảo trì:**
 
 - **Public Access**: Giới hạn `cluster_endpoint_public_access_cidrs` theo IP ranges thực tế trong production
-- **Logging**: Bật tất cả control plane logging để audit bảo mật  
+- **Logging**: Bật tất cả control plane logging để audit bảo mật
 - **Updates**: Thường xuyên cập nhật Kubernetes version và add-ons (hàng quý)
 - **RBAC**: Triển khai role-based access control phù hợp cho team members
-- **Monitoring**: Thiết lập alerts cho node health, pod failures, và resource usage  
+- **Monitoring**: Thiết lập alerts cho node health, pod failures, và resource usage
 - **Backup**: Cân nhắc EKS cluster backup strategy cho disaster recovery
   {{% /notice %}}
 

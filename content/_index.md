@@ -15,7 +15,7 @@ chapter: false
 
 &emsp; **Email:** hakhanguyen09052004@gmail.com
 
-&emsp; **University:**University of Information Technology
+&emsp; **University:** University of Information Technology
 
 &emsp; **Major:** Information System
 

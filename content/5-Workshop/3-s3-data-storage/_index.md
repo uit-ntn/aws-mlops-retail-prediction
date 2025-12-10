@@ -117,7 +117,7 @@ Default encryption: ✅ SSE-S3
 
 <!-- IMAGE PLACEHOLDER: Create-bucket - paste screenshot here -->
 
-![Placeholder - Create bucket](../images/s3-data-storage/placeholder-create-bucket.png)
+![Placeholder - Create bucket](/images/s3-data-storage/placeholder-create-bucket.png)
 
 ---
 
@@ -137,7 +137,7 @@ artifacts/
 
 <!-- IMAGE PLACEHOLDER: Create-folders - paste screenshot here -->
 
-![Placeholder - Create folders](../images/s3-data-storage/placeholder-folders.png)
+![Placeholder - Create folders](/images/s3-data-storage/placeholder-folders.png)
 
 ---
 
@@ -163,7 +163,7 @@ Scope: Entire bucket (or specific prefixes: raw/, silver/, gold/, artifacts/)
 
 <!-- IMAGE PLACEHOLDER: Intelligent-tiering - paste screenshot here -->
 
-![Placeholder - Intelligent Tiering](../images/s3-data-storage/placeholder-intelligent-tiering.png)
+![Placeholder - Intelligent Tiering](/images/s3-data-storage/placeholder-intelligent-tiering.png)
 
 ---
 
@@ -179,7 +179,7 @@ In S3 Console:
 
 <!-- IMAGE PLACEHOLDER: Upload-csv - paste screenshot here -->
 
-![Placeholder - Upload CSV](../images/s3-data-storage/placeholder-upload.png)
+![Placeholder - Upload CSV](/images/s3-data-storage/placeholder-upload.png)
 
 ---
 
@@ -239,7 +239,7 @@ Delimiter: ,
 
 <!-- IMAGE PLACEHOLDER: Glue Source config - paste screenshot here -->
 
-![Placeholder - Glue Source](../images/s3-data-storage/placeholder-glue-source.png)
+![Placeholder - Glue Source](/images/s3-data-storage/placeholder-glue-source.png)
 
 Summary:
 
@@ -270,7 +270,7 @@ Summary:
 
 <!-- IMAGE PLACEHOLDER: Transform schema - paste screenshot here -->
 
-![Placeholder - Transform schema](../images/s3-data-storage/placeholder-transform.png)
+![Placeholder - Transform schema](/images/s3-data-storage/placeholder-transform.png)
 
 **Benefits:**
 
@@ -296,18 +296,18 @@ Partition keys: SHOP_WEEK (recommended)
 
 _Illustration:_
 
--- Target config: `../images/s3-data-storage/target-config.png`
--- Full pipeline: `../images/s3-data-storage/04-glue-etl.png`
+-- Target config: `/images/s3-data-storage/target-config.png`
+-- Full pipeline: `/images/s3-data-storage/04-glue-etl.png`
 
 <!-- IMAGE PLACEHOLDER: Glue Target / Pipeline - paste screenshot here -->
 
-![Placeholder - Glue Target](../images/s3-data-storage/placeholder-glue-target.png)
+![Placeholder - Glue Target](/images/s3-data-storage/placeholder-glue-target.png)
 
 4. **Save & Run job** → monitor **Job run details** → verify output in `silver/`.
 
-![Placeholder - Glue Target](../images/s3-data-storage/04-glue-etl.png)
+![Placeholder - Glue Target](/images/s3-data-storage/04-glue-etl.png)
 
-![Placeholder - Glue Target](../images/s3-data-storage/result-in-silver.png)
+![Placeholder - Glue Target](/images/s3-data-storage/result-in-silver.png)
 
 ---
 
@@ -343,10 +343,10 @@ Detailed logs were shown in CloudShell.
 {{% /notice %}}
 
 CSV read benchmark:
-![Placeholder - CloudShell benchmark](../images/s3-data-storage/placeholder-cloudshell.png)
+![Placeholder - CloudShell benchmark](/images/s3-data-storage/placeholder-cloudshell.png)
 
 Parquet read benchmark:
-![Placeholder - CloudShell benchmark](../images/s3-data-storage/placeholder-cloudshell-parquet.png)
+![Placeholder - CloudShell benchmark](/images/s3-data-storage/placeholder-cloudshell-parquet.png)
 
 ---
 
@@ -427,7 +427,7 @@ aws s3 cp s3://mlops-retail-prediction-dev-842676018087/silver/shop_week=200607/
 
 <!-- IMAGE PLACEHOLDER: Local download - paste screenshot here -->
 
-## ![Placeholder - Local download](../images/s3-data-storage/placeholder-local-download.png)
+## ![Placeholder - Local download](/images/s3-data-storage/placeholder-local-download.png)
 
 ### 6.2. Benchmark script
 
@@ -481,7 +481,7 @@ python local_benchmark.py
 
 ### 6.3. Real logs
 
-## ![Placeholder - Local download](../images/s3-data-storage/placeholder-result-readfile.png)
+## ![Placeholder - Local download](/images/s3-data-storage/placeholder-result-readfile.png)
 
 **Notes:**
 

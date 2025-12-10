@@ -5,8 +5,6 @@ chapter: false
 pre: " <b> 2. </b> "
 ---
 
-In this section, you need to summarize the contents of the workshop that you **plan** to conduct.
-
 # Retail Price Sensitivity MLOps Platform on AWS
 
 ## End-to-End MLOps Pipeline: Data Lake → Training → Model Registry → Container → EKS API → Monitoring → CI/CD → Cost Control

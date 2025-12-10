@@ -10,12 +10,14 @@ pre: "<b>9. </b>"
 **🎯 Mục tiêu Task 11:**
 {{% /notice %}}
 
-Thiết lập cơ chế phân phối lưu lượng (Load Balancing) cho API Retail Prediction, đảm bảo:  
-- Có endpoint public để demo API /predict và /docs  
-- Tự động phân phối traffic giữa nhiều Pod khi scaling  
+Thiết lập cơ chế phân phối lưu lượng (Load Balancing) cho API Retail Prediction, đảm bảo:
+
+- Có endpoint public để demo API /predict và /docs
+- Tự động phân phối traffic giữa nhiều Pod khi scaling
 - Duy trì tính sẵn sàng & bảo mật của dịch vụ
 
 📥 **Input từ các Task trước:**
+
 - **Task 5 (Production VPC):** VPC subnets, security groups và VPC Endpoints để ALB và EKS hoạt động
 - **Task 7 (EKS Cluster):** EKS cluster và Service/Ingress targets để ALB forward traffic
 - **Task 6 (ECR Container Registry):** Container images (API) được deploy vào EKS và expose qua ALB
@@ -66,10 +68,10 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
-    targetPort: 8000
-    protocol: TCP
-    name: http
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
   selector:
     app: retail-api
 ---
@@ -85,29 +87,30 @@ ALB tự động thực hiện health check đến endpoint `/health` để đ�
 
 {{< mermaid >}}
 sequenceDiagram
-    participant ALB as Application Load Balancer
-    participant Pod1 as API Pod 1 (Healthy)
-    participant Pod2 as API Pod 2 (Unhealthy)
-    participant Pod3 as API Pod 3 (Healthy)
-    
+participant ALB as Application Load Balancer
+participant Pod1 as API Pod 1 (Healthy)
+participant Pod2 as API Pod 2 (Unhealthy)
+participant Pod3 as API Pod 3 (Healthy)
+
     ALB->>Pod1: Health Check: GET /health
     Pod1->>ALB: 200 OK: {"status": "healthy"}
     ALB->>Pod2: Health Check: GET /health
     Pod2->>ALB: 500 Error: Service Unavailable
     ALB->>Pod3: Health Check: GET /health
     Pod3->>ALB: 200 OK: {"status": "healthy"}
-    
+
     Note over ALB,Pod2: Pod2 được đánh dấu unhealthy
-    
+
     Client->>ALB: Request: POST /predict
     ALB->>Pod1: Forward request
     Pod1->>ALB: Response
     ALB->>Client: Return response
-    
+
     Client->>ALB: Request: GET /docs
     ALB->>Pod3: Forward request
     Pod3->>ALB: Response
     ALB->>Client: Return response
+
 {{< /mermaid >}}
 
 **Giải thích flow:**
@@ -135,7 +138,7 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-type: "application"
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
-    
+
     # Health check configuration
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8000"
@@ -144,27 +147,27 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-timeout: "5"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
-    
+
     # Access logging (optional)
     service.beta.kubernetes.io/aws-load-balancer-access-log-enabled: "true"
     service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name: "retail-prediction-alb-logs"
     service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-prefix: "api-access-logs"
-    
+
     # Target group configuration
     service.beta.kubernetes.io/aws-load-balancer-attributes: "idle_timeout.timeout_seconds=60"
-    
+
     # Target type (IP mode preferred for pods)
     service.beta.kubernetes.io/aws-load-balancer-target-type: "ip"
 spec:
   type: LoadBalancer
   ports:
-  - port: 80
-    targetPort: 8000
-    protocol: TCP
-    name: http
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
   selector:
     app: retail-forecast-api
-  externalTrafficPolicy: Local  # Preserve source IP
+  externalTrafficPolicy: Local # Preserve source IP
 ---
 ```
 
@@ -225,86 +228,85 @@ metadata:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/load-balancer-name: retail-prediction-alb
-    
+
     # Health check configuration
     alb.ingress.kubernetes.io/healthcheck-path: /health
-    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '20'
-    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
-    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
-    alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
-    
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "20"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+
     # SSL configuration
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:<ACCOUNT_ID>:certificate/<CERT_ID>
-    
+
     # Access logging
     alb.ingress.kubernetes.io/load-balancer-attributes: |
       access_logs.s3.enabled=true,
       access_logs.s3.bucket=retail-prediction-alb-logs,
       access_logs.s3.prefix=api-access-logs,
       idle_timeout.timeout_seconds=60
-    
+
     # Performance and deregistration configuration
     alb.ingress.kubernetes.io/target-group-attributes: |
       deregistration_delay.timeout_seconds=30,
       slow_start.duration_seconds=30,
       load_balancing.algorithm.type=least_outstanding_requests
-    
+
     # WAF integration for API protection
     alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:us-east-1:<ACCOUNT_ID>:regional/webacl/retail-prediction-waf/<WAF_ID>
-    
+
     # Tags for cost allocation
     alb.ingress.kubernetes.io/tags: Environment=Production,Project=RetailPrediction,Service=API
 spec:
   rules:
-  - http:  # Default rule for all incoming requests
-      paths:
-      # API Documentation
-      - path: /docs
-        pathType: Prefix
-        backend:
-          service:
-            name: retail-api-service
-            port:
-              number: 80
-      
-      # Swagger JSON endpoint
-      - path: /openapi.json
-        pathType: Exact
-        backend:
-          service:
-            name: retail-api-service
-            port:
-              number: 80
-      
-      # Health check and readiness endpoints
-      - path: /health
-        pathType: Exact
-        backend:
-          service:
-            name: retail-api-service
-            port:
-              number: 80
-      
-      # Prediction API endpoints
-      - path: /predict
-        pathType: Exact
-        backend:
-          service:
-            name: retail-api-service
-            port:
-              number: 80
-      
-      # Default catch-all for all other paths
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: retail-api-service
-            port:
-              number: 80
+    - http: # Default rule for all incoming requests
+        paths:
+          # API Documentation
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: retail-api-service
+                port:
+                  number: 80
 
+          # Swagger JSON endpoint
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: retail-api-service
+                port:
+                  number: 80
+
+          # Health check and readiness endpoints
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: retail-api-service
+                port:
+                  number: 80
+
+          # Prediction API endpoints
+          - path: /predict
+            pathType: Exact
+            backend:
+              service:
+                name: retail-api-service
+                port:
+                  number: 80
+
+          # Default catch-all for all other paths
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: retail-api-service
+                port:
+                  number: 80
 ```
 
 #### 3.3 Advanced ALB with Multiple Paths
@@ -320,10 +322,10 @@ metadata:
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    
+
     # Listen ports for HTTP and HTTPS
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    
+
     # Actions for different paths
     alb.ingress.kubernetes.io/actions.weighted-routing: |
       {
@@ -338,7 +340,7 @@ metadata:
           ]
         }
       }
-    
+
     # Rate limiting
     alb.ingress.kubernetes.io/target-group-attributes: |
       stickiness.enabled=false,
@@ -346,62 +348,62 @@ metadata:
       slow_start.duration_seconds=30
 spec:
   rules:
-  - host: api.retail-forecast.com
-    http:
-      paths:
-      # Health check endpoint
-      - path: /healthz
-        pathType: Exact
-        backend:
-          service:
-            name: retail-forecast-service
-            port:
-              number: 80
-      
-      # Prediction endpoints
-      - path: /predict
-        pathType: Exact
-        backend:
-          service:
-            name: retail-forecast-service
-            port:
-              number: 80
-      
-      # Batch prediction
-      - path: /batch-predict
-        pathType: Exact
-        backend:
-          service:
-            name: retail-forecast-service
-            port:
-              number: 80
-      
-      # Model information
-      - path: /model-info
-        pathType: Exact
-        backend:
-          service:
-            name: retail-forecast-service
-            port:
-              number: 80
-      
-      # Metrics endpoint
-      - path: /metrics
-        pathType: Exact
-        backend:
-          service:
-            name: retail-forecast-service
-            port:
-              number: 80
-      
-      # Default catch-all
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: retail-forecast-service
-            port:
-              number: 80
+    - host: api.retail-forecast.com
+      http:
+        paths:
+          # Health check endpoint
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: retail-forecast-service
+                port:
+                  number: 80
+
+          # Prediction endpoints
+          - path: /predict
+            pathType: Exact
+            backend:
+              service:
+                name: retail-forecast-service
+                port:
+                  number: 80
+
+          # Batch prediction
+          - path: /batch-predict
+            pathType: Exact
+            backend:
+              service:
+                name: retail-forecast-service
+                port:
+                  number: 80
+
+          # Model information
+          - path: /model-info
+            pathType: Exact
+            backend:
+              service:
+                name: retail-forecast-service
+                port:
+                  number: 80
+
+          # Metrics endpoint
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: retail-forecast-service
+                port:
+                  number: 80
+
+          # Default catch-all
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: retail-forecast-service
+                port:
+                  number: 80
 ---
 ```
 
@@ -436,44 +438,44 @@ metadata:
     # Basic ALB configuration
     service.beta.kubernetes.io/aws-load-balancer-type: "application"
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-    
+
     # SSL configuration
     service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:us-east-1:123456789012:certificate/abcdef12-3456-7890-abcd-ef1234567890"
     service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "http"
     service.beta.kubernetes.io/aws-load-balancer-ssl-negotiation-policy: "ELBSecurityPolicy-TLS-1-2-2017-01"
-    
+
     # Redirect HTTP to HTTPS
     service.beta.kubernetes.io/aws-load-balancer-ssl-redirect: "443"
-    
+
     # Other configurations...
 spec:
   type: LoadBalancer
   ports:
-  - port: 443
-    targetPort: 8000
-    protocol: TCP
-    name: https
-  - port: 80
-    targetPort: 8000
-    protocol: TCP
-    name: http
+    - port: 443
+      targetPort: 8000
+      protocol: TCP
+      name: https
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+      name: http
   selector:
     app: retail-api
 ```
 
 {{< mermaid >}}
 sequenceDiagram
-    participant Client
-    participant ALB as Application Load Balancer
-    participant API as API Pod
-    
+participant Client
+participant ALB as Application Load Balancer
+participant API as API Pod
+
     Client->>ALB: HTTPS Request (port 443)
     Note over ALB: SSL Termination
     ALB->>API: HTTP Request (port 8080)
     API->>ALB: HTTP Response
     ALB->>Client: HTTPS Response
-    
+
     Client->>ALB: HTTP Request (port 80)
     Note over ALB: HTTP to HTTPS Redirect
     ALB->>Client: 301 Redirect to HTTPS
@@ -482,6 +484,7 @@ sequenceDiagram
     ALB->>API: HTTP Request (port 8080)
     API->>ALB: HTTP Response
     ALB->>Client: HTTPS Response
+
 {{< /mermaid >}}
 
 #### 4.3 Route 53 DNS Setup
@@ -668,7 +671,7 @@ async def predict(
 ):
     # Log the user who made the prediction
     logger.info(f"Prediction requested by user: {current_user['username']}")
-    
+
     # Process prediction as normal
     prediction = model.predict(request.features)
     return {"prediction": float(prediction), "model_version": model.version}
@@ -676,15 +679,15 @@ async def predict(
 
 {{< mermaid >}}
 sequenceDiagram
-    participant Client
-    participant ALB as ALB + WAF
-    participant API as Retail API
-    participant Auth as Authentication Service
-    
+participant Client
+participant ALB as ALB + WAF
+participant API as Retail API
+participant Auth as Authentication Service
+
     Client->>Auth: Request JWT token (username/password)
     Auth->>Auth: Verify credentials
     Auth->>Client: Return JWT token
-    
+
     Client->>ALB: POST /predict with Bearer token
     ALB->>ALB: WAF rules check
     ALB->>API: Forward request
@@ -692,12 +695,13 @@ sequenceDiagram
     API->>API: Perform prediction
     API->>ALB: Return prediction result
     ALB->>Client: Return response
-    
+
     Client->>ALB: POST /predict (no token)
     ALB->>ALB: WAF rules check
     ALB->>API: Forward request
     API->>ALB: 401 Unauthorized
     ALB->>Client: 401 Unauthorized
+
 {{< /mermaid >}}
 
 ### 6. Deployment và Verification
@@ -848,10 +852,10 @@ spec:
     matchLabels:
       app: retail-forecast-api
   endpoints:
-  - port: http
-    path: /metrics
-    interval: 30s
-    scrapeTimeout: 10s
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
 ---
 ```
 
@@ -863,7 +867,7 @@ spec:
 # Check service events
 kubectl describe service retail-forecast-nlb -n mlops
 
-# Check ingress events  
+# Check ingress events
 kubectl describe ingress retail-forecast-alb-ingress -n mlops
 
 # Check ALB controller logs
@@ -899,7 +903,7 @@ curl http://api.retail-forecast.com/healthz
 # - $0.0225 per ALB-hour
 # - $0.008 per LCU-hour (Load Balancer Capacity Unit)
 
-# NLB pricing (approximate) 
+# NLB pricing (approximate)
 # - $0.0225 per NLB-hour
 # - $0.006 per NLCU-hour (Network Load Balancer Capacity Unit)
 
@@ -946,6 +950,7 @@ spec:
 ### 📊 Verification Steps
 
 1. **Service trong namespace retail-prediction có EXTERNAL-IP hiển thị**
+
    ```bash
    kubectl get services -n retail-prediction
    # Expected output:
@@ -954,15 +959,16 @@ spec:
    ```
 
 2. **Có thể gửi request từ bên ngoài và nhận kết quả inference**
+
    ```bash
    # Health check
    curl http://EXTERNAL-IP/health
    # Expected: {"status": "healthy", "timestamp": "2024-01-01T12:00:00Z"}
-   
+
    # API Documentation
    curl http://EXTERNAL-IP/docs
    # Expected: FastAPI Swagger UI loads
-   
+
    # Prediction request
    curl -X POST http://EXTERNAL-IP/predict \
      -H "Content-Type: application/json" \
@@ -971,15 +977,16 @@ spec:
    ```
 
 3. **Load Balancer hoạt động ổn định và phân phối traffic**
+
    ```bash
    # Check target health
    aws elbv2 describe-target-health --target-group-arn <target-group-arn>
    # Expected: All targets should be "healthy"
-   
+
    # Monitor load distribution
    kubectl logs -f deployment/retail-api -n retail-prediction
    # Should see requests distributed across different pods
-   
+
    # Check ALB metrics
    aws cloudwatch get-metric-statistics \
      --namespace AWS/ApplicationELB \
@@ -1169,100 +1176,101 @@ echo "✅ Load Balancer cleanup completed"
 
 ### 12.1. Chi phí Application Load Balancer (ALB)
 
-| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
-|-----------|----------------|-----------------|----------|
-| **ALB Base Cost** | $0.0225 | $16.43 | Per ALB instance |
-| **LCU (Load Balancer Capacity Unit)** | $0.008 | $5.84 | Per LCU-hour |
-| **New connections** | Included | Included | Up to 25/second per LCU |
-| **Active connections** | Included | Included | Up to 3,000 per LCU |
-| **Data processed** | Included | Included | Up to 1GB per LCU |
-| **Rule evaluations** | Included | Included | Up to 1,000 per LCU |
+| Component                             | Giá (USD/hour) | Giá (USD/month) | Ghi chú                 |
+| ------------------------------------- | -------------- | --------------- | ----------------------- |
+| **ALB Base Cost**                     | $0.0225        | $16.43          | Per ALB instance        |
+| **LCU (Load Balancer Capacity Unit)** | $0.008         | $5.84           | Per LCU-hour            |
+| **New connections**                   | Included       | Included        | Up to 25/second per LCU |
+| **Active connections**                | Included       | Included        | Up to 3,000 per LCU     |
+| **Data processed**                    | Included       | Included        | Up to 1GB per LCU       |
+| **Rule evaluations**                  | Included       | Included        | Up to 1,000 per LCU     |
 
 ### 12.2. Chi phí Network Load Balancer (NLB)
 
-| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
-|-----------|----------------|-----------------|----------|
-| **NLB Base Cost** | $0.0225 | $16.43 | Per NLB instance |
-| **NLCU (Network LCU)** | $0.006 | $4.38 | Per NLCU-hour |
-| **New connections/flows** | Included | Included | Up to 800/second per NLCU |
-| **Active connections/flows** | Included | Included | Up to 100,000 per NLCU |
-| **Data processed** | Included | Included | Up to 1GB per NLCU |
+| Component                    | Giá (USD/hour) | Giá (USD/month) | Ghi chú                   |
+| ---------------------------- | -------------- | --------------- | ------------------------- |
+| **NLB Base Cost**            | $0.0225        | $16.43          | Per NLB instance          |
+| **NLCU (Network LCU)**       | $0.006         | $4.38           | Per NLCU-hour             |
+| **New connections/flows**    | Included       | Included        | Up to 800/second per NLCU |
+| **Active connections/flows** | Included       | Included        | Up to 100,000 per NLCU    |
+| **Data processed**           | Included       | Included        | Up to 1GB per NLCU        |
 
 ### 12.3. Chi phí Classic Load Balancer (CLB)
 
-| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
-|-----------|----------------|-----------------|----------|
-| **CLB Base Cost** | $0.025 | $18.25 | Per CLB instance |
-| **Data Transfer** | $0.008/GB | Variable | Data processed |
+| Component         | Giá (USD/hour) | Giá (USD/month) | Ghi chú          |
+| ----------------- | -------------- | --------------- | ---------------- |
+| **CLB Base Cost** | $0.025         | $18.25          | Per CLB instance |
+| **Data Transfer** | $0.008/GB      | Variable        | Data processed   |
 
 ### 12.4. So sánh các loại Load Balancer
 
-| Feature | ALB | NLB | CLB | Best For |
-|---------|-----|-----|-----|----------|
-| **Layer** | Layer 7 (HTTP/HTTPS) | Layer 4 (TCP/UDP) | Layer 4/7 | ALB: Web apps, NLB: High performance |
-| **Base Cost** | $16.43/month | $16.43/month | $18.25/month | ALB/NLB cheaper |
-| **Capacity Units** | LCU ($5.84) | NLCU ($4.38) | Fixed | NLB most cost-effective |
-| **SSL Termination** | ✅ | ✅ | ✅ | All support |
-| **Path-based Routing** | ✅ | ❌ | ❌ | ALB only |
-| **WebSocket** | ✅ | ✅ | ❌ | ALB/NLB |
-| **Static IP** | ❌ | ✅ | ❌ | NLB only |
+| Feature                | ALB                  | NLB               | CLB          | Best For                             |
+| ---------------------- | -------------------- | ----------------- | ------------ | ------------------------------------ |
+| **Layer**              | Layer 7 (HTTP/HTTPS) | Layer 4 (TCP/UDP) | Layer 4/7    | ALB: Web apps, NLB: High performance |
+| **Base Cost**          | $16.43/month         | $16.43/month      | $18.25/month | ALB/NLB cheaper                      |
+| **Capacity Units**     | LCU ($5.84)          | NLCU ($4.38)      | Fixed        | NLB most cost-effective              |
+| **SSL Termination**    | ✅                   | ✅                | ✅           | All support                          |
+| **Path-based Routing** | ✅                   | ❌                | ❌           | ALB only                             |
+| **WebSocket**          | ✅                   | ✅                | ❌           | ALB/NLB                              |
+| **Static IP**          | ❌                   | ✅                | ❌           | NLB only                             |
 
 ### 12.5. AWS Load Balancer Controller Costs
 
-| Component | Cost | Ghi chú |
-|-----------|------|----------|
-| **Controller Pods** | Free | Runs on existing EKS nodes |
-| **IRSA Role** | Free | IAM integration |
-| **Webhook Certificate** | Free | TLS for admission controller |
-| **Target Group Binding** | Free | CRD for pod registration |
-| **Ingress Management** | Free | Kubernetes native |
+| Component                | Cost | Ghi chú                      |
+| ------------------------ | ---- | ---------------------------- |
+| **Controller Pods**      | Free | Runs on existing EKS nodes   |
+| **IRSA Role**            | Free | IAM integration              |
+| **Webhook Certificate**  | Free | TLS for admission controller |
+| **Target Group Binding** | Free | CRD for pod registration     |
+| **Ingress Management**   | Free | Kubernetes native            |
 
 ### 12.6. SSL/TLS Certificate Costs
 
-| Service | Cost | Features |
-|---------|------|----------|
-| **AWS Certificate Manager (ACM)** | Free | Public SSL certificates |
-| **Route 53 DNS** | $0.50/hosted zone | Domain validation |
-| **Third-party Certificates** | $10-100/year | Extended validation options |
+| Service                           | Cost              | Features                    |
+| --------------------------------- | ----------------- | --------------------------- |
+| **AWS Certificate Manager (ACM)** | Free              | Public SSL certificates     |
+| **Route 53 DNS**                  | $0.50/hosted zone | Domain validation           |
+| **Third-party Certificates**      | $10-100/year      | Extended validation options |
 
 ### 12.7. WAF (Web Application Firewall) Costs
 
-| Component | Giá (USD/month) | Ghi chú |
-|-----------|-----------------|----------|
-| **WAF Web ACL** | $1 | Per Web ACL |
-| **WAF Rules** | $0.60 | Per rule per month |
-| **WAF Requests** | $0.60 | Per million requests |
-| **Bot Control** | $10 | Advanced bot protection |
-| **Rate Limiting** | $2 | Per rate-based rule |
+| Component         | Giá (USD/month) | Ghi chú                 |
+| ----------------- | --------------- | ----------------------- |
+| **WAF Web ACL**   | $1              | Per Web ACL             |
+| **WAF Rules**     | $0.60           | Per rule per month      |
+| **WAF Requests**  | $0.60           | Per million requests    |
+| **Bot Control**   | $10             | Advanced bot protection |
+| **Rate Limiting** | $2              | Per rate-based rule     |
 
 ### 12.8. Ước tính chi phí Task 9
 
 **Basic ALB Setup:**
 
-| Component | Usage | Monthly Cost |
-|-----------|-------|---------------|
-| **ALB Base** | 1 ALB | $16.43 |
-| **LCU Usage** | 1 LCU average | $5.84 |
-| **ACM Certificate** | 1 domain | $0 |
-| **Route 53** | 1 hosted zone | $0.50 |
-| **WAF (optional)** | Basic rules | $3.20 |
-| **Total** | | **$26.00** |
+| Component           | Usage         | Monthly Cost |
+| ------------------- | ------------- | ------------ |
+| **ALB Base**        | 1 ALB         | $16.43       |
+| **LCU Usage**       | 1 LCU average | $5.84        |
+| **ACM Certificate** | 1 domain      | $0           |
+| **Route 53**        | 1 hosted zone | $0.50        |
+| **WAF (optional)**  | Basic rules   | $3.20        |
+| **Total**           |               | **$26.00**   |
 
 **Production Setup với High Availability:**
 
-| Component | Usage | Monthly Cost |
-|-----------|-------|---------------|
-| **ALB Base** | 1 ALB (Multi-AZ) | $16.43 |
-| **LCU Usage** | 3 LCU average | $17.52 |
-| **ACM Certificate** | 2 domains | $0 |
-| **Route 53** | 2 hosted zones | $1.00 |
-| **WAF** | Advanced rules | $15.20 |
-| **CloudFront** | CDN integration | $8.50 |
-| **Total** | | **$58.65** |
+| Component           | Usage            | Monthly Cost |
+| ------------------- | ---------------- | ------------ |
+| **ALB Base**        | 1 ALB (Multi-AZ) | $16.43       |
+| **LCU Usage**       | 3 LCU average    | $17.52       |
+| **ACM Certificate** | 2 domains        | $0           |
+| **Route 53**        | 2 hosted zones   | $1.00        |
+| **WAF**             | Advanced rules   | $15.20       |
+| **CloudFront**      | CDN integration  | $8.50        |
+| **Total**           |                  | **$58.65**   |
 
 ### 12.9. Cost Optimization Strategies
 
 **Single ALB for Multiple Services:**
+
 ```yaml
 # Cost-effective: 1 ALB serves multiple applications
 apiVersion: networking.k8s.io/v1
@@ -1274,27 +1282,28 @@ metadata:
     alb.ingress.kubernetes.io/group.name: shared-alb
 spec:
   rules:
-  - host: api.retail.com
-    http:
-      paths:
-      - path: /predict
-        backend:
-          service:
-            name: retail-api
-            port:
-              number: 80
-  - host: admin.retail.com
-    http:
-      paths:
-      - path: /
-        backend:
-          service:
-            name: admin-dashboard
-            port:
-              number: 80
+    - host: api.retail.com
+      http:
+        paths:
+          - path: /predict
+            backend:
+              service:
+                name: retail-api
+                port:
+                  number: 80
+    - host: admin.retail.com
+      http:
+        paths:
+          - path: /
+            backend:
+              service:
+                name: admin-dashboard
+                port:
+                  number: 80
 ```
 
 **Right-size Load Balancer:**
+
 - Monitor LCU/NLCU usage với CloudWatch
 - Optimize connection pooling
 - Use appropriate health check intervals
@@ -1328,6 +1337,7 @@ aws elbv2 describe-target-health \
 ```
 
 **Cost alerts:**
+
 ```bash
 # Create cost alarm for Load Balancing
 aws cloudwatch put-metric-alarm \
@@ -1344,11 +1354,12 @@ aws cloudwatch put-metric-alarm \
 
 {{% notice info %}}
 **💰 Cost Summary cho Task 9:**
+
 - **Basic ALB:** $26/month (single service)
 - **Shared ALB:** $22/month (multiple services sharing 1 ALB)
 - **Production:** $58.65/month (với WAF, CloudFront)
 - **Optimization:** 15-30% savings với proper resource sharing
-{{% /notice %}}
+  {{% /notice %}}
 
 ---
 
