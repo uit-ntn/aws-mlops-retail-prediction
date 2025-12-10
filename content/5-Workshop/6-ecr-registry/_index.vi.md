@@ -8,7 +8,6 @@ pre: "<b>6. </b>"
 
 {{% notice info %}}
 **🎯 Mục tiêu Task 6:** Thiết lập Amazon Elastic Container Registry (ECR) cho MLOps pipeline:
-
 1. **Tạo ECR Repository**: Repository cho API container
 2. **Cấu hình Security**: Image scanning, IAM policy, lifecycle rules  
 3. **Build & Push Image**: Upload FastAPI container lên ECR
@@ -16,25 +15,10 @@ pre: "<b>6. </b>"
 {{% /notice %}}
 
 📥 **Input từ các Task trước:**
-
-
-1. **Tạo ECR Repository**: Repository cho API container
-2. **Cấu hình Security**: Image scanning, IAM policy, lifecycle rules
-3. **Build & Push Image**: Upload FastAPI container lên ECR
-4. **Manual Build & Push**: Hướng dẫn build/push bằng script (CLI / PowerShell)
-   {{% /notice %}}
-
-📥 **Input từ các Task trước:**
-
-
 - **Task 2 (IAM Roles & Audit):** IAM roles, policies và permissions cho ECR/EKS/S3 access
 - **Task 5 (Production VPC):** VPC endpoints, networking và security groups để cho phép EKS pull images từ ECR
 
 📦 **Output:**
-
-
-
-
 - **Inference Container**: `server/` code → FastAPI API serving predictions trong EKS
 
 ## Tổng quan
@@ -58,15 +42,9 @@ pre: "<b>6. </b>"
 ![](/images/06-ecr-registry/02.png)
 
 3. **Repository Created Successfully:**
-
    
    Sau khi tạo repository, bạn sẽ thấy giao diện như hình dưới với thông tin:
    
-
-
-   Sau khi tạo repository, bạn sẽ thấy giao diện như hình dưới với thông tin:
-
-
    - Repository name: `mlops/retail-api`
    - Repository URI: `<account-id>.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api`
    - Status: "No active images" (chưa có image nào được push)
@@ -75,7 +53,6 @@ pre: "<b>6. </b>"
 ![](/images/06-ecr-registry/03.1.png)
 
 4. **Repository Setup Complete:**
-
    
    API repository đã sẵn sàng cho containerized FastAPI application.
 
@@ -84,17 +61,6 @@ pre: "<b>6. </b>"
    Trong giao diện quản lý repository, bạn có thể:
    - **Images tab**: Xem danh sách images, filter theo tags
    - **View push commands**: Lệnh để push image lên repository  
-
-
-   API repository đã sẵn sàng cho containerized FastAPI application.
-
-5. **Repository Management Interface:**
-
-   Trong giao diện quản lý repository, bạn có thể:
-
-   - **Images tab**: Xem danh sách images, filter theo tags
-   - **View push commands**: Lệnh để push image lên repository
-
    - **Copy URI**: Copy repository URI để sử dụng
    - **Scan**: Quét vulnerability cho images
    - **Delete**: Xóa repository khi không cần
@@ -109,11 +75,7 @@ pre: "<b>6. </b>"
 
 1. **API Repository Lifecycle Policy:**
    - Chọn repository `mlops/retail-api`
-
    - Click tab "Lifecycle policy" 
-
-   - Click tab "Lifecycle policy"
-
    - Click "Create rule" để tạo lifecycle policy
 
 ![](/images/06-ecr-registry/07.png)
@@ -164,9 +126,6 @@ pre: "<b>6. </b>"
    ```
 
 
-
-
-
 3. **Training Repository Lifecycle Policy:**
 
 ![](/images/06-ecr-registry/08.png)
@@ -174,10 +133,6 @@ pre: "<b>6. </b>"
 ### 1.3. Image Scanning & Push Commands
 
 1. **Check Scan Settings:**
-
-
-
-
    - Chọn repository từ danh sách
    - Kiểm tra "Scan on push" đã được enabled
    - Review enhanced scanning options nếu cần
@@ -203,11 +158,7 @@ pre: "<b>6. </b>"
 - ✅ Lifecycle policies configured for cost optimization
 - ✅ Push commands available trong console
 - ✅ IAM access policies for EKS integration
-
 {{% /notice %}}
-
-  {{% /notice %}}
-
 
 {{% notice tip %}}
 **Tip:** Ghi chú lifecycle rule priorities trong docs team và test rules trên non-prod repos trước khi áp dụng production để tránh xóa nhầm images.
@@ -226,11 +177,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --user -r requirements.txt
 
-
 # Production stage  
-
-# Production stage
-
 FROM python:3.9-slim as production
 WORKDIR /app
 
@@ -266,11 +213,7 @@ __pycache__/
 .env
 *.log
 
-
 # Editor files  
-
-# Editor files
-
 .idea/
 .vscode/
 
@@ -300,16 +243,9 @@ docker stop test && docker rm test
 {{% /notice %}}
 
 
-
 ### 2.3. View Push Commands từ AWS Console
 
 1. **Trong ECR Console:**
-
-### 2.3. View Push Commands từ AWS Console
-
-1. **Trong ECR Console:**
-
-
    - Chọn repository `mlops/retail-api`
    - Click nút **"View push commands"**
    - AWS sẽ hiển thị các lệnh để build và push
@@ -330,11 +266,7 @@ docker tag mlops/retail-api:latest 842676018087.dkr.ecr.ap-southeast-1.amazonaws
 docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
 ```
 
-
    **Hoặc sử dụng AWS CLI:**
-
-**Hoặc sử dụng AWS CLI:**
-
 
 ```bash
 # 1. Retrieve an authentication token and authenticate Docker client
@@ -343,11 +275,7 @@ aws ecr get-login-password --region ap-southeast-1 | docker login --username AWS
 # 2. Build your Docker image
 docker build -t mlops/retail-api .
 
-
 # 3. Tag your image  
-
-# 3. Tag your image
-
 docker tag mlops/retail-api:latest 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest
 
 # 4. Push image to ECR
@@ -359,18 +287,11 @@ docker push 842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:l
 {{% /notice %}}
 
 
-
-
-
 ### 2.2. Verify ECR Push Success
 
 **Kiểm tra trong AWS Console:**
 
 1. **Navigate to ECR Console:**
-
-
-
-
    - Vào AWS Console → ECR service
    - Chọn repository `mlops/retail-api`
    - Check tab "Images" để xem image đã được push
@@ -446,11 +367,7 @@ ECR registry đã được thiết lập và tích hợp với EKS cluster `mlop
 
 ✅ **ECR Repository** - mlops/retail-api repository  
 ✅ **Container Image** - FastAPI prediction service  
-
 ✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month  
-
-✅ **Cost Optimization** - Lifecycle policies, multi-stage builds, ~$0.15/month
-
 
 {{% notice success %}}
 **🎯 Task 6 Complete - ECR Registry + API Containerization!**
@@ -484,11 +401,7 @@ ECR registry đã được thiết lập và tích hợp với EKS cluster `mlop
 - **Bảo mật**: Chạy non-root, đã quét lỗ hổng
 - **Khả dụng**: Multi-tag strategy (latest, commit, branch)
 - **CI/CD**: Tự động trên mỗi commit
-
 {{% /notice %}}
-
-  {{% /notice %}}
-
 
 ## 3. Clean Up Resources (AWS CLI)
 
@@ -591,7 +504,6 @@ echo "✅ ECR cleanup completed"
 
 ### 4.1. Chi phí ECR Storage
 
-
 | Storage Type | Giá (USD/GB/tháng) | Ghi chú |
 |--------------|-------------------|---------|
 | **ECR Storage** | $0.10 | Compressed image size |
@@ -609,36 +521,13 @@ echo "✅ ECR cleanup completed"
 | **OS Package Scanning** | Free | Basic vulnerability detection |
 | **Language Package Scanning** | $0.09/image/month | Enhanced scanning only |
 
-| Storage Type          | Giá (USD/GB/tháng) | Ghi chú                |
-| --------------------- | ------------------ | ---------------------- |
-| **ECR Storage**       | $0.10              | Compressed image size  |
-| **Free Tier**         | 500MB free         | First 12 months        |
-| **Data Transfer IN**  | Free               | Push images to ECR     |
-| **Data Transfer OUT** | $0.12/GB           | Pull từ Internet       |
-| **Data Transfer VPC** | Free               | Pull qua VPC Endpoints |
-
-### 4.2. Chi phí Image Scanning
-
-| Scan Type                     | Giá (USD)         | Ghi chú                       |
-| ----------------------------- | ----------------- | ----------------------------- |
-| **Basic Scanning**            | Free              | CVE database scanning         |
-| **Enhanced Scanning**         | $0.09/image/month | Inspector integration         |
-| **OS Package Scanning**       | Free              | Basic vulnerability detection |
-| **Language Package Scanning** | $0.09/image/month | Enhanced scanning only        |
-
-
 ### 4.3. Ước tính chi phí cho Task 6
 
 **Container Images:**
-
-
-
-
 - FastAPI image: ~500MB (compressed)
 - Total storage: ~0.5GB
 
 **Monthly Costs:**
-
 
 | Component | Size | Price | Monthly Cost |
 |-----------|------|-------|--------------|
@@ -647,18 +536,9 @@ echo "✅ ECR cleanup completed"
 | **VPC Endpoint Transfer** | ~1GB/month | Free | $0.00 |
 | **Total** | | | **$0.05** |
 
-| Component                 | Size       | Price    | Monthly Cost |
-| ------------------------- | ---------- | -------- | ------------ |
-| **ECR Storage**           | 0.5GB      | $0.10/GB | $0.05        |
-| **Basic Scanning**        | 1 image    | Free     | $0.00        |
-| **VPC Endpoint Transfer** | ~1GB/month | Free     | $0.00        |
-| **Total**                 |            |          | **$0.05**    |
-
-
 ### 4.4. Cost Comparison với Alternatives
 
 **ECR vs Docker Hub:**
-
 
 | Feature | ECR | Docker Hub | Winner |
 |---------|-----|------------|--------|
@@ -669,20 +549,9 @@ echo "✅ ECR cleanup completed"
 | **IAM Integration** | ✅ Native | ❌ Token-based | **ECR** |
 | **Vulnerability Scanning** | ✅ Built-in | ❌ Extra cost | **ECR** |
 
-| Feature                    | ECR              | Docker Hub       | Winner     |
-| -------------------------- | ---------------- | ---------------- | ---------- |
-| **Storage (500MB)**        | $0.05/month      | Free (public)    | Docker Hub |
-| **Private repos**          | ✅ Native        | $5/month         | **ECR**    |
-| **AWS Integration**        | ✅ Native        | Manual setup     | **ECR**    |
-| **VPC Endpoints**          | ✅ Free transfer | ❌ Internet only | **ECR**    |
-| **IAM Integration**        | ✅ Native        | ❌ Token-based   | **ECR**    |
-| **Vulnerability Scanning** | ✅ Built-in      | ❌ Extra cost    | **ECR**    |
-
-
 ### 4.5. Data Transfer Costs
 
 **ECR Pull Scenarios:**
-
 
 | Pull Location | Cost | Use Case |
 |---------------|------|----------|
@@ -691,43 +560,21 @@ echo "✅ ECR cleanup completed"
 | **Cross Region** | $0.12/GB + transfer | Multi-region deployment |
 | **Internet (outside AWS)** | $0.12/GB | Local development |
 
-| Pull Location              | Cost                | Use Case                |
-| -------------------------- | ------------------- | ----------------------- |
-| **Same Region (VPC)**      | Free                | EKS production          |
-| **Same Region (Internet)** | $0.12/GB            | CI/CD outside AWS       |
-| **Cross Region**           | $0.12/GB + transfer | Multi-region deployment |
-| **Internet (outside AWS)** | $0.12/GB            | Local development       |
-
-
 ### 4.6. Lifecycle Policy Cost Savings
 
 **Without Lifecycle Policies:**
-
-
-
-
 - 50 images × 500MB = 25GB storage
 - Cost: 25GB × $0.10 = $2.50/month
 
 **With Lifecycle Policies (Task 6):**
-
 - Keep 10 production images = 5GB
 - Keep 5 development images = 2.5GB  
-
-
-- Keep 10 production images = 5GB
-- Keep 5 development images = 2.5GB
-
 - Total: 7.5GB × $0.10 = $0.75/month
 - **Savings: $1.75/month (70%)**
 
 ### 4.7. Cost Optimization Tips
 
 **Storage Optimization:**
-
-
-
-
 ```bash
 # Multi-stage builds giảm image size
 FROM node:16 as builder
@@ -737,10 +584,6 @@ COPY --from=builder /app/dist ./dist
 ```
 
 **Registry Management:**
-
-
-
-
 ```bash
 # Automated cleanup with lifecycle policies
 aws ecr put-lifecycle-policy \
@@ -749,30 +592,18 @@ aws ecr put-lifecycle-policy \
 ```
 
 **Free Tier Usage:**
-
-
-
-
 - Sử dụng 500MB free tier cho development
 - Production images trong repositories riêng biệt
 - VPC Endpoints để tránh data transfer charges
 
 {{% notice info %}}
 **💰 Cost Summary cho Task 6:**
-
-
-
-
 - **Storage:** $0.05/month (500MB images)
 - **Scanning:** Free (basic vulnerability detection)
 - **Data Transfer:** Free (VPC Endpoints to EKS)
 - **Total:** **$0.05/month** (vs $5/month Docker Hub private)
 - **Savings:** $4.95/month với ECR + lifecycle policies
-
 {{% /notice %}}
-
-  {{% /notice %}}
-
 
 ---
 
@@ -796,8 +627,4 @@ aws ecr put-lifecycle-policy \
 
 ---
 
-
 **Next Step**: [Task 7: EKS Cluster Setup](../7-eks-cluster/) 
-
-**Next Step**: [Task 7: EKS Cluster Setup](../7-eks-cluster/)
-

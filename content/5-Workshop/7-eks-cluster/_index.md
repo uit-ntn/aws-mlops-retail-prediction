@@ -6,7 +6,6 @@ chapter: false
 pre: "<b>7. </b>"
 ---
 
-
 ## 🎯 Task 7 Objectives
 
 Deploy Amazon Elastic Kubernetes Service (EKS) as the foundation to run prediction API (FastAPI) in production environment:
@@ -101,27 +100,27 @@ Deploy Amazon Elastic Kubernetes Service (EKS) as the foundation to run predicti
 ### 1.2. Update kubeconfig
 
 ```bash
-# Configure kubectl for new cluster
-aws eks update-kubeconfig --region ap-southeast-1 --name mlops-retail-cluster
-
-# Verify connection
-kubectl get svc
-kubectl cluster-info
+eksctl create cluster -f eksctl-cluster.yaml
 ```
 
-**Expected output:**
+### Option B: AWS Console (if you must)
 
-```
-NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
-kubernetes   ClusterIP   172.20.0.1   <none>        443/TCP   5m
+1. EKS → Clusters → Create
+2. Name: `mlops-retail-cluster`, Region: `ap-southeast-1`
+3. Networking: select Production VPC + **private** subnets for nodes
+4. Enable control plane logs
+5. After cluster is ready → create Managed Node Group (`t2.micro` for dev)
 
-Kubernetes control plane is running at https://ABC123.gr7.ap-southeast-1.eks.amazonaws.com
-CoreDNS is running at https://ABC123.gr7.ap-southeast-1.eks.amazonaws.com/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
-```
+---
 
-![kubeconfig Verification](../images/07-eks-cluster/05-kubeconfig-verification.png)
+## 2) Add-ons & observability baseline
 
-### 1.3. Verify Add-ons
+Recommended EKS add-ons:
+
+- `vpc-cni`
+- `coredns`
+- `kube-proxy`
+- `aws-ebs-csi-driver` (optional)
 
 ```bash
 # Check core add-ons
@@ -156,108 +155,11 @@ kubectl get deployment -n kube-system ebs-csi-controller
 
 {{% notice info %}}
 **Info:** EKS control plane automatically runs across multiple AZs. To optimize costs, ensure worker nodes are balanced across AZs to avoid cross-AZ data transfer charges ($0.01/GB).
-
-{{% notice info %}}
-**🎯 Task 7 Goal:** Provision an Amazon EKS cluster in **ap-southeast-1** connected to the Production VPC, enable essential add-ons/logging, configure IRSA (OIDC) for AWS access from pods, and deploy a sample app that pulls from ECR.
-
 {{% /notice %}}
 
-## 0) Inputs from previous tasks
+## 2. IRSA (IAM Roles for Service Accounts) Setup
 
-- Production VPC: `10.0.0.0/16` (private subnets for nodes/pods; public subnets for ALB demos)
-- No NAT Gateway (cost optimization). Use **VPC Endpoints**:
-  - S3 **Gateway** endpoint
-  - ECR API + ECR DKR **Interface** endpoints
-  - CloudWatch Logs **Interface** endpoint
-- Cluster name: `mlops-retail-cluster`
-- Region: `ap-southeast-1`
-- ECR: `842676018087.dkr.ecr.ap-southeast-1.amazonaws.com/mlops/retail-api:latest`
-
----
-
-## 1) Create the EKS cluster
-
-### Option A (Recommended): eksctl (fast)
-
-> If you already created the VPC in Task 5, plug in your subnet IDs.
-
-Create `eksctl-cluster.yaml`:
-
-```yaml
-apiVersion: eksctl.io/v1alpha5
-kind: ClusterConfig
-
-metadata:
-  name: mlops-retail-cluster
-  region: ap-southeast-1
-  version: "1.29"
-
-vpc:
-  id: "<PRODUCTION_VPC_ID>"
-  subnets:
-    private:
-      ap-southeast-1a: { id: "<PRIVATE_SUBNET_ID_A>" }
-      ap-southeast-1b: { id: "<PRIVATE_SUBNET_ID_B>" }
-    public:
-      ap-southeast-1a: { id: "<PUBLIC_SUBNET_ID_A>" }
-      ap-southeast-1b: { id: "<PUBLIC_SUBNET_ID_B>" }
-
-cloudWatch:
-  clusterLogging:
-    enableTypes:
-      ["api", "audit", "authenticator", "controllerManager", "scheduler"]
-
-managedNodeGroups:
-  - name: retail-ng-dev
-    instanceType: t2.micro
-    desiredCapacity: 2
-    minSize: 1
-    maxSize: 3
-    privateNetworking: true
-    labels:
-      role: dev
-    iam:
-      withAddonPolicies:
-        cloudWatch: true
-        ecr: true
-        autoScaler: true
-```
-
-Create cluster:
-
-```bash
-eksctl create cluster -f eksctl-cluster.yaml
-```
-
-### Option B: AWS Console (if you must)
-
-1. EKS → Clusters → Create
-2. Name: `mlops-retail-cluster`, Region: `ap-southeast-1`
-3. Networking: select Production VPC + **private** subnets for nodes
-4. Enable control plane logs
-5. After cluster is ready → create Managed Node Group (`t2.micro` for dev)
-
----
-
-## 2) Add-ons & observability baseline
-
-Recommended EKS add-ons:
-
-- `vpc-cni`
-- `coredns`
-- `kube-proxy`
-- `aws-ebs-csi-driver` (optional)
-
-```bash
-aws eks list-addons --cluster-name mlops-retail-cluster --region ap-southeast-1
-aws eks create-addon --cluster-name mlops-retail-cluster --addon-name vpc-cni --region ap-southeast-1
-aws eks create-addon --cluster-name mlops-retail-cluster --addon-name coredns --region ap-southeast-1
-aws eks create-addon --cluster-name mlops-retail-cluster --addon-name kube-proxy --region ap-southeast-1
-```
-
----
-
-## 3) Configure kubectl access
+### 2.1. Associate OIDC Provider
 
 ```bash
 aws eks update-kubeconfig --name mlops-retail-cluster --region ap-southeast-1
@@ -340,7 +242,6 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: mlops-retail-forecast
-
   labels:
     name: mlops-retail-forecast
 ---
@@ -581,8 +482,6 @@ aws ec2 describe-vpc-endpoints \
 **Create file `k8s/retail-api-deployment.yaml`:**
 
 ```yaml
-
-
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -626,7 +525,6 @@ kubectl apply -f k8s/sample-app.yaml
 kubectl get pods -n mlops-retail-forecast
 kubectl get svc  -n mlops-retail-forecast
 ```
-
 
 ### 5.3. Test IRSA S3 Access
 
@@ -764,14 +662,70 @@ metadata:
   name: amazon-cloudwatch
   labels:
     name: amazon-cloudwatch
-
-
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudwatch-agent
+  namespace: amazon-cloudwatch
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/mlops-retail-forecast-dev-irsa-cloudwatch
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cloudwatch-agent
+  namespace: amazon-cloudwatch
+spec:
+  selector:
+    matchLabels:
+      name: cloudwatch-agent
+  template:
+    metadata:
+      labels:
+        name: cloudwatch-agent
+    spec:
+      serviceAccountName: cloudwatch-agent
+      containers:
+        - name: cloudwatch-agent
+          image: amazon/cloudwatch-agent:1.300026.2b251814
+          env:
+            - name: AWS_REGION
+              value: ap-southeast-1
+            - name: CLUSTER_NAME
+              value: mlops-retail-forecast-dev-cluster
+          volumeMounts:
+            - name: cwagentconfig
+              mountPath: /etc/cwagentconfig
+            - name: rootfs
+              mountPath: /rootfs
+              readOnly: true
+            - name: dockersock
+              mountPath: /var/run/docker.sock
+              readOnly: true
+            - name: varlibdocker
+              mountPath: /var/lib/docker
+              readOnly: true
+      volumes:
+        - name: cwagentconfig
+          configMap:
+            name: cwagentconfig
+        - name: rootfs
+          hostPath:
+            path: /
+        - name: dockersock
+          hostPath:
+            path: /var/run/docker.sock
+        - name: varlibdocker
+          hostPath:
+            path: /var/lib/docker
+```
 
-## 7) Cleanup (recommended for cost control)
+## 8. Security Hardening
+
+### 8.1. Network Security
 
 ```bash
-
 # Verify security groups
 aws ec2 describe-security-groups \
   --group-ids $(terraform output -raw eks_control_plane_security_group_id) \
@@ -900,25 +854,11 @@ kubectl config unset users.arn:aws:eks:ap-southeast-1:${ACCOUNT_ID}:cluster/mlop
 ### 9.5. Script Dọn dẹp EKS Tự động
 
 ```bash
-#!/bin/bash
-# eks-cleanup.sh
-
-CLUSTER_NAME="mlops-retail-cluster"
-REGION="ap-southeast-1"
-NODEGROUP_NAME="mlops-retail-nodegroup-t2micro"
-
-echo "🧹 Starting EKS cluster cleanup..."
-
-# 1. Delete applications and namespace
-echo "Deleting Kubernetes resources..."
-
-
 kubectl delete namespace mlops-retail-forecast --ignore-not-found=true
 eksctl delete cluster --name mlops-retail-cluster --region ap-southeast-1
 ```
 
 ---
-
 
 ## 10. EKS Pricing Table (ap-southeast-1)
 
@@ -1120,19 +1060,3 @@ EKS cluster foundation is ready for deployment:
 ---
 
 **Next Step**: [Task 08: Deploy Kubernetes](../8-deploy-kubernetes)
-
-## 8) Rough cost notes
-
-- EKS control plane has a fixed hourly cost.
-- NodeGroup (EC2) is your main variable cost. Use tiny instances for dev and shut down when idle.
-- Avoid NAT Gateway costs by using VPC Endpoints (as designed in Task 5).
-
-{{% notice success %}}
-**✅ Task 7 Complete (EKS):**
-
-- EKS cluster created in ap-southeast-1
-- Control plane logs enabled + add-ons configured
-- IRSA enabled (OIDC provider + service account role)
-- Sample workload deployed successfully
-  {{% /notice %}}
-

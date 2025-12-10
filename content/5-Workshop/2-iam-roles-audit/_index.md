@@ -7,7 +7,6 @@ pre: "<b>2. </b>"
 ---
 
 ## 🎯 Task 2 Objectives
-## 🎯 Task 2 Objectives
 
 Set up **access permissions (IAM)** for all AWS services in the pipeline and **enable CloudTrail** to monitor and record all activities in the AWS account.
 
@@ -56,7 +55,6 @@ Set up **access permissions (IAM)** for all AWS services in the pipeline and **e
 - All IAM roles comply with principle of least privilege
 - Audit trail ready for compliance and monitoring
 
-## 1. CloudTrail Setup - Audit Foundation
 ## 1. CloudTrail Setup - Audit Foundation
 
 ### 1.1. Create S3 Bucket for CloudTrail
@@ -403,7 +401,6 @@ AWS Console → us-east-1 → CloudTrail → Create trail
 | **Insights events** | ✅ Enabled (detect anomalous behavior) |
 
 **Step 3: Storage configuration**
-**Step 3: Storage configuration**
 
 | Item | Value |
 |-----|----------|
@@ -412,7 +409,6 @@ AWS Console → us-east-1 → CloudTrail → Create trail
 | **Log file SSE-KMS encryption** | ✅ Enabled |
 | **AWS KMS alias** | `alias/mlops-retail-prediction-dev-cloudtrail-key` (select the created key) |
 
-**Step 4: CloudWatch Logs integration (optional)**
 **Step 4: CloudWatch Logs integration (optional)**
 
 | Item | Value |
@@ -495,7 +491,6 @@ Correct order to avoid errors:
 	```
 
 ### 2.4. REQUIRED: Add EC2 Permissions
-### 2.4. REQUIRED: Add EC2 Permissions
 
 Because SageMaker Projects are mandatory, EC2 permissions must be added:
 
@@ -543,9 +538,7 @@ If EC2 permissions are missing:
 ## 3. Validation & Security checks
 
 ### 3.1. Verify CloudTrail
-### 3.1. Verify CloudTrail
 
-**Check CloudTrail status:**
 **Check CloudTrail status:**
 AWS Console → CloudTrail → Trails
 
@@ -557,7 +550,6 @@ AWS Console → CloudTrail → Trails
 ✅ CloudWatch Logs: Integrated
 ```
 
-**Verify S3 logging:**
 **Verify S3 logging:**
 AWS Console → S3 → mlops-cloudtrail-logs-ap-southeast-1
 
@@ -646,7 +638,6 @@ Notes:
 > Warning: commands below will delete real resources. Confirm names (bucket, role, trail, key) before running.
 
 ### 5.1 Delete CloudTrail
-### 5.1 Delete CloudTrail
 
 PowerShell (AWS CLI):
 
@@ -685,7 +676,6 @@ aws kms schedule-key-deletion --key-id $keyId --pending-window-in-days 7
 ```
 
 ### 5.4 Remove IAM Roles & Policies (EKS / SageMaker / CloudTrail)
-### 5.4 Remove IAM Roles & Policies (EKS / SageMaker / CloudTrail)
 
 Safe procedure: 1) Detach managed policies 2) Delete inline policies 3) Delete role.
 
@@ -707,7 +697,6 @@ aws iam delete-role --role-name $roleName
 # Repeat for other roles (EKS cluster/nodegroup, CloudTrail_CloudWatchLogs_Role, CI roles, etc.)
 ```
 
-### 5.5 Remove Container Insights / CloudWatch integration
 ### 5.5 Remove Container Insights / CloudWatch integration
 
 ```powershell
@@ -734,7 +723,6 @@ aws ecr describe-images --repository-name mlops/retail-api --filter tagStatus=UN
 ```
 
 ### 5.7 Stop / Delete SageMaker training jobs, endpoints, model packages
-### 5.7 Stop / Delete SageMaker training jobs, endpoints, model packages
 
 ```powershell
 # Stop in-progress training jobs by name pattern
@@ -747,7 +735,6 @@ aws sagemaker list-endpoints --name-contains "retail-" --query 'Endpoints[?Endpo
 aws sagemaker list-model-packages --model-package-group-name "retail-forecast-models" --model-approval-status PendingManualApproval --query 'ModelPackageSummaryList[].ModelPackageArn' --output text | ForEach-Object { aws sagemaker delete-model-package --model-package-name $_ }
 ```
 
-### 5.8 Verification
 ### 5.8 Verification
 
 ```powershell

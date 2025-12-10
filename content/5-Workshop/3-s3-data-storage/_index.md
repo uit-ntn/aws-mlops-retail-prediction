@@ -14,7 +14,6 @@ Create **S3 bucket** and organize data for MLOps pipeline following the standard
 - Measure on **local machine** (Windows, 16GB RAM).
 
 Focus on:
-Focus on:
 
 - **Read/write performance**: CSV vs Parquet.
 - **Storage size**: before/after compression.
@@ -40,7 +39,6 @@ Focus on:
 - **Lab region:** `us-east-1`
 - **Bucket:** `mlops-retail-prediction-dev-842676018087`
 
-Main dataset:
 Main dataset:
 
 - `raw/transactions.csv`  
@@ -68,7 +66,6 @@ s3://mlops-retail-prediction-dev-{account-id}/
 └── artifacts/  # model, metadata, logs, reports
 ```
 
-Meaning:
 Meaning:
 
 - **raw/**: append only, no edit/delete → serve audit & reprocessing.
@@ -155,11 +152,9 @@ artifacts/
 {{% /notice %}}
 
 ## 3. Enable Intelligent-Tiering (cost optimization)
-## 3. Enable Intelligent-Tiering (cost optimization)
 
 Purpose: infrequently accessed data (e.g. old `raw/`, old `artifacts/` logs) automatically moved to cheaper storage tiers, URL unchanged.
 
-Steps:
 Steps:
 
 1. Go to bucket → **Properties** tab.
@@ -179,9 +174,7 @@ Scope: Entire bucket (or specific prefix: raw/, silver/, gold/, artifacts/)
 ---
 
 ## 4. Convert CSV → Parquet using AWS Glue Studio (Visual ETL)
-## 4. Convert CSV → Parquet using AWS Glue Studio (Visual ETL)
 
-### 4.1. Upload `transactions.csv` to `raw/`
 ### 4.1. Upload `transactions.csv` to `raw/`
 
 On S3 Console:
@@ -236,7 +229,6 @@ Job name: csv-to-parquet-converter
 ---
 
 ### 4.3. Source node – read CSV from S3
-### 4.3. Source node – read CSV from S3
 
 In Glue Studio canvas:
 
@@ -256,7 +248,6 @@ Delimiter: ,
 ![Placeholder - Glue Source](/imagess3-data-storage/placeholder-glue-source.png)
 
 Summary:
-Summary:
 
 |     Field | Value                                      |
 | --------: | ------------------------------------------ |
@@ -268,7 +259,6 @@ Summary:
 
 ---
 
-### 4.4. Transform – ApplyMapping (schema optimization)
 ### 4.4. Transform – ApplyMapping (schema optimization)
 
 1. Add **ApplyMapping** node.
@@ -288,7 +278,6 @@ Summary:
 
 ![Placeholder - Transform schema](/imagess3-data-storage/placeholder-transform.png)
 
-**Benefits:**
 **Benefits:**
 
 - Reduce Parquet file size.
@@ -313,7 +302,6 @@ Partition keys: SHOP_WEEK (recommended)
 Partition keys: SHOP_WEEK (recommended)
 ```
 
-_Illustration:_
 _Illustration:_
 
 -- Target config: `/imagess3-data-storage/target-config.png`
@@ -342,7 +330,6 @@ _Illustration:_
 ## 5. Real benchmark on AWS CloudShell (read directly from S3)
 
 ### 5.1. Dataset info & how to run
-### 5.1. Dataset info & how to run
 
 - Run on **AWS CloudShell**.
 - Read directly:
@@ -353,7 +340,6 @@ _Illustration:_
   - 1 Parquet file (~458.45 MB, 33,850,823 rows).
   - 1 Parquet file (~458.45 MB, 33,850,823 rows).
 
-You used scripts like:
 You used scripts like:
 
 - `read_csv_s3(...)` to measure CSV reading.
@@ -395,7 +381,6 @@ Average calculation (approximate):
 ---
 
 **Parquet – read 1 file ~458.45 MB from S3**
-**Parquet – read 1 file ~458.45 MB from S3**
 
 5 measurements:
 
@@ -427,7 +412,6 @@ Average calculation (approximate):
 
 {{% notice info %}}
 **CloudShell Conclusion**
-**CloudShell Conclusion**
 
 - Parquet (Snappy) **dramatically reduces storage size**: 4.59 GB → ~0.46 GB.
 - With same 33.85M rows, Parquet processes **~2.6× faster** in rows/s.
@@ -436,11 +420,9 @@ Average calculation (approximate):
 ---
 
 ## 6. Benchmark on local machine
-## 6. Benchmark on local machine
 
 ### 6.1. Prepare directory & download data
 
-On Windows:
 On Windows:
 
 ```bash
@@ -459,7 +441,6 @@ aws s3 cp s3://mlops-retail-prediction-dev-842676018087/silver/shop_week=200607/
 
 ![Placeholder - Local download](/imagess3-data-storage/placeholder-local-download.png)
 
-### 6.2. Benchmark script
 ### 6.2. Benchmark script
 
 Create file `local_benchmark.py`:
@@ -503,7 +484,6 @@ if __name__ == "__main__":
 ```
 
 Run:
-Run:
 
 ```bash
 python local_benchmark.py
@@ -532,9 +512,7 @@ python local_benchmark.py
 {{% /notice %}}
 
 ## 7. IAM – Minimum permissions for Glue Job (summary)
-## 7. IAM – Minimum permissions for Glue Job (summary)
 
-Minimum required:
 Minimum required:
 
 - **S3:**
@@ -546,7 +524,6 @@ Minimum required:
   - Permission to create/run job, read metadata (depends on environment).
 - **CloudWatch Logs:** write job logs.
 
-Example policy:
 Example policy:
 
 ```json
@@ -574,11 +551,8 @@ Example policy:
   ]
 }
 ```
-```
-
 ---
 
-## 8. Task 3 Summary – S3 Data Storage
 ## 8. Task 3 Summary – S3 Data Storage
 
 **About architecture:**
@@ -669,9 +643,7 @@ aws iam delete-role --role-name GlueETLRole
 ---
 
 ## 10. S3 Storage Pricing Table (ap-southeast-1)
-## 10. S3 Storage Pricing Table (ap-southeast-1)
 
-### 10.1. Storage cost by class
 ### 10.1. Storage cost by class
 
 | Storage Class | Price (USD/GB/month) | Minimum Duration | Notes |
@@ -683,7 +655,6 @@ aws iam delete-role --role-name GlueETLRole
 | **S3 Glacier Flexible** | $0.0045 | 90 days | Archive, 1-12 hours retrieval |
 | **S3 Deep Archive** | $0.002 | 180 days | Long-term archive, 12+ hours |
 
-### 10.2. Request costs
 ### 10.2. Request costs
 
 | Request Type | Price (USD/1000 requests) | Notes |
@@ -754,4 +725,5 @@ aws iam delete-role --role-name GlueETLRole
 ---
 
 **Next Step**: [Task 4: SageMaker Training](../4-sagemaker-training/)
-**Next Step**: [Task 4: SageMaker Training](../4-sagemaker-training/)
+
+
