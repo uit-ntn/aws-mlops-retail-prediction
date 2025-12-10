@@ -5,21 +5,21 @@ chapter: false
 pre: "<b>5. </b>"
 ---
 
-## 🎯 Task 5 Objectives
+## 🎯 Mục tiêu Task 5
 
-Set up **Production VPC** for EKS deployment and public API demo (separate from SageMaker training VPC):
+Thiết lập **Production VPC** cho EKS deployment và public API demo (riêng biệt với SageMaker training VPC):
 
-1. **Production EKS Infrastructure** - EKS Cluster and Pods in private subnets
-2. **Public API Access** - ALB in public subnets for demo endpoint `/predict`
-3. **High-Performance Internal Networking** - VPC Endpoints for S3/ECR access < 50ms latency
-4. **Cost Optimization** - Remove NAT Gateway, only enable ALB when demo
+1. **Production EKS Infrastructure** - EKS Cluster và Pods trong private subnets
+2. **Public API Access** - ALB trong public subnets cho demo endpoint `/predict`
+3. **High-Performance Internal Networking** - VPC Endpoints cho S3/ECR access < 50ms latency
+4. **Cost Optimization** - Bỏ NAT Gateway, chỉ bật ALB khi demo
 
 {{% notice warning %}}
 **⚠️ VPC Separation Strategy:**
 
-- **Task 4**: SageMaker training uses default VPC (Quick setup) - simple, cost-effective
-- **Task 5**: EKS production uses separate VPC - better security, control
-- **No conflict**: 2 independent VPCs, can connect via VPC Peering if needed
+- **Task 4**: SageMaker training dùng VPC mặc định (Quick setup) - đơn giản, tiết kiệm
+- **Task 5**: EKS production dùng VPC riêng - bảo mật, kiểm soát tốt hơn
+- **Không conflict**: 2 VPC độc lập, có thể kết nối qua VPC Peering nếu cần
   {{% /notice %}}
 
 {{% notice info %}}
@@ -27,24 +27,24 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 
 - ✅ **Private Subnets**: EKS Pods (secure, no direct Internet)
 - ✅ **Public Subnets**: ALB only (public API demo access)
-- ✅ **Internal Communication**: EKS ↔ S3 via VPC Endpoints
-- ✅ **Demo Ready**: Public API endpoint via ALB with SSL/health checks
+- ✅ **Internal Communication**: EKS ↔ S3 qua VPC Endpoints
+- ✅ **Demo Ready**: Public API endpoint qua ALB với SSL/health checks
 {{% /notice %}}
 
 📥 **Input**
 
-- AWS Account with VPC permissions
+- AWS Account với VPC permissions
 - CIDR planning: `10.0.0.0/16` (production EKS VPC)
-- Demo requirements: Public API access via ALB
-- Task 4 completed: SageMaker training running in default VPC
-- **Input from Task 4:** Task 4 (SageMaker training) — training VPC choices and requirements
-- **Input from Task 2:** Task 2 (IAM Roles & Audit) — roles and policies required for VPC, EKS and ECR access
+- Demo requirements: Public API access qua ALB
+- Task 4 completed: SageMaker training chạy trong VPC mặc định
+- **Input từ Task 4:** Task 4 (SageMaker training) — training VPC choices and requirements
+- **Input từ Task 2:** Task 2 (IAM Roles & Audit) — roles and policies required for VPC, EKS and ECR access
 
 ## 1. Hybrid VPC Infrastructure Setup
 
-### 1.1. Create VPC
+### 1.1. Tạo VPC
 
-1. **Access VPC Dashboard:**
+1. **Truy cập VPC Dashboard:**
    - AWS Console → VPC service → "Create VPC"
 
 ![Create VPC Console](../images/05-vpc-networking/01-create-vpc-console.png)
@@ -61,7 +61,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 
 ![VPC Configuration](../images/05-vpc-networking/02-vpc-configuration.png)
 
-### 1.2. Create Subnets
+### 1.2. Tạo Subnets
 
 1. **Public Subnets (ALB Only):**
 
@@ -111,7 +111,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 
 ### 1.3. Internet Gateway Setup
 
-1. **Create Internet Gateway:**
+1. **Tạo Internet Gateway:**
    - "Internet Gateways" → "Create internet gateway"
    ```
    Name: mlops-hybrid-igw
@@ -263,7 +263,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 - EKS Control Plane SG: Cluster management
 - VPC Endpoints SG: AWS services access
 
-**Note:** SageMaker will use default SG in default VPC (Task 4)
+**Note:** SageMaker sẽ dùng default SG trong VPC mặc định (Task 4)
 {{% /notice %}}
 
 ### 1.6. Enable Auto-assign Public IP for ALB Subnets
@@ -305,7 +305,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 
 ## 2. VPC Endpoints for High-Performance Internal Networking
 
-**This step is MANDATORY to ensure EKS ↔ S3 ↔ SageMaker latency < 50ms:**
+**Bước này BẮT BUỘC phải làm để đảm bảo EKS ↔ S3 ↔ SageMaker latency < 50ms:**
 
 ### 2.1. S3 Gateway Endpoint (FREE - Model/Data Access)
 
@@ -323,7 +323,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 ![S3 Endpoint Configuration](../images/05-vpc-networking/10.2-s3-endpoint-config.png)
 ![S3 Endpoint Configuration](../images/05-vpc-networking/10.2-s3-endpoint-config2.png)
 
-**Purpose:** EKS Pods load model artifacts from S3 < 50ms latency
+**Purpose:** EKS Pods load model artifacts từ S3 < 50ms latency
 
 ### 2.2. ECR API Interface Endpoint (Container Images)
 
@@ -341,7 +341,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 ![ECR API Endpoint](../images/05-vpc-networking/10.3-ecr-api-endpoint.png)
 ![ECR API Configuration](../images/05-vpc-networking/10.4-ecr-api-config.png)
 
-**Purpose:** EKS pull container images from ECR repository
+**Purpose:** EKS pull container images từ ECR repository
 
 ### 2.3. ECR DKR Interface Endpoint (Docker Registry)
 
@@ -359,7 +359,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 ![ECR DKR Endpoint](../images/05-vpc-networking/10.5-ecr-dkr-endpoint.png)
 ![ECR DKR Endpoint](../images/05-vpc-networking/10.5-ecr-dkr-endpoint2.png)
 
-**Purpose:** Docker layer downloads for EKS container runtime
+**Purpose:** Docker layer downloads cho EKS container runtime
 
 ### 2.4. CloudWatch Logs Interface Endpoint
 
@@ -377,7 +377,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 ![CloudWatch Logs Endpoint](../images/05-vpc-networking/10.7-logs-endpoint.png)
 ![CloudWatch Logs Endpoint](../images/05-vpc-networking/10.7-logs-endpoint2.png)
 
-**Purpose:** Monitoring and logging for EKS/SageMaker workloads
+**Purpose:** Monitoring and logging cho EKS/SageMaker workloads
 
 ### 2.5. VPC Endpoints Verification
 
@@ -398,7 +398,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 - EKS ↔ CloudWatch: < 50ms (Logs Endpoint)
 - No Internet dependency for AWS services
 
-**Cost Optimized:** ~$7.2/month savings (no need for SageMaker VPC Endpoint)
+**Cost Optimized:** ~$7.2/month tiết kiệm (không cần SageMaker VPC Endpoint)
 
 ## 3. Application Load Balancer Setup
 
@@ -475,7 +475,7 @@ Set up **Production VPC** for EKS deployment and public API demo (separate from 
 {{% notice info %}}
 **💡 SSL Certificate Options:**
 
-- **Production**: Use AWS Certificate Manager (ACM) with domain
+- **Production**: Use AWS Certificate Manager (ACM) với domain
 - **Demo**: Create self-signed certificate or use HTTP only
 - **Development**: Skip SSL, use HTTP listener only
   {{% /notice %}}
@@ -560,13 +560,13 @@ aws cloudwatch put-metric-alarm \
 ## 5. Terraform Outputs
 
 {{% notice info %}}
-**💡 When to use Terraform outputs:**
+**💡 Khi nào cần Terraform outputs:**
 
-- ✅ Task 7-10 will use Terraform (EKS cluster, ALB controller)
-- ✅ Need automated deployment across environments
+- ✅ Task 7-10 sẽ dùng Terraform (EKS cluster, ALB controller)
+- ✅ Cần automated deployment across environments
 - ✅ Want to reference infrastructure programmatically
 
-**If Task 7-10 use Console:** Skip this section completely!
+**Nếu Task 7-10 dùng Console:** Skip phần này hoàn toàn!
 {{% /notice %}}
 
 ### 5.1. Data Sources (Reference Console-created Resources)
@@ -574,7 +574,7 @@ aws cloudwatch put-metric-alarm \
 **File: `aws/infra/vpc-data-sources.tf`**
 
 ```hcl
-# Reference VPC infrastructure from Console
+# Reference VPC infrastructure từ Console
 data "aws_vpc" "hybrid" {
   filter {
     name   = "tag:Name"
@@ -947,10 +947,10 @@ aws ec2 describe-vpc-endpoints \
   --query 'VpcEndpoints[0].PolicyDocument'
 ```
 
-## 👉 Task 5 Results
+## 👉 Kết quả Task 5
 
 ✅ **Hybrid VPC Architecture** - Public ALB + Private workloads security model  
-✅ **Public API Demo Ready** - ALB configured for demo endpoint `/predict`  
+✅ **Public API Demo Ready** - ALB configured cho demo endpoint `/predict`  
 ✅ **High-Performance Internal** - VPC Endpoints < 50ms latency EKS ↔ S3  
 ✅ **Cost Optimized** - $21.6/month base + $0.02/hour ALB demo usage  
 ✅ **Production Security** - Layered security groups, no Internet access for workloads
@@ -991,10 +991,10 @@ aws ec2 describe-vpc-endpoints \
 {{% notice tip %}}
 **🚀 Next Steps:**
 
-- **Task 6**: ECR container registry for API container images
-- **Task 7**: EKS cluster deployment in private subnets
-- **Task 8**: EKS node groups with auto-scaling
-- **Task 10**: Deploy API service with ALB integration
+- **Task 6**: ECR container registry cho API container images
+- **Task 7**: EKS cluster deployment trong private subnets
+- **Task 8**: EKS node groups với auto-scaling
+- **Task 10**: Deploy API service với ALB integration
 - **Task 11**: ALB ingress controller configuration
 
 **Demo Commands Ready:**
@@ -1027,81 +1027,81 @@ curl https://your-alb-dns/health
 {{% notice tip %}}
 **🚀 Next Steps:**
 
-- **Task 3**: IAM Roles & IRSA using VPC infrastructure
-- **Task 4**: EKS cluster deployment with VPC Endpoints integration
-- **Task 5**: EKS managed node groups in cost-optimized private subnets
+- **Task 3**: IAM Roles & IRSA sử dụng VPC infrastructure
+- **Task 4**: EKS cluster deployment với VPC Endpoints integration
+- **Task 5**: EKS managed node groups trong cost-optimized private subnets
   {{% /notice %}}
 
 ## 8. Clean Up Resources (AWS CLI)
 
-### 8.1. Delete Application Load Balancer and Target Groups
+### 8.1. Xóa Application Load Balancer và Target Groups
 
 ```bash
-# List ALB
+# Liệt kê ALB
 aws elbv2 describe-load-balancers --names mlops-hybrid-api-demo-alb --query 'LoadBalancers[*].[LoadBalancerArn,DNSName]' --output table
 
-# Delete ALB (automatically deletes listeners)
+# Xóa ALB (tự động xóa listeners)
 aws elbv2 delete-load-balancer --load-balancer-arn <alb-arn>
 
-# Delete Target Groups
+# Xóa Target Groups
 aws elbv2 describe-target-groups --names mlops-hybrid-eks-api-tg --query 'TargetGroups[*].TargetGroupArn' --output text | xargs -I {} aws elbv2 delete-target-group --target-group-arn {}
 ```
 
-### 8.2. Delete VPC Endpoints
+### 8.2. Xóa VPC Endpoints
 
 ```bash
-# List VPC Endpoints
+# Liệt kê VPC Endpoints
 aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=<vpc-id>" --query 'VpcEndpoints[*].[VpcEndpointId,ServiceName]' --output table
 
-# Delete Interface Endpoints (ECR, CloudWatch Logs)
+# Xóa Interface Endpoints (ECR, CloudWatch Logs)
 aws ec2 delete-vpc-endpoints --vpc-endpoint-ids <ecr-api-endpoint-id> <ecr-dkr-endpoint-id> <logs-endpoint-id>
 
-# Delete Gateway Endpoint (S3)
+# Xóa Gateway Endpoint (S3)
 aws ec2 delete-vpc-endpoints --vpc-endpoint-ids <s3-gateway-endpoint-id>
 ```
 
-### 8.3. Delete Security Groups
+### 8.3. Xóa Security Groups
 
 ```bash
-# List Security Groups (except default)
+# Liệt kê Security Groups (trừ default)
 aws ec2 describe-security-groups --filters "Name=vpc-id,Values=<vpc-id>" --query 'SecurityGroups[?GroupName!=`default`].[GroupId,GroupName]' --output table
 
-# Delete Security Groups (in reverse dependency order)
+# Xóa Security Groups (theo thứ tự ngược dependency)
 aws ec2 delete-security-group --group-id <vpc-endpoints-sg-id>
 aws ec2 delete-security-group --group-id <eks-control-plane-sg-id>
 aws ec2 delete-security-group --group-id <eks-nodes-sg-id>
 aws ec2 delete-security-group --group-id <alb-sg-id>
 ```
 
-### 8.4. Delete Subnets and Route Tables
+### 8.4. Xóa Subnets và Route Tables
 
 ```bash
-# List Route Tables (except main)
+# Liệt kê Route Tables (trừ main)
 aws ec2 describe-route-tables --filters "Name=vpc-id,Values=<vpc-id>" --query 'RouteTables[?Associations[0].Main!=`true`].[RouteTableId,Tags[0].Value]' --output table
 
-# Delete Route Tables
+# Xóa Route Tables
 aws ec2 delete-route-table --route-table-id <public-rt-id>
 aws ec2 delete-route-table --route-table-id <private-rt-id>
 
-# List Subnets
+# Liệt kê Subnets
 aws ec2 describe-subnets --filters "Name=vpc-id,Values=<vpc-id>" --query 'Subnets[*].[SubnetId,Tags[0].Value,CidrBlock]' --output table
 
-# Delete Subnets
+# Xóa Subnets
 aws ec2 delete-subnet --subnet-id <public-subnet-1a-id>
 aws ec2 delete-subnet --subnet-id <public-subnet-1b-id>
 aws ec2 delete-subnet --subnet-id <private-subnet-1a-id>
 aws ec2 delete-subnet --subnet-id <private-subnet-1b-id>
 ```
 
-### 8.5. Delete Internet Gateway and VPC
+### 8.5. Xóa Internet Gateway và VPC
 
 ```bash
-# Detach and delete Internet Gateway
+# Detach và xóa Internet Gateway
 aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=<vpc-id>" --query 'InternetGateways[*].InternetGatewayId' --output text | xargs -I {} aws ec2 detach-internet-gateway --internet-gateway-id {} --vpc-id <vpc-id>
 
 aws ec2 delete-internet-gateway --internet-gateway-id <igw-id>
 
-# Delete VPC (last)
+# Xóa VPC (cuối cùng)
 aws ec2 delete-vpc --vpc-id <vpc-id>
 
 # Verify clean up
@@ -1114,11 +1114,11 @@ aws ec2 describe-vpcs --vpc-ids <vpc-id>
 #!/bin/bash
 # vpc-cleanup.sh
 
-VPC_ID="vpc-xxxxxxxxx"  # Replace with actual VPC ID
+VPC_ID="vpc-xxxxxxxxx"  # Thay bằng VPC ID thực tế
 
 echo "🧹 Cleaning up VPC resources for $VPC_ID..."
 
-# 1. Delete ALB and Target Groups
+# 1. Xóa ALB và Target Groups
 echo "Deleting ALB..."
 ALB_ARN=$(aws elbv2 describe-load-balancers --names mlops-hybrid-api-demo-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text 2>/dev/null)
 if [ "$ALB_ARN" != "None" ] && [ ! -z "$ALB_ARN" ]; then
@@ -1126,7 +1126,7 @@ if [ "$ALB_ARN" != "None" ] && [ ! -z "$ALB_ARN" ]; then
     echo "ALB deleted: $ALB_ARN"
 fi
 
-# 2. Delete VPC Endpoints
+# 2. Xóa VPC Endpoints
 echo "Deleting VPC Endpoints..."
 ENDPOINTS=$(aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_ID" --query 'VpcEndpoints[*].VpcEndpointId' --output text)
 for endpoint in $ENDPOINTS; do
@@ -1134,11 +1134,11 @@ for endpoint in $ENDPOINTS; do
     echo "VPC Endpoint deleted: $endpoint"
 done
 
-# 3. Wait for resources to be deleted
+# 3. Đợi resources được xóa
 echo "Waiting for resources to be deleted..."
 sleep 60
 
-# 4. Delete Security Groups
+# 4. Xóa Security Groups
 echo "Deleting Security Groups..."
 SECURITY_GROUPS=$(aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text)
 for sg in $SECURITY_GROUPS; do
@@ -1151,11 +1151,11 @@ echo "✅ VPC cleanup completed for $VPC_ID"
 
 ---
 
-## 9. VPC and Networking Pricing Table (ap-southeast-1)
+## 9. Bảng giá VPC và Networking (ap-southeast-1)
 
-### 9.1. VPC Core Components Cost
+### 9.1. Chi phí VPC Core Components
 
-| Component | Price (USD) | Notes |
+| Component | Giá (USD) | Ghi chú |
 |-----------|-----------|---------|
 | **VPC** | Free | Unlimited VPCs |
 | **Subnets** | Free | Unlimited subnets |
@@ -1163,54 +1163,54 @@ echo "✅ VPC cleanup completed for $VPC_ID"
 | **Internet Gateway** | Free | One per VPC |
 | **Security Groups** | Free | Firewall rules |
 
-### 9.2. VPC Endpoints Cost
+### 9.2. Chi phí VPC Endpoints
 
-| Endpoint Type | Price (USD/hour) | Price (USD/month) | Data Transfer |
+| Endpoint Type | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
 |---------------|----------------|-----------------|---------------|
 | **Gateway Endpoint (S3)** | Free | Free | Free |
 | **Interface Endpoint** | $0.01 | $7.2 | $0.01/GB |
 | **PrivateLink Endpoint** | $0.01 | $7.2 | $0.01/GB |
 
-**VPC Endpoints cost for Task 5:**
+**Chi phí VPC Endpoints cho Task 5:**
 - S3 Gateway: Free
 - ECR API Interface: $7.2/month
 - ECR DKR Interface: $7.2/month  
 - CloudWatch Logs Interface: $7.2/month
-- **Total:** $21.6/month
+- **Tổng:** $21.6/month
 
-### 9.3. Application Load Balancer Cost
+### 9.3. Chi phí Application Load Balancer
 
-| Component | Price (USD/hour) | Price (USD/month) | Notes |
+| Component | Giá (USD/hour) | Giá (USD/month) | Ghi chú |
 |-----------|----------------|-----------------|---------|
 | **ALB Fixed Cost** | $0.0225 | $16.2 | Always running |
 | **LCU (Load Balancer Capacity Unit)** | $0.008 | $5.76 | Per LCU-hour |
 | **Rule Evaluations** | $0.008 | $5.76 | Per million requests |
 
-**Estimated ALB cost:**
+**Ước tính ALB chi phí:**
 - Base ALB: $16.2/month
 - 1 LCU (basic usage): $5.76/month
 - **Total ALB:** ~$22/month continuous
 
-### 9.4. NAT Gateway Cost (Not used in Task 5)
+### 9.4. Chi phí NAT Gateway (Không dùng trong Task 5)
 
-| Component | Price (USD/hour) | Price (USD/month) | Data Transfer |
+| Component | Giá (USD/hour) | Giá (USD/month) | Data Transfer |
 |-----------|----------------|-----------------|---------------|
 | **NAT Gateway** | $0.045 | $32.4 | $0.045/GB |
 | **Data Processing** | | | $0.045/GB |
 
-**Savings:** $32.4/month by using VPC Endpoints instead of NAT Gateway
+**Tiết kiệm:** $32.4/month bằng cách dùng VPC Endpoints thay NAT Gateway
 
 ### 9.5. Data Transfer Pricing
 
-| Transfer Type | Price (USD/GB) | Notes |
+| Transfer Type | Giá (USD/GB) | Ghi chú |
 |---------------|--------------|---------|
 | **VPC Internal** | Free | Same AZ |
-| **Cross-AZ** | $0.01 | Different AZ in region |
+| **Cross-AZ** | $0.01 | Different AZ trong region |
 | **VPC Endpoints** | $0.01 | Interface endpoints |
 | **Internet OUT** | $0.12 | First 1GB free/month |
 | **S3 Transfer** | Free | Via Gateway endpoint |
 
-### 9.6. Estimated Total Cost for Task 5
+### 9.6. Ước tính tổng chi phí Task 5
 
 **Monthly Baseline Cost:**
 
@@ -1230,7 +1230,7 @@ echo "✅ VPC cleanup completed for $VPC_ID"
 | **Production (24/7)** | $22/month | $43.6/month | Live production |
 | **Testing (1h/day)** | $0.7/month | $22.3/month | Occasional testing |
 
-### 9.7. Cost Comparison with Traditional Setup
+### 9.7. Cost Comparison với Traditional Setup
 
 **Task 5 (VPC Endpoints)** vs **Traditional (NAT Gateway)**:
 
@@ -1243,29 +1243,29 @@ echo "✅ VPC cleanup completed for $VPC_ID"
 ### 9.8. Cost Optimization Tips
 
 **Immediate Savings:**
-- ✅ Use S3 Gateway Endpoint (Free instead of $7.2/month Interface)
+- ✅ Use S3 Gateway Endpoint (Free thay vì $7.2/month Interface)
 - ✅ Skip NAT Gateway (-$32.4/month)
-- ✅ Turn off ALB when not demoing (-$22/month)
+- ✅ Turn off ALB khi không demo (-$22/month)
 
 **Long-term Optimization:**
-- Use Spot instances for EKS nodes (60-70% savings)
-- S3 Intelligent Tiering for model storage
+- Use Spot instances cho EKS nodes (60-70% savings)
+- S3 Intelligent Tiering cho model storage
 - CloudWatch Logs retention policy (7-30 days)
 
 **Demo Cost Management:**
 ```bash
-# Enable ALB only when demo
+# Bật ALB chỉ khi demo
 aws elbv2 create-load-balancer --name demo-alb --type application
 
-# Disable ALB after demo  
+# Tắt ALB sau demo  
 aws elbv2 delete-load-balancer --load-balancer-arn <arn>
 ```
 
 {{% notice info %}}
-**💰 Cost Summary for Task 5:**
+**💰 Cost Summary cho Task 5:**
 - **Baseline:** $21.6/month (VPC Endpoints, always on)
-- **Demo usage:** $0.02/hour ALB (only when needed)
-- **Savings:** $10.8/month compared to NAT Gateway approach
+- **Demo usage:** $0.02/hour ALB (chỉ khi cần)
+- **Savings:** $10.8/month so với NAT Gateway approach
 - **Performance:** < 50ms internal latency guaranteed
 {{% /notice %}}
 
@@ -1273,17 +1273,17 @@ aws elbv2 delete-load-balancer --load-balancer-arn <arn>
 
 {{% notice info %}}
 
-**_Console-created resources_** ready for subsequent tasks:
+**_Console-created resources_** sẵn sàng cho subsequent tasks:
 
-- VPC ID, subnet IDs for EKS cluster creation
-- Security Group IDs for EKS and ALB configuration
-- VPC Endpoint IDs for cost-optimized AWS services access
+- VPC ID, subnet IDs cho EKS cluster creation
+- Security Group IDs cho EKS và ALB configuration
+- VPC Endpoint IDs cho cost-optimized AWS services access
 
 {{% /notice %}}
 
 ---
 
-## 📹 Task 5 Implementation Video
+## 📹 Video thực hiện Task 5
 
 <div style="position: relative; width: 100%; max-width: 2000px; margin: 0 auto; padding-bottom: 56.25%; height: 0; overflow: hidden;">
   <iframe 
@@ -1299,4 +1299,4 @@ aws elbv2 delete-load-balancer --load-balancer-arn <arn>
 
 ---
 
-**Next Step**: [Task 06: ECR Registry](../6-ecr-registry)
+**Next Step**: [Task 06: ERC Registry](../6-erc-registry)
