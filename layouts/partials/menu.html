@@ -13,16 +13,6 @@
 
     <div class="highlightable">
     <ul class="topics">
-        <!-- Custom Introduction Menu Item -->
-        <li data-nav-id="/" title="Giới thiệu" class="dd-item {{if eq .RelPermalink "/"}}active{{end}}">
-          <a href="/">
-              <b>0. </b>Giới thiệu
-              {{ if $showvisitedlinks}}
-                <i class="fas fa-check read-icon"></i>
-              {{ end }}
-          </a>
-        </li>
-
         {{if eq .Site.Params.ordersectionsby "title"}}  
           {{range .Site.Home.Sections.ByTitle}}
           {{ template "section-tree-nav" dict "sect" . "currentnode" $currentNode "showvisitedlinks" $showvisitedlinks}}
@@ -149,7 +139,7 @@
     {{safeHTML .Params.head}}
     <li data-nav-id="{{.RelPermalink}}" title="{{.Title}}" class="dd-item 
         {{if .IsAncestor $currentNode }}parent{{end}}
-        {{if eq .File.UniqueID $currentFileUniqueID}}active{{end}}
+        {{if and .File (eq .File.UniqueID $currentFileUniqueID)}}active{{end}}
         {{if .Params.alwaysopen}}parent{{end}}
         ">
       <a href="{{.RelPermalink}}">
@@ -187,7 +177,7 @@
     </li>
   {{else}}
     {{ if not .Params.Hidden }}
-      <li data-nav-id="{{.RelPermalink}}" title="{{.Title}}" class="dd-item {{if eq .File.UniqueID $currentFileUniqueID}}active{{end}}">
+      <li data-nav-id="{{.RelPermalink}}" title="{{.Title}}" class="dd-item {{if and .File (eq .File.UniqueID $currentFileUniqueID)}}active{{end}}">
         <a href="{{ .RelPermalink}}">
         {{safeHTML .Params.Pre}}{{or .Params.menuTitle .LinkTitle .Title}}{{safeHTML .Params.Post}}
         {{ if $showvisitedlinks}}<i class="fas fa-check read-icon"></i>{{end}}
