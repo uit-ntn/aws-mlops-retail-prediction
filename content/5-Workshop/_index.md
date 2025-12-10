@@ -1,31 +1,14 @@
 ---
 title: "Workshop"
-date: 2025-08-30T00:00:00+00:00
+date: "2025-08-30T00:00:00+00:00"
 weight: 5
 draft: false
-<<<<<<< HEAD
-chapter: true
-=======
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 pre: "<b>5. </b>"
 ---
 
 <h2 style="margin: 20px 0 30px 0; font-size: 2.5rem; color: #131314ff; text-align: center;">AWS MLOps Retail Prediction Platform</h2>
 
-<<<<<<< HEAD
-<div style="display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0;">
-    <div style="background: #3b82f6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🏗️ Infrastructure</div>
-    <div style="background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🤖 ML Training</div>
-    <div style="background: #8b5cf6; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🚀 Deployment</div>
-    <div style="background: #ef4444; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">📊 Monitoring</div>
-    <div style="background: #06b6d4; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">🔄 CI/CD</div>
-    <div style="background: #f59e0b; color: white; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500;">💰 Cost Optimization</div>
-</div>
-
-<p style="text-align: center; font-style: italic; color: #64748b; font-size: 1.1rem; margin-bottom: 40px;">End-to-end MLOps pipeline cho Retail Prediction với Infrastructure as Code và Model Deployment</p>
-=======
 <p style="text-align: center; font-style: italic; color: #64748b; font-size: 1.1rem; margin-bottom: 40px;">End-to-end MLOps pipeline for Retail Prediction with Infrastructure as Code and Model Deployment</p>
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
 
 <!-- Authors Section -->
 <div class="authors-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 800px; margin: 40px auto; padding: 0 20px;">

@@ -6,7 +6,7 @@ chapter: false
 pre: "<b>7. </b>"
 ---
 
-<<<<<<< HEAD
+
 ## 🎯 Task 7 Objectives
 
 Deploy Amazon Elastic Kubernetes Service (EKS) as the foundation to run prediction API (FastAPI) in production environment:
@@ -156,10 +156,10 @@ kubectl get deployment -n kube-system ebs-csi-controller
 
 {{% notice info %}}
 **Info:** EKS control plane automatically runs across multiple AZs. To optimize costs, ensure worker nodes are balanced across AZs to avoid cross-AZ data transfer charges ($0.01/GB).
-=======
+
 {{% notice info %}}
 **🎯 Task 7 Goal:** Provision an Amazon EKS cluster in **ap-southeast-1** connected to the Production VPC, enable essential add-ons/logging, configure IRSA (OIDC) for AWS access from pods, and deploy a sample app that pulls from ECR.
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 {{% /notice %}}
 
 ## 0) Inputs from previous tasks
@@ -340,7 +340,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: mlops-retail-forecast
-<<<<<<< HEAD
+
   labels:
     name: mlops-retail-forecast
 ---
@@ -581,8 +581,8 @@ aws ec2 describe-vpc-endpoints \
 **Create file `k8s/retail-api-deployment.yaml`:**
 
 ```yaml
-=======
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -627,7 +627,7 @@ kubectl get pods -n mlops-retail-forecast
 kubectl get svc  -n mlops-retail-forecast
 ```
 
-<<<<<<< HEAD
+
 ### 5.3. Test IRSA S3 Access
 
 **Create test pod:**
@@ -764,14 +764,14 @@ metadata:
   name: amazon-cloudwatch
   labels:
     name: amazon-cloudwatch
-=======
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
 ---
 
 ## 7) Cleanup (recommended for cost control)
 
 ```bash
-<<<<<<< HEAD
+
 # Verify security groups
 aws ec2 describe-security-groups \
   --group-ids $(terraform output -raw eks_control_plane_security_group_id) \
@@ -911,15 +911,15 @@ echo "🧹 Starting EKS cluster cleanup..."
 
 # 1. Delete applications and namespace
 echo "Deleting Kubernetes resources..."
-=======
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
 kubectl delete namespace mlops-retail-forecast --ignore-not-found=true
 eksctl delete cluster --name mlops-retail-cluster --region ap-southeast-1
 ```
 
 ---
 
-<<<<<<< HEAD
+
 ## 10. EKS Pricing Table (ap-southeast-1)
 
 ### 10.1. EKS Control Plane Cost
@@ -1120,7 +1120,7 @@ EKS cluster foundation is ready for deployment:
 ---
 
 **Next Step**: [Task 08: Deploy Kubernetes](../8-deploy-kubernetes)
-=======
+
 ## 8) Rough cost notes
 
 - EKS control plane has a fixed hourly cost.
@@ -1135,4 +1135,4 @@ EKS cluster foundation is ready for deployment:
 - IRSA enabled (OIDC provider + service account role)
 - Sample workload deployed successfully
   {{% /notice %}}
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+

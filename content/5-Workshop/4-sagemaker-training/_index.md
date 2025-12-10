@@ -7,7 +7,7 @@ pre: "<b>4. </b>"
 
 ## Task 4 Objectives
 
-<<<<<<< HEAD
+
 Train a **BASKET_PRICE_SENSITIVITY** prediction model (Low/Medium/High) using Amazon SageMaker with automated ETL → Training → Model Registry pipeline.
 
 → **The heart of MLOps pipeline** - from raw data to production-ready model.
@@ -65,7 +65,7 @@ Warning: If your bucket uses SSE-KMS, the role needs decrypt/encrypt permissions
 {{% /notice %}}
 
 ## 2. Create SageMaker Domain and Project
-=======
+
 Train a model to predict **BASKET_PRICE_SENSITIVITY** (Low/Medium/High) using Amazon SageMaker with an automated pipeline: ETL → Training → Model Registry.
 
 → **The heart of the MLOps pipeline** — from raw data to a production-ready model.
@@ -128,12 +128,12 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 {{% /notice %}}
 
 ## 2. Create a SageMaker Domain and Project
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ### 2.1. Access SageMaker Unified Studio
 
 **AWS Console → SageMaker:**
-<<<<<<< HEAD
+
 1. Access URL: `https://[domain-id].studio.sagemaker.[region].amazonaws.com`
 2. Or from SageMaker Console → **Studio** → **Open Studio**
 3. Choose authentication method:
@@ -144,7 +144,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 
 4. After login, you'll see the **SageMaker Unified Studio** interface
 5. Dashboard displays:
-=======
+
 
 1. Open the URL: `https://[domain-id].studio.sagemaker.[region].amazonaws.com`
 2. Or from SageMaker Console → **Studio** → **Open Studio**
@@ -156,32 +156,32 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 
 4. After sign-in, you will see the **SageMaker Unified Studio** interface
 5. The dashboard shows:
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
    - **"Good morning"** greeting
    - **Search bar**: "Search for data products, assets, and projects"
    - **Discover section**: Catalog, Generative AI playground, Shared generative AI assets
    - **Build section**: ML and generative AI model development, Generative AI app development
    - **Browse all projects** and **Create project** buttons
 
-<<<<<<< HEAD
+
 ![SageMaker Unified Studio Dashboard](/images4-sagemake-training/04.2-domain.png)
 
 {{% notice info %}}
 **💡 SageMaker Unified Studio:**
-=======
+
 ![SageMaker Unified Studio Dashboard](/images/4-sagemake-training/04.2-domain.png)
 
 {{% notice info %}}
 **💡 SageMaker Unified Studio:**
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 - **Unified interface** for data analytics, ML, and generative AI
 - **Project-based workspace** with shared resources
 - **Built-in collaboration** with team members and approval workflows
 - **Integrated tools**: Notebooks, Visual ETL, Workflows, Chat agents
   {{% /notice %}}
 
-<<<<<<< HEAD
+
 ### 2.2. Create Project in Unified Studio
 
 **In SageMaker Unified Studio dashboard:**
@@ -201,7 +201,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 
 **Step 2.5: Choose Project Profile (Step 2)**
 1. **Project profile**: Choose **"All capabilities"** (highlighted in blue)
-=======
+
 ### 2.2. Create a Project in Unified Studio
 
 **From the SageMaker Unified Studio dashboard:**
@@ -224,28 +224,28 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 **Step 2.5: Choose a Project Profile (Step 2)**
 
 1. **Project profile**: Select **"All capabilities"** (highlighted in blue)
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
    - **Description**: "Analyze data and build machine learning and generative AI models and applications powered by Amazon Bedrock, Amazon EMR, AWS Glue, Amazon Athena, Amazon SageMaker AI and Amazon SageMaker Lakehouse"
    - **Tooling**: LakeHouse Database, Workflows
    - **+ 12 more** capabilities
 2. Other options: **Generative AI application development**, **SQL analytics**
 
-<<<<<<< HEAD
+
 ![Project Profile Selection](/images4-sagemake-training/05.4.png)
 
 **Step 3: Blueprint Parameters**
-=======
+
 ![Project Profile Selection](/images/4-sagemake-training/05.4.png)
 
 **Step 3: Blueprint Parameters**
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 - **S3 location**: `s3://amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]`
 - **Retention**: 731 days
 - **Enable Project Repository Auto Sync**: false
 - **Lakehouse Database**: `glue_db`
 
-<<<<<<< HEAD
+
 ![Blueprint Parameters](/images4-sagemake-training/05.5.png)
 
 **Step 4: Create Project**
@@ -263,7 +263,7 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 1. Project will appear in the list with status **"Created"**
 2. Click on project name `retail-ml-training` to enter **Project overview**
 3. Project overview displays:
-=======
+
 ![Blueprint Parameters](/images/4-sagemake-training/05.5.png)
 
 **Step 4: Create Project**
@@ -283,14 +283,14 @@ Warning: If your bucket uses SSE-KMS, the role must have decrypt/encrypt permiss
 1. The project appears in the list with status **"Created"**
 2. Click the project name `retail-ml-training` to open **Project overview**
 3. The overview shows:
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
    - **Project title**: `retail-ml-training`
    - **Description**: "Retail price sensitivity model training"
    - **Project files (6)**: `.ipynb_checkpoints`, `workflows`, `.libs.json`, `.temp_sagemaker_unified_studio_debugging_info`, `README.md`, `getting_started.ipynb`
    - **S3 path**: `/dzd-5kultpj28sm31d/cu2gr2js1w1wv` (project workspace path)
    - **Actions** and **New** dropdown buttons
      - **Project overview** (active)
-<<<<<<< HEAD
+
      - **Assets**, **Subscription requests**, **Data sources**, **Metadata entities**
 
 **Step 2: Create Notebook**
@@ -314,7 +314,7 @@ In the project overview, you'll also see a **Readme** section displaying **"Welc
 
 ```powershell
 # Check inline policy already added from Task 2
-=======
+
      - **Data** — data assets and connections
      - **Compute** — compute resources and environments
      - **Members** — team collaboration
@@ -343,23 +343,23 @@ In the project overview, the **Readme** section shows **"Welcome"** with quick-s
 
 ```powershell
 # Verify the inline policy added in Task 2
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 aws iam get-role-policy --role-name mlops-retail-prediction-dev-sagemaker-execution --policy-name SageMakerEC2Access
 
 # Test EC2 describe permissions
 aws ec2 describe-vpcs --region us-east-1
 ```
 
-<<<<<<< HEAD
+
 **Role already has all 4 policies from Task 2:**
-=======
+
 **The role should have 4 policies (from Task 2):**
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 - ✅ `AmazonSageMakerFullAccess` (AWS managed)
 - ✅ `AmazonS3FullAccess` (AWS managed)
 - ✅ `CloudWatchLogsFullAccess` (AWS managed)
-<<<<<<< HEAD
+
 - ✅ `SageMakerEC2Access` (inline policy for Project creation)
 
 {{% notice success %}}
@@ -392,7 +392,7 @@ aws s3 sync s3://mlops-retail-prediction-dev-842676018087/gold/ s3://mlops-retai
 aws s3 sync s3://mlops-retail-prediction-dev-842676018087/artifacts/ s3://mlops-retail-prediction-dev-842676018087-apse1/artifacts/ --acl bucket-owner-full-control --exact-timestamps
 
 # (Optional) Create KMS key in ap-southeast-1 and update bucket policy / IAM role
-=======
+
 - ✅ `SageMakerEC2Access` (inline policy for project creation)
 
 {{% notice success %}}
@@ -426,12 +426,12 @@ aws s3 sync s3://mlops-retail-prediction-dev-842676018087/gold/ s3://mlops-retai
 aws s3 sync s3://mlops-retail-prediction-dev-842676018087/artifacts/ s3://mlops-retail-prediction-dev-842676018087-apse1/artifacts/ --acl bucket-owner-full-control --exact-timestamps
 
 # (Optional) Create a KMS key in ap-southeast-1 and update bucket policy / IAM role
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 # aws kms create-key --region ap-southeast-1 --description "KMS for mlops retail ap-southeast-1"
 ```
 
 Notes:
-<<<<<<< HEAD
+
 - If the source bucket uses SSE-KMS, ensure you create corresponding KMS key in the destination region and update both bucket policy and role `mlops-retail-prediction-dev-sagemaker-execution`.
 - If you want quick resolution with minimal IAM changes, choose to create Project/Domain in `us-east-1` (where the bucket currently exists) — this is the recommended approach for labs and fast training runs.
 
@@ -463,7 +463,7 @@ Notes:
 Create and run the following cells in order:
 
 **Cell 1: Install dependencies**
-=======
+
 
 - If the source bucket uses SSE-KMS, make sure you create a corresponding KMS key in the destination region and update both bucket policies and the role `mlops-retail-prediction-dev-sagemaker-execution`.
 - For faster labs and fewer IAM changes, creating the Project/Domain in `us-east-1` (where the bucket already exists) is typically the safest option.
@@ -499,17 +499,17 @@ Create and run the following cells in order:
 
 **Cell 1: Install dependencies**
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 ```bash
 # Install all required packages
 pip install pandas pyarrow s3fs scikit-learn xgboost sagemaker boto3 joblib
 ```
 
 **Cell 2: Setup configuration**
-<<<<<<< HEAD
-=======
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
+
 ```python
 import boto3
 import pandas as pd
@@ -519,11 +519,11 @@ import json
 from datetime import datetime
 
 # Configuration - update bucket name for your project
-<<<<<<< HEAD
+
 # If using project S3: amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]
-=======
+
 # If using the project S3 bucket: amazon-sagemaker-[account-id]-ap-southeast-1-[random-id]
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 # Or bucket from Task 3: mlops-retail-prediction-dev-[account-id]
 bucket_name = 'amazon-sagemaker-842676018087-ap-southeast-1-f6cd5056a835'  # <-- UPDATE for your project
 raw_prefix = 'silver/'
@@ -535,10 +535,10 @@ print(f'✅ AWS clients initialized. Bucket: {bucket_name}')
 ```
 
 **Cell 3: Load data from all partitions**
-<<<<<<< HEAD
-=======
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
+
 ```python
 print(f'📊 Loading all partitioned data from s3://{bucket_name}/{raw_prefix}...')
 
@@ -571,10 +571,10 @@ print(f'📋 Columns: {list(combined_data.columns)}')
 ```
 
 **Cell 4: Create features and target variable**
-<<<<<<< HEAD
-=======
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
+
 ```python
 print("📌 STEP 1 — Columns in combined_data:")
 print(list(combined_data.columns))
@@ -645,10 +645,10 @@ print(features.head())
 ```
 
 **Cell 5: Create train/test/validation splits and save to S3**
-<<<<<<< HEAD
-=======
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
+
 ```python
 print('📋 Creating train/test/validation splits...')
 
@@ -688,7 +688,7 @@ if 'Contents' in response:
         print(f'  📄 {obj["Key"]}: {size_mb:.2f} MB')
 ```
 
-<<<<<<< HEAD
+
 ## 4. Training - Model Training
 
 **🎯 Objective:** Train Random Forest model to classify customer price sensitivity
@@ -708,7 +708,7 @@ if 'Contents' in response:
 **💡 Note:** Notebook will be saved in Project repository and can be committed to CodeCommit.
 
 #### **Step 2: Execute Model Training**
-=======
+
 ## 4. Training — Train the model
 
 **🎯 Objective:** Train a Random Forest model to classify customer price sensitivity
@@ -728,7 +728,7 @@ if 'Contents' in response:
 **💡 Note:** The notebook will be saved in the Project repository and can be committed to CodeCommit.
 
 #### Step 2: Implement model training
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 Create and run the following cells in order:
 
@@ -754,11 +754,11 @@ print(f'📊 Training Data: s3://{bucket_name}/{gold_prefix}')
 print(f'📦 Model Artifacts: s3://{bucket_name}/{artifacts_prefix}')
 ```
 
-<<<<<<< HEAD
+
 **Cell 2: Create Training Script**
-=======
+
 **Cell 2: Create the training script**
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ```python
 %%writefile train_retail_model.py
@@ -771,11 +771,11 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, classification_report
 
 def main():
-<<<<<<< HEAD
+
     # Standard SageMaker paths
-=======
+
     # SageMaker standard paths
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
     train_dir = os.environ.get("SM_CHANNEL_TRAIN", "/opt/ml/input/data/train")
     model_dir = os.environ.get("SM_MODEL_DIR", "/opt/ml/model")
 
@@ -786,11 +786,11 @@ def main():
 
     print(f"📊 Dataset shape: {df.shape}")
     print(f"📋 Columns: {list(df.columns)}")
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+    
+
+
+
     # 2. Prepare features & target
     target_col = "price_sensitivity" if "price_sensitivity" in df.columns else df.columns[-1]
     feature_cols = [c for c in df.columns if c not in [target_col, "basket_id"]]
@@ -826,7 +826,7 @@ def main():
     f1 = f1_score(y_val, y_pred, average="macro")
     precision = precision_score(y_val, y_pred, average="macro")
     recall = recall_score(y_val, y_pred, average="macro")
-<<<<<<< HEAD
+
     
     # Classification report
     class_report = classification_report(y_val, y_pred, output_dict=True)
@@ -864,7 +864,7 @@ def main():
     target_f1 = 0.70
     
     print(f'\n🎯 Performance validation:')
-=======
+
 
     print(f"\n📊 Model Performance:")
     print(f"  ✅ Accuracy:  {accuracy:.4f}")
@@ -906,7 +906,7 @@ def main():
     target_f1 = 0.70
 
     print(f'\n🎯 Performance Validation:')
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
     print(f'  📊 Accuracy ≥ {target_accuracy}: {"✅" if accuracy >= target_accuracy else "❌"} ({accuracy:.3f})')
     print(f'  📊 F1-Score ≥ {target_f1}: {"✅" if f1 >= target_f1 else "❌"} ({f1:.3f})')
 
@@ -932,7 +932,7 @@ print(f"📍 SageMaker region: {current_region}")
 # Check cross-region issue
 if bucket_region != current_region:
     print(f"⚠️ Region mismatch detected!")
-<<<<<<< HEAD
+
     print(f"  Bucket '{bucket_name}' is in {bucket_region}")
     print(f"  SageMaker session is in {current_region}")
     print(f"  This may cause S3 access errors during training")
@@ -943,12 +943,12 @@ if bucket_region != current_region:
     
     import warnings
     warnings.warn(f"Cross-region S3 access: {bucket_region} -> {current_region}")
-=======
+
     print(f"   Bucket: {bucket_name} in {bucket_region}")
     print(f"   SageMaker: {current_region}")
     print(f"   This may cause S3 301 redirect errors during training")
     print(f"   Consider using a project bucket in the same region or configure cross-region access")
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 else:
     print(f"✅ Same region - no cross-region issues")
 
@@ -963,7 +963,7 @@ if not data_files:
 print(f"✅ Found {len(data_files)} training files in {train_s3_uri}")
 
 # Configure estimator
-<<<<<<< HEAD
+
 estimator = SKLearn(
     entry_point="train_retail_model.py",
     instance_type="ml.m5.large",
@@ -995,8 +995,8 @@ except Exception as e:
     raise
 
 # Configure estimator for Unified Studio project
-=======
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
+
 estimator = SKLearn(
     entry_point='train_retail_model.py',
     instance_type='ml.m5.large',
@@ -1014,7 +1014,7 @@ print(f'📊 Training data location: {train_s3_uri}')
 try:
     print('⏳ Starting training job (this will take 5–10 minutes)...')
     estimator.fit({'train': train_s3_uri}, wait=True)
-<<<<<<< HEAD
+
     
     job_name = estimator.latest_training_job.name
     model_artifacts = estimator.model_data
@@ -1032,7 +1032,7 @@ except Exception as e:
 ```
 
 **Cell 4: Download & Read Training Results**
-=======
+
 
     # Get job results
     job_name = estimator.latest_training_job.name
@@ -1052,7 +1052,7 @@ except Exception as e:
 ```
 
 **Cell 4: Download and read training results**
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ```python
 import os
@@ -1062,37 +1062,37 @@ import boto3
 
 print("📊 Analyzing training results...")
 
-<<<<<<< HEAD
+
 # model_artifacts from Cell 3 (estimator.model_data)
 print("📦 Artifact path:", model_artifacts)
 
 # Extract bucket + key
-=======
+
 # model_artifacts comes from Cell 3 (estimator.model_data)
 print("📦 Artifact path:", model_artifacts)
 
 # Split bucket + key
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 art_parts = model_artifacts.replace("s3://", "").split("/", 1)
 art_bucket = art_parts[0]
 art_key = art_parts[1]
 
 s3 = boto3.client("s3")
 
-<<<<<<< HEAD
+
 # Download model.tar.gz locally
-=======
+
 # Download model.tar.gz
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 local_tar = "model.tar.gz"
 s3.download_file(art_bucket, art_key, local_tar)
 print("📥 Downloaded", local_tar)
 
-<<<<<<< HEAD
+
 # Extract to model_artifacts/ directory
-=======
+
 # Extract to model_artifacts/
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 extract_dir = "model_artifacts"
 os.makedirs(extract_dir, exist_ok=True)
 
@@ -1132,24 +1132,24 @@ print(f"  📊 Accuracy ≥ {acc_target}: {'✅' if results['accuracy'] >= acc_t
 print(f"  📊 F1-score ≥ {f1_target}: {'✅' if results['f1_score'] >= f1_target else '❌'} ({results['f1_score']:.3f})")
 ```
 
-<<<<<<< HEAD
+
 **Results**
 ![Training results](/images4-sagemake-training/00.png)
 
 {{% notice success %}}
 ✅ **Training Complete!** Model achieves target performance and is ready for Model Registry.
-=======
+
 **Result**
 ![Training result](/images/4-sagemake-training/00.png)
 
 {{% notice success %}}
 ✅ **Training complete!** The model meets target performance and is ready for the Model Registry.
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 {{% /notice %}}
 
 ## 5. Monitoring & Results
 
-<<<<<<< HEAD
+
 ### 5.1. Monitor Training Job in Studio
 
 In **SageMaker Studio (Unified Studio)**:
@@ -1195,7 +1195,7 @@ In the new SageMaker Unified Studio interface, Model Registry is located **withi
 ![Model registry](/images4-sagemake-training/09.2.png)
 
 ### 6.2. Create Model Group
-=======
+
 ### 5.1. Monitor the Training Job in Studio
 
 In **SageMaker Studio (Unified Studio)**:
@@ -1238,7 +1238,7 @@ In the new SageMaker Unified Studio, Model Registry lives **inside each Project*
 ![Model registry](/images/4-sagemake-training/09.2.png)
 
 ### 6.2. Create a Model Group
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 1. Click **Register model group**
 2. Fill in:
@@ -1246,7 +1246,7 @@ In the new SageMaker Unified Studio, Model Registry lives **inside each Project*
    - **Description**: `Model group for retail price sensitivity prediction`
 3. Click **Register model group**
 
-<<<<<<< HEAD
+
 ![Model registry](/images4-sagemake-training/09.3.png)
 
 Model Group will appear in the list.
@@ -1280,7 +1280,7 @@ A new *Model Version* will be created.
 ![Model registry](/images4-sagemake-training/09.9.png)
 
 ![Model registry](/images4-sagemake-training/09.10.png)
-=======
+
 ![Model registry](/images/4-sagemake-training/09.3.png)
 
 The Model Group will appear in the list.
@@ -1318,7 +1318,7 @@ A new _Model Version_ will be created.
 ![Model registry](/images/4-sagemake-training/09.9.png)
 
 ![Model registry](/images/4-sagemake-training/09.10.png)
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ---
 
@@ -1327,7 +1327,7 @@ A new _Model Version_ will be created.
 1. Open **Model group → retail-price-sensitivity-models**
 2. Select **Version 1**
 3. Click **Update status**
-<<<<<<< HEAD
+
 4. Set to:
    - **Approved**
 5. Save
@@ -1347,7 +1347,7 @@ A new _Model Version_ will be created.
 - ✅ **Single model focus** to optimize performance  
 - ✅ **Spot instances** - Cost optimization with auto-scaling
 - ✅ **Complete notebook** - 4 cells with detailed logging
-=======
+
 4. Set:
    - **Approved**
 5. Save
@@ -1368,7 +1368,7 @@ A new _Model Version_ will be created.
 - ✅ **Single-model focus** to optimize performance
 - ✅ **Spot instances** — Cost optimization with auto-scaling (optional)
 - ✅ **Complete notebook** — step-by-step cells with detailed logging
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ## 7. Clean Up Resources (AWS CLI)
 
@@ -1378,7 +1378,7 @@ A new _Model Version_ will be created.
 # List training jobs
 aws sagemaker list-training-jobs --name-contains "retail-prediction-training" --query 'TrainingJobSummaries[*].[TrainingJobName,TrainingJobStatus]' --output table
 
-<<<<<<< HEAD
+
 # Stop running training job (if any)
 aws sagemaker stop-training-job --training-job-name <job-name>
 
@@ -1386,7 +1386,7 @@ aws sagemaker stop-training-job --training-job-name <job-name>
 ```
 
 ### 7.2. Delete Model Registry
-=======
+
 # Stop a running training job (if any)
 aws sagemaker stop-training-job --training-job-name <job-name>
 
@@ -1394,7 +1394,7 @@ aws sagemaker stop-training-job --training-job-name <job-name>
 ```
 
 ### 7.2. Delete Model Registry artifacts
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ```bash
 # List model packages
@@ -1403,11 +1403,11 @@ aws sagemaker list-model-packages --model-package-group-name retail-price-sensit
 # Delete each model package version
 aws sagemaker delete-model-package --model-package-name <model-package-arn>
 
-<<<<<<< HEAD
+
 # Delete model package group
-=======
+
 # Delete the model package group
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 aws sagemaker delete-model-package-group --model-package-group-name retail-price-sensitivity-models
 ```
 
@@ -1417,21 +1417,21 @@ aws sagemaker delete-model-package-group --model-package-group-name retail-price
 # List domains
 aws sagemaker list-domains --query 'Domains[*].[DomainId,DomainName,Status]' --output table
 
-<<<<<<< HEAD
+
 # Delete user profiles first
-=======
+
 # List user profiles first
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 aws sagemaker list-user-profiles --domain-id <domain-id> --query 'UserProfiles[*].UserProfileName' --output text
 
 # Delete each user profile
 aws sagemaker delete-user-profile --domain-id <domain-id> --user-profile-name <user-profile-name>
 
-<<<<<<< HEAD
+
 # Delete domain (after deleting all user profiles)
-=======
+
 # Delete domain (after all user profiles are deleted)
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 aws sagemaker delete-domain --domain-id <domain-id>
 ```
 
@@ -1444,11 +1444,11 @@ aws s3 rm s3://amazon-sagemaker-<account-id>-<region>-<random-id>/artifacts/ --r
 # Delete gold datasets
 aws s3 rm s3://amazon-sagemaker-<account-id>-<region>-<random-id>/gold/ --recursive
 
-<<<<<<< HEAD
+
 # Check what's left in project bucket
-=======
+
 # Verify remaining objects in the project bucket
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 aws s3 ls s3://amazon-sagemaker-<account-id>-<region>-<random-id>/ --recursive
 ```
 
@@ -1464,7 +1464,7 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 
 ---
 
-<<<<<<< HEAD
+
 ## 8. SageMaker Pricing Table
 
 ### 8.1. Training Instance Costs
@@ -1498,7 +1498,7 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 ### 8.4. Task 4 Cost Estimate
 
 **Actual Training Job:**
-=======
+
 ## 8. SageMaker Pricing
 
 ### 8.1. Training instance costs
@@ -1533,7 +1533,7 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 
 **Training job (example):**
 
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 - Instance: ml.m5.xlarge
 - Duration: ~10–15 minutes
 - **Training cost:** $0.276 × 0.25h = **$0.07**
@@ -1550,11 +1550,11 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 - S3 storage: ~$0.001
 - Model Registry: Free
 
-<<<<<<< HEAD
+
 **Total Task 4 Cost:**
-=======
+
 **Total cost for Task 4:**
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 | Component               | Duration | Cost        |
 | ----------------------- | -------- | ----------- |
@@ -1563,11 +1563,11 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 | S3 Storage              | Monthly  | $0.001      |
 | **Total**               |          | **≈ $0.19** |
 
-<<<<<<< HEAD
+
 **Comparison with other options:**
-=======
+
 **Comparison of options:**
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 | Approach                   | Instance     | Duration | Cost       | Performance          |
 | -------------------------- | ------------ | -------- | ---------- | -------------------- |
@@ -1578,26 +1578,26 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 
 {{% notice info %}}
 **💰 Cost Optimization Tips:**
-<<<<<<< HEAD
+
 - **Spot instances:** 60-70% cheaper for non-critical training
 - **Smaller instances:** OK for datasets < 1GB  
 - **Studio auto-shutdown:** Auto-stop notebooks after 1h idle
 - **Batch jobs:** Instead of real-time endpoints for inference
 {{% /notice %}}
-=======
+
 
 - **Spot instances:** 60–70% cheaper for non-critical training
 - **Smaller instances:** OK for datasets < 1GB
 - **Studio auto-shutdown:** Automatically stop notebooks after 1h idle
 - **Batch jobs:** Use batch transform instead of real-time endpoints for inference when possible
   {{% /notice %}}
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 ---
 
 {{% notice info %}}
 **📊 SageMaker Unified Studio Benefits:**
-<<<<<<< HEAD
+
 - **Integrated Workspace**: Project-based collaboration with shared resources
 - **Managed Infrastructure**: Auto-provisioned compute for notebooks and training
 - **Cross-Region Support**: Built-in handling of S3 cross-region access
@@ -1608,7 +1608,7 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
 {{% /notice %}}
 
 ## 📹 Task 4 Implementation Video
-=======
+
 
 - **Integrated Workspace**: Project-based collaboration with shared resources
 - **Managed Infrastructure**: Auto-provisioned compute for notebooks and training
@@ -1620,7 +1620,7 @@ aws logs delete-log-group --log-group-name "/aws/sagemaker/TrainingJobs/retail-p
   {{% /notice %}}
 
 ## 📹 Task 4 Demo Video
->>>>>>> e2332b6d9a96695941b1fb2baeb1eb38bfa46e48
+
 
 <div style="position: relative; width: 100%; max-width: 2000px; margin: 0 auto; padding-bottom: 56.25%; height: 0; overflow: hidden;">
   <iframe 
